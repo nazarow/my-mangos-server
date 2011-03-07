@@ -388,6 +388,8 @@ enum UnitState
     UNIT_STAT_FOLLOW_MOVE     = 0x00010000,
     UNIT_STAT_FLEEING         = 0x00020000,                     // FleeMovementGenerator/TimedFleeingMovementGenerator active/onstack
     UNIT_STAT_FLEEING_MOVE    = 0x00040000,
+    UNIT_STAT_POSSESSED       = 0x00080000,
+    UNIT_STAT_CASTING         = 0x00100000,
 
     // masks (only for check)
 
@@ -418,6 +420,8 @@ enum UnitState
     // for real move using movegen check and stop (except unstoppable flight)
     UNIT_STAT_MOVING          = UNIT_STAT_ROAMING_MOVE | UNIT_STAT_CHASE_MOVE | UNIT_STAT_FOLLOW_MOVE | UNIT_STAT_FLEEING_MOVE,
 
+    UNIT_STAT_SIGHTLESS       = (UNIT_STAT_NO_FREE_MOVE),
+    UNIT_STAT_CANNOT_AUTOATTACK     = (UNIT_STAT_NO_FREE_MOVE | UNIT_STAT_CASTING),
     UNIT_STAT_ALL_STATE       = 0xFFFFFFFF
 };
 
@@ -566,7 +570,22 @@ enum NPCFlags
     UNIT_NPC_FLAG_STABLEMASTER          = 0x00400000,       // 100%
     UNIT_NPC_FLAG_GUILD_BANKER          = 0x00800000,       // cause client to send 997 opcode
     UNIT_NPC_FLAG_SPELLCLICK            = 0x01000000,       // cause client to send 1015 opcode (spell click), dynamic, set at loading and don't must be set in DB
-    UNIT_NPC_FLAG_GUARD                 = 0x10000000        // custom flag for guards
+    UNIT_NPC_FLAG_GUARD                 = 0x10000000,       // custom flag for guards
+    UNIT_NPC_FLAG_OUTDOORPVP            = 0x20000000,       // custom flag for outdoor pvp creatures
+};
+
+// used in SMSG_MONSTER_MOVE
+// only some values known as correct for 2.4.3
+enum MonsterMovementFlags
+{
+    MONSTER_MOVE_NONE           = 0x00000000,
+    MONSTER_MOVE_WALK           = 0x00000100,
+    MONSTER_MOVE_LEVITATING     = 0x00000400,
+    MONSTER_MOVE_FLY            = 0x02000000,               // swimming/flying (depends on mob?)
+    MONSTER_MOVE_SPLINE         = 0x00002000,               // spline n*(float x,y,z)
+
+    // masks
+    MONSTER_MOVE_SPLINE_FLY     = 0x00000300,               // fly by points
 };
 
 // used in most movement packets (send and received)
@@ -586,6 +605,7 @@ enum MovementFlags
     MOVEFLAG_LEVITATING         = 0x00000400,
     MOVEFLAG_ROOT               = 0x00000800,
     MOVEFLAG_FALLING            = 0x00001000,
+    MOVEFLAG_UNK4               = 0x00002000,
     MOVEFLAG_FALLINGFAR         = 0x00004000,
     MOVEFLAG_SWIMMING           = 0x00200000,               // appears with fly flag also
     MOVEFLAG_ASCENDING          = 0x00400000,               // swim up also
@@ -1110,6 +1130,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
             return !hasUnitState(UNIT_STAT_NO_FREE_MOVE) && GetOwnerGuid().IsEmpty();
         }
 
+        bool IsCastingSpell() const;
         uint32 getLevel() const { return GetUInt32Value(UNIT_FIELD_LEVEL); }
         virtual uint32 GetLevelForTarget(Unit const* /*target*/) const { return getLevel(); }
         void SetLevel(uint32 lvl);
@@ -1204,6 +1225,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void AttackerStateUpdate (Unit *pVictim, WeaponAttackType attType = BASE_ATTACK, bool extra = false );
 
         float MeleeMissChanceCalc(const Unit *pVictim, WeaponAttackType attType) const;
+
         void CalculateMeleeDamage(Unit *pVictim, uint32 damage, CalcDamageInfo *damageInfo, WeaponAttackType attackType = BASE_ATTACK);
         void DealMeleeDamage(CalcDamageInfo *damageInfo, bool durabilityLoss);
 
@@ -1383,6 +1405,9 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         void SetPet(Pet* pet);
         void SetCharm(Unit* pet);
+        void SetCharmedOrPossessedBy(Unit* charmer, bool possess);
+        void RemoveCharmedOrPossessedBy(Unit* charmer);
+        void RestoreFaction();
 
         void AddGuardian(Pet* pet);
         void RemoveGuardian(Pet* pet);
@@ -1393,6 +1418,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         CharmInfo* GetCharmInfo() { return m_charmInfo; }
         CharmInfo* InitCharmInfo(Unit* charm);
+        void       DeleteCharmInfo();
 
         uint64 const& GetTotemGUID(TotemSlot slot) const { return m_TotemSlot[slot]; }
         Totem* GetTotem(TotemSlot slot) const;
@@ -1633,6 +1659,11 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void RemoveGameObject(uint32 spellid, bool del);
         void RemoveAllGameObjects();
 
+        Creature* GetCreature(uint32 spellId) const;
+        void AddCreature(Creature* creature);
+        void RemoveCreature(uint32 spellid);
+        void RemoveAllCreatures();
+
         uint32 CalculateDamage(WeaponAttackType attType, bool normalized);
         float GetAPMultiplier(WeaponAttackType attType, bool normalized);
         void ModifyAuraState(AuraState flag, bool apply);
@@ -1692,6 +1723,9 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         int32 CalculateSpellDamage(Unit const* target, SpellEntry const* spellProto, SpellEffectIndex effect_index, int32 const* basePoints = NULL);
         int32 CalculateSpellDuration(SpellEntry const* spellProto, SpellEffectIndex effect_index, Unit const* target);
         float CalculateLevelPenalty(SpellEntry const* spellProto) const;
+		bool PlayersWin() const { return (GetPlayersDamage()>0); }
+		int32 GetPlayersDamage() const { return m_playersDamage; }
+		void SetPlayersDamage(int32 v) { m_playersDamage = v; }
 
         void addFollower(FollowerReference* pRef) { m_FollowingRefManager.insertFirst(pRef); }
         void removeFollower(FollowerReference* /*pRef*/ ) { /* nothing to do yet */ }
@@ -1732,6 +1766,12 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void AddPetAura(PetAura const* petSpell);
         void RemovePetAura(PetAura const* petSpell);
 
+		// kia used flag for some spells
+		bool isUsed() const { return m_used; }
+		void SetUsed(bool val) { m_used = val; }
+
+		void ShowMovementInfo(const uint32 pl, MovementInfo const& movementInfo, const char *opcode);
+
     protected:
         explicit Unit ();
 
@@ -1763,6 +1803,9 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         bool m_isSorted;
         uint32 m_transform;
 
+        typedef std::list<Creature*> CreatureList;
+        CreatureList m_creatures;
+
         AuraList m_modAuras[TOTAL_AURAS];
         float m_auraModifiersGroup[UNIT_MOD_END][MODIFIER_TYPE_END];
         float m_weaponDamage[MAX_ATTACK][2];
@@ -1779,6 +1822,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         uint32 m_reactiveTimer[MAX_REACTIVE];
         uint32 m_regenTimer;
+		int32 m_playersDamage;
         uint32 m_lastManaUseTimer;
 
     private:
@@ -1815,6 +1859,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         GuardianPetList m_guardianPets;
 
         uint64 m_TotemSlot[MAX_TOTEM_SLOT];
+
+		bool m_used;
 
     private:                                                // Error traps for some wrong args using
         // this will catch and prevent build for any cases when all optional args skipped and instead triggered used non boolean type

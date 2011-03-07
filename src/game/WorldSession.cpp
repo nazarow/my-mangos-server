@@ -33,13 +33,16 @@
 #include "Guild.h"
 #include "World.h"
 #include "BattleGroundMgr.h"
+#include "OutdoorPvPMgr.h"
+#include "Language.h"                                       // for CMSG_DISMOUNT handler
+#include "Chat.h"
 #include "MapManager.h"
 #include "SocialMgr.h"
 
 /// WorldSession constructor
-WorldSession::WorldSession(uint32 id, WorldSocket *sock, AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale) :
+WorldSession::WorldSession(uint32 id, WorldSocket *sock, AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale, uint32 nwflags) :
 LookingForGroup_auto_join(false), LookingForGroup_auto_add(false), m_muteTime(mute_time),
-_player(NULL), m_Socket(sock),_security(sec), _accountId(id), m_expansion(expansion),
+_player(NULL), m_Socket(sock),_security(sec), _accountId(id), m_expansion(expansion),m_nwflags(nwflags),m_kickTime(300000),
 m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)), m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)),
 _logoutTime(0), m_inQueue(false), m_playerLoading(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false),
 m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED)
@@ -48,6 +51,7 @@ m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED)
     {
         m_Address = sock->GetRemoteAddress ();
         sock->AddReference ();
+        CharacterDatabase.PExecute("UPDATE characters SET online = 0 WHERE account = %u AND online <> 0;", GetAccountId()); // really need this?
     }
 }
 
@@ -70,6 +74,8 @@ WorldSession::~WorldSession()
     WorldPacket* packet;
     while(_recvQueue.next(packet))
         delete packet;
+
+    CharacterDatabase.PExecute("UPDATE characters SET online = 0 WHERE account = %u;", GetAccountId());
 }
 
 void WorldSession::SizeError(WorldPacket const& packet, uint32 size) const
@@ -155,13 +161,30 @@ void WorldSession::LogUnprocessedTail(WorldPacket *packet)
 }
 
 /// Update the WorldSession (triggered by World update)
-bool WorldSession::Update(uint32 /*diff*/)
+bool WorldSession::Update(uint32 diff)
 {
-    ///- Retrieve packets from the receive queue and call the appropriate handlers
+	if (GetPlayer() && GetPlayer()->IsInWorld())
+		m_kickTime = 300000;
+	else 
+	{
+		if (m_kickTime <= diff)
+			KickPlayer();
+		else m_kickTime -= diff;
+	}
+
+	///- Retrieve packets from the receive queue and call the appropriate handlers
     /// not proccess packets if socket already closed
     WorldPacket* packet;
     while (m_Socket && !m_Socket->IsClosed() && _recvQueue.next(packet))
     {
+		SYSTEMTIME systemTimeh,systemTimee; //kia
+		GetSystemTime(&systemTimeh);
+		sLog.outCmd("[S]0x%.4X %u",packet->GetOpcode(),GetAccountId());
+		if (GetPlayer() && sWorld.TargetGuid==GetPlayer()->GetGUIDLow())
+		{
+			sLog.outBasic("[S]0x%.4X %s",packet->GetOpcode(),LookupOpcodeName(packet->GetOpcode()));
+		}
+
         /*#if 1
         sLog.outError( "MOEP: %s (0x%.4X)",
                         LookupOpcodeName(packet->GetOpcode()),
@@ -180,8 +203,10 @@ bool WorldSession::Update(uint32 /*diff*/)
                         if(!m_playerRecentlyLogout)
                             LogUnexpectedOpcode(packet, "the player has not logged in yet");
                     }
-                    else if(_player->IsInWorld())
-                        ExecuteOpcode(opHandle, packet);
+                    else //if (_player->IsInWorld())  //kia ??? for anticheat
+                             ExecuteOpcode(opHandle, packet);
+					     //else
+						 //	 LogUnexpectedOpcode(packet, "the player has not in world");
 
                     // lag can cause STATUS_LOGGEDIN opcodes to arrive after the player started a transfer
                     break;
@@ -252,7 +277,19 @@ bool WorldSession::Update(uint32 /*diff*/)
                 KickPlayer();
             }
         }
-
+	    GetSystemTime(&systemTimee);//kia
+		uint32 tt1,tt2;
+		tt2=systemTimee.wSecond*1000+systemTimee.wMilliseconds;
+		tt1=systemTimeh.wSecond*1000+systemTimeh.wMilliseconds;
+		if (tt2!=tt1) 
+		    sLog.outCmd("[E]%u",(tt2>=tt1)?(tt2-tt1):(60000+tt2-tt1));
+		else sLog.outCmd("[E]");//kia
+		if (tt2-tt1>1000)
+		{
+ 		    sLog.outMy("WorldSession::Update wery long time (opcode: %u) from client %s, accountid=%i.",
+              packet->GetOpcode(), GetRemoteAddress().c_str(), GetAccountId());
+			packet->hexlikemy();
+		}
         delete packet;
     }
 
@@ -348,6 +385,10 @@ void WorldSession::LogoutPlayer(bool Save)
         if(BattleGround *bg = _player->GetBattleGround())
             bg->EventPlayerLoggedOut(_player);
 
+        // Delete player from outdoorPVP
+		if (_player && _player->IsInWorld())
+			sOutdoorPvPMgr.HandlePlayerLeaveZone(_player,_player->GetZoneId());
+
         ///- Teleport to home if the player is in an invalid instance
         if(!_player->m_InstanceValid && !_player->isGameMaster())
         {
@@ -360,6 +401,8 @@ void WorldSession::LogoutPlayer(bool Save)
         // this should fix players beeing able to logout and login back with full hp at death position
         while(_player->IsBeingTeleportedFar())
             HandleMoveWorldportAckOpcode();
+
+        sOutdoorPvPMgr.HandlePlayerLeaveZone(_player,_player->GetZoneId());
 
         for (int i=0; i < PLAYER_MAX_BATTLEGROUND_QUEUES; ++i)
         {
@@ -409,12 +452,16 @@ void WorldSession::LogoutPlayer(bool Save)
         _player->CleanupChannels();
 
         ///- If the player is in a group (or invited), remove him. If the group if then only 1 person, disband the group.
+		sLog.outMy("WorldSession: Logout for %s, start UninviteFromGroup",_player->GetName());
         _player->UninviteFromGroup();
+		sLog.outMy("WorldSession: Logout for %s, end UninviteFromGroup",_player->GetName());
 
         // remove player from the group if he is:
         // a) in group; b) not in raid group; c) logging out normally (not being kicked or disconnected)
+		sLog.outMy("WorldSession: Logout for %s, start RemoveFromGroup",_player->GetName());
         if(_player->GetGroup() && !_player->GetGroup()->isRaidGroup() && m_Socket)
             _player->RemoveFromGroup();
+		sLog.outMy("WorldSession: Logout for %s, end RemoveFromGroup",_player->GetName());
 
         ///- Send update to group
         if(_player->GetGroup())
@@ -625,12 +672,12 @@ void WorldSession::ExecuteOpcode( OpcodeHandler const& opHandle, WorldPacket* pa
 {
     // need prevent do internal far teleports in handlers because some handlers do lot steps
     // or call code that can do far teleports in some conditions unexpectedly for generic way work code
-    if (_player)
+	if (_player)
         _player->SetCanDelayTeleport(true);
 
     (this->*opHandle.handler)(*packet);
 
-    if (_player)
+	if (_player)
     {
         // can be not set in fact for login opcode, but this not create porblems.
         _player->SetCanDelayTeleport(false);

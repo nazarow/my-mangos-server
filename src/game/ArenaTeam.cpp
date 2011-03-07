@@ -95,11 +95,12 @@ bool ArenaTeam::Create(ObjectGuid captainGuid, uint32 type, std::string arenaTea
 
     CharacterDatabase.CommitTransaction();
 
-    AddMember(m_CaptainGuid);
+    AddMember(m_CaptainGuid, true);
+    sLog.outArena("New ArenaTeam created [Id: %u] [Type: %u] [Captain GUID: %u]", GetId(), GetType(), GetCaptainGuid().GetEntry());
     return true;
 }
 
-bool ArenaTeam::AddMember(ObjectGuid playerGuid)
+bool ArenaTeam::AddMember(ObjectGuid playerGuid, bool New)
 {
     std::string plName;
     uint8 plClass;
@@ -147,6 +148,7 @@ bool ArenaTeam::AddMember(ObjectGuid playerGuid)
     newmember.name              = plName;
     newmember.guid              = playerGuid;
     newmember.Class             = plClass;
+
     newmember.games_season      = 0;
     newmember.games_week        = 0;
     newmember.wins_season       = 0;
@@ -164,11 +166,16 @@ bool ArenaTeam::AddMember(ObjectGuid playerGuid)
         }
         else
         {
-            newmember.personal_rating = 1500;
+			if (pl && pl->GetArenaPersonalRating(GetSlot()) && pl->GetArenaPersonalRating(GetSlot())<1500)
+					newmember.personal_rating = pl->GetArenaPersonalRating(GetSlot());
+			else newmember.personal_rating = 1500;	// kia arena
         }
     }
     else
         newmember.personal_rating = uint32(conf_value);
+
+	if (New && m_stats.rating>newmember.personal_rating)	// kia arena
+		m_stats.rating = newmember.personal_rating;
 
     m_members.push_back(newmember);
 
@@ -183,6 +190,7 @@ bool ArenaTeam::AddMember(ObjectGuid playerGuid)
         // hide promote/remove buttons
         if (m_CaptainGuid != playerGuid)
             pl->SetArenaTeamInfoField(GetSlot(), ARENA_TEAM_MEMBER, 1);
+        sLog.outArena("Player: %s [GUID: %u] joined arena team type: %u [Id: %u]. TR[%u] PR[%u]", pl->GetName(), pl->GetGUIDLow(), GetType(), GetId(), GetRating(), newmember.personal_rating);
     }
     return true;
 }
@@ -288,7 +296,10 @@ void ArenaTeam::SetCaptain(ObjectGuid guid)
 
     // enable remove/promote buttons
     if (Player *newcaptain = sObjectMgr.GetPlayer(guid))
+	{
         newcaptain->SetArenaTeamInfoField(GetSlot(), ARENA_TEAM_MEMBER, 0);
+        sLog.outArena("Player: %s [GUID: %u] promoted player: %s [GUID: %u] to leader of arena team [Id: %u] [Type: %u].", oldcaptain->GetName(), oldcaptain->GetGUIDLow(), newcaptain->GetName(), newcaptain->GetGUID(), GetId(), GetType());
+	}
 }
 
 void ArenaTeam::DelMember(ObjectGuid guid)
@@ -306,8 +317,11 @@ void ArenaTeam::DelMember(ObjectGuid guid)
     {
         player->GetSession()->SendArenaTeamCommandResult(ERR_ARENA_TEAM_QUIT_S, GetName(), "", 0);
         // delete all info regarding this team
+        /*   //kia not delete team info
         for(int i = 0; i < ARENA_TEAM_END; ++i)
             player->SetArenaTeamInfoField(GetSlot(), ArenaTeamInfoType(i), 0);
+        */
+		sLog.outArena("Player: %s [GUID: %u] left arena team type: %u [Id: %u] TR[%u] PR[%u]", player->GetName(), player->GetGUIDLow(), GetType(), GetId(), GetRating(), player->GetArenaPersonalRating(GetSlot()));
     }
 
     CharacterDatabase.PExecute("DELETE FROM arena_team_member WHERE arenateamid = '%u' AND guid = '%u'", GetId(), guid.GetCounter());
@@ -327,6 +341,11 @@ void ArenaTeam::Disband(WorldSession *session)
         // Removing from members is done in DelMember.
         DelMember(m_members.front().guid);
     }
+
+	Player* player;
+    if (session)
+		if (player = session->GetPlayer())
+			sLog.outArena("Player: %s [GUID: %u] disbanded arena team type: %u [Id: %u].", player->GetName(), player->GetGUIDLow(), GetType(), GetId());
 
     CharacterDatabase.BeginTransaction();
     CharacterDatabase.PExecute("DELETE FROM arena_team WHERE arenateamid = '%u'", m_TeamId);
@@ -621,6 +640,8 @@ int32 ArenaTeam::LostAgainst(uint32 againstRating)
 
 void ArenaTeam::MemberLost(Player * plr, uint32 againstRating)
 {
+	if (!plr) return;//kia added check plr
+
     // called for each participant of a match after losing
     for(MemberList::iterator itr = m_members.begin(); itr !=  m_members.end(); ++itr)
     {
@@ -665,6 +686,8 @@ void ArenaTeam::OfflineMemberLost(ObjectGuid guid, uint32 againstRating)
 
 void ArenaTeam::MemberWon(Player * plr, uint32 againstRating)
 {
+	if (!plr) return;	//kia added check plr
+
     // called for each participant after winning a match
     for(MemberList::iterator itr = m_members.begin(); itr !=  m_members.end(); ++itr)
     {
@@ -693,7 +716,10 @@ void ArenaTeam::UpdateArenaPointsHelper(std::map<uint32, uint32>& PlayerPoints)
     // helper function for arena point distribution (this way, when distributing, no actual calculation is required, just a few comparisons)
     // 10 played games per week is a minimum
     if (m_stats.games_week < 10)
+	{
+		sLog.outArena("ArenaTeam::Played <10 games for team %u", m_TeamId);
         return;
+	}
     // to get points, a player has to participate in at least 30% of the matches
     uint32 min_plays = (uint32) ceil(m_stats.games_week * 0.3);
     for(MemberList::const_iterator itr = m_members.begin(); itr !=  m_members.end(); ++itr)
@@ -702,6 +728,9 @@ void ArenaTeam::UpdateArenaPointsHelper(std::map<uint32, uint32>& PlayerPoints)
         uint32 points_to_add = 0;
         if (itr->games_week >= min_plays)
             points_to_add = GetPoints(itr->personal_rating);
+		else 
+			sLog.outArena("ArenaTeam::Player %u played %u from %u games", itr->guid.GetEntry(), min_plays, itr->games_week);
+
         // OBSOLETE : CharacterDatabase.PExecute("UPDATE arena_team_member SET points_to_add = '%u' WHERE arenateamid = '%u' AND guid = '%u'", points_to_add, m_TeamId, itr->guid);
 
         std::map<uint32, uint32>::iterator plr_itr = PlayerPoints.find(itr->guid.GetCounter());
@@ -713,6 +742,7 @@ void ArenaTeam::UpdateArenaPointsHelper(std::map<uint32, uint32>& PlayerPoints)
         }
         else
             PlayerPoints[itr->guid.GetCounter()] = points_to_add;
+		sLog.outArena("ArenaTeam::Add %u AP for %u", points_to_add, itr->guid.GetCounter());
     }
 }
 

@@ -1359,6 +1359,13 @@ bool DungeonMap::CanEnter(Player *player)
         return false;
     }
 
+	if (!player->isGameMaster() && GetInstanceData() && GetInstanceData()->IsEncounterInProgress())	//kia log system
+    {
+		sLog.outDebug("MAP: Player '%s' can't enter instance '%s' while an encounter is in progress.", player->GetName(), GetMapName());
+		player->SendTransferAborted(GetId(), TRANSFER_ABORT_ZONE_IN_COMBAT);
+		return false;
+	}
+
     return Map::CanEnter(player);
 }
 
@@ -1392,7 +1399,7 @@ bool DungeonMap::Add(Player *player)
                     GetPersistanceState()->GetMapId(), GetPersistanceState()->GetInstanceId(),
                     GetPersistanceState()->GetDifficulty(), GetPersistanceState()->GetPlayerCount(),
                     GetPersistanceState()->GetGroupCount(), GetPersistanceState()->CanReset());
-                MANGOS_ASSERT(false);
+                player->RepopAtGraveyard();	// kia MANGOS_ASSERT(false);
             }
         }
         else
@@ -2880,6 +2887,11 @@ Creature* Map::GetCreature(ObjectGuid guid)
  */
 Pet* Map::GetPet(ObjectGuid guid)
 {
+	if (guid.IsEmpty())
+	{
+		sLog.outMy("Map::GetPet NULL");
+		return ((Pet*)NULL);
+	}
     return m_objectsStore.find<Pet>(guid.GetRawValue(), (Pet*)NULL);
 }
 
@@ -2982,8 +2994,17 @@ void Map::SendObjectUpdates()
     while(!i_objectsToClientUpdate.empty())
     {
         Object* obj = *i_objectsToClientUpdate.begin();
-        i_objectsToClientUpdate.erase(i_objectsToClientUpdate.begin());
-        obj->BuildUpdateData(update_players);
+		if (!obj)
+		{
+			i_objectsToClientUpdate.clear();
+			break;
+		} else
+		{
+			uint32 objen = obj->GetEntry();
+			uint8 objid = obj->GetTypeId();
+            i_objectsToClientUpdate.erase(i_objectsToClientUpdate.begin());
+            obj->BuildUpdateData(update_players);
+		}
     }
 
     WorldPacket packet;                                     // here we allocate a std::vector with a size of 0x10000

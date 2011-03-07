@@ -28,6 +28,8 @@
 #include "CellImpl.h"
 #include "Corpse.h"
 #include "ObjectMgr.h"
+//#include "Config/ConfigEnv.h"
+#include "InstanceData.h"
 
 #define CLASS_LOCK MaNGOS::ClassLevelLockable<MapManager, ACE_Recursive_Thread_Mutex>
 INSTANTIATE_SINGLETON_2(MapManager, CLASS_LOCK);
@@ -228,6 +230,14 @@ bool MapManager::CanPlayerEnter(uint32 mapid, Player* player)
             player->SendTransferAborted(GetId(), TRANSFER_ABORT_ZONE_IN_COMBAT);
             return(false);
         }*/
+		Map *map = player->GetMap();	//kia instance system
+		if (!player->isGameMaster() && map && map->IsDungeon() && map->GetInstanceData() && map->GetInstanceData()->IsEncounterInProgress())
+		{
+            sLog.outDebug("MAP: Player '%s' can't enter instance '%s' while an encounter is in progress.", player->GetName(), map->GetMapName());
+            player->SendTransferAborted(mapid, TRANSFER_ABORT_ZONE_IN_COMBAT);
+			return false;
+		}
+        return true;
     }
 
     return true;
@@ -259,13 +269,25 @@ MapManager::Update(uint32 diff)
         return;
 
     for(MapMapType::iterator iter=i_maps.begin(); iter != i_maps.end(); ++iter)
-        iter->second->Update((uint32)i_timer.GetCurrent());
+    {
+        sWorld.RecordTimeDiff("UpdateMap %u scheduled", iter->first);
+	    if(m_updater.activated())
+		    m_updater.schedule_update(*iter->second,i_timer.GetCurrent());
+	    else
+		{
+		    iter->second->Update((uint32)i_timer.GetCurrent());
+		}
+		sWorld.RecordTimeDiff("UpdateMap %u", iter->first);
+	}
+	if(m_updater.activated())
+		m_updater.wait();
 
     for (TransportSet::iterator iter = m_Transports.begin(); iter != m_Transports.end(); ++iter)
     {
         WorldObject::UpdateHelper helper((*iter));
         helper.Update((uint32)i_timer.GetCurrent());
     }
+    sWorld.RecordTimeDiff("UpdateTransports");
 
     //remove all maps which can be unloaded
     MapMapType::iterator iter = i_maps.begin();
@@ -312,6 +334,8 @@ bool MapManager::IsValidMAP(uint32 mapid)
 
 void MapManager::UnloadAll()
 {
+	Guard guard(*this);
+
     for(MapMapType::iterator iter=i_maps.begin(); iter != i_maps.end(); ++iter)
         iter->second->UnloadAll(true);
 
@@ -321,11 +345,16 @@ void MapManager::UnloadAll()
         i_maps.erase(i_maps.begin());
     }
 
+    if(m_updater.activated())
+        m_updater.deactivate();
+
     TerrainManager::Instance().UnloadAll();
 }
 
 void MapManager::InitMaxInstanceId()
 {
+	Guard guard(*this);
+
     i_MaxInstanceId = 0;
 
     QueryResult *result = CharacterDatabase.Query( "SELECT MAX(id) FROM instance" );
@@ -338,6 +367,8 @@ void MapManager::InitMaxInstanceId()
 
 uint32 MapManager::GetNumInstances()
 {
+	Guard guard(*this);
+
     uint32 ret = 0;
     for(MapMapType::iterator itr = i_maps.begin(); itr != i_maps.end(); ++itr)
     {

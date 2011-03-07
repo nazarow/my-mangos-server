@@ -37,6 +37,8 @@
 #include "ObjectAccessor.h"
 #include "Object.h"
 #include "BattleGround.h"
+#include "OutdoorPvP.h"
+#include "SpellAuras.h"
 #include "Pet.h"
 #include "SocialMgr.h"
 
@@ -314,6 +316,9 @@ void WorldSession::HandleLogoutCancelOpcode( WorldPacket & /*recv_data*/ )
 {
     DEBUG_LOG( "WORLD: Recvd CMSG_LOGOUT_CANCEL Message" );
 
+	if (!_player)	//kia chk player
+		return;
+
     LogoutRequest(0);
 
     WorldPacket data( SMSG_LOGOUT_CANCEL_ACK, 0 );
@@ -362,6 +367,11 @@ void WorldSession::HandleTogglePvP( WorldPacket & recv_data )
         if(!GetPlayer()->pvpInfo.inHostileArea && GetPlayer()->IsPvP())
             GetPlayer()->pvpInfo.endTimer = time(NULL);     // start toggle-off
     }
+
+    if(OutdoorPvP * pvp = _player->GetOutdoorPvP())
+    {
+        pvp->HandlePlayerActivityChanged(_player);
+    }
 }
 
 void WorldSession::HandleZoneUpdateOpcode( WorldPacket & recv_data )
@@ -399,6 +409,9 @@ void WorldSession::HandleSetSelectionOpcode( WorldPacket & recv_data )
     ObjectGuid guid;
     recv_data >> guid;
 
+    if (!_player)	//kia chk player
+		return;
+
     _player->SetSelectionGuid(guid);
 
     // update reputation list if need
@@ -425,7 +438,8 @@ void WorldSession::HandleContactListOpcode( WorldPacket & recv_data )
     uint32 unk;
     recv_data >> unk;
     DEBUG_LOG("unk value is %u", unk);
-    _player->GetSocial()->SendSocialList();
+	if (_player && _player->GetSocial())	//kia chk player
+        _player->GetSocial()->SendSocialList();
 }
 
 void WorldSession::HandleAddFriendOpcode( WorldPacket & recv_data )
@@ -739,6 +753,12 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket & recv_data)
         return;
     }
 
+    if(OutdoorPvP * pvp = GetPlayer()->GetOutdoorPvP())
+    {
+        if(pvp->HandleAreaTrigger(_player, Trigger_ID))
+            return;
+    }
+
     // NULL if all values default (non teleport trigger)
     AreaTrigger const* at = sObjectMgr.GetAreaTrigger(Trigger_ID);
     if(!at)
@@ -898,55 +918,84 @@ void WorldSession::HandleFeatherFallAck(WorldPacket &recv_data)
     DEBUG_LOG("WORLD: CMSG_MOVE_FEATHER_FALL_ACK");
 
     // no used
+	recv_data.hexlike();
     recv_data.rpos(recv_data.wpos());                       // prevent warnings spam
 }
 
 void WorldSession::HandleMoveUnRootAck(WorldPacket& recv_data)
 {
-    // no used
-    recv_data.rpos(recv_data.wpos());                       // prevent warnings spam
-/*
-    ObjectGuid guid;
-    recv_data >> guid;
-
-    // now can skip not our packet
-    if(_player->GetGUID() != guid)
-    {
-        recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
-        return;
-    }
-
     DEBUG_LOG( "WORLD: CMSG_FORCE_MOVE_UNROOT_ACK" );
 
-    recv_data.read_skip<uint32>();                          // unk
+    recv_data.hexlike();
+
+    ObjectGuid guid;
+    uint32 unknown1;
+
+    recv_data >> guid;
+
+	// skip not personal message;
+	if (GetPlayer()->GetObjectGuid() != guid)
+	{
+		recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
+	    return;
+	}
+
+    recv_data >> unknown1;
 
     MovementInfo movementInfo;
-    ReadMovementInfo(recv_data, &movementInfo);
-*/
+
+    recv_data >> movementInfo;
+	GetPlayer()->GetMover()->ShowMovementInfo(GetPlayer()->GetGUIDLow(), movementInfo, LookupOpcodeName(recv_data.GetOpcode())); 
+
+	if (GetPlayer()->GetMover()->GetTypeId() == TYPEID_PLAYER)
+	{
+		((Player*)GetPlayer()->GetMover())->m_movementInfo = movementInfo;
+		((Player*)GetPlayer()->GetMover())->SetPosition(movementInfo.GetPos()->x,movementInfo.GetPos()->y,movementInfo.GetPos()->z,movementInfo.GetPos()->o);
+	}
+	else
+		((Creature*)GetPlayer()->GetMover())->Relocate(movementInfo.GetPos()->x,movementInfo.GetPos()->y,movementInfo.GetPos()->z,movementInfo.GetPos()->o);
+
+    // for later may be we can use for anticheat
+	DEBUG_LOG("Guid %s", guid.GetString().c_str());
+    DEBUG_LOG("unknown1 %u",unknown1);
 }
 
 void WorldSession::HandleMoveRootAck(WorldPacket& recv_data)
 {
-    // no used
-    recv_data.rpos(recv_data.wpos());                       // prevent warnings spam
-/*
-    ObjectGuid guid;
-    recv_data >> guid;
-
-    // now can skip not our packet
-    if(_player->GetObjectGuid() != guid)
-    {
-        recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
-        return;
-    }
-
     DEBUG_LOG( "WORLD: CMSG_FORCE_MOVE_ROOT_ACK" );
 
-    recv_data.read_skip<uint32>();                          // unk
+    recv_data.hexlike();
+
+    ObjectGuid guid;
+    uint32 unknown1;
+
+    recv_data >> guid;
+
+	// skip not personal message;
+	if (GetPlayer()->GetObjectGuid() != guid)
+	{
+		recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
+	    return;
+	}
+
+    recv_data >> unknown1;
 
     MovementInfo movementInfo;
-    ReadMovementInfo(recv_data, &movementInfo);
-*/
+
+    recv_data >> movementInfo;
+	GetPlayer()->GetMover()->ShowMovementInfo(GetPlayer()->GetGUIDLow(), movementInfo, LookupOpcodeName(recv_data.GetOpcode())); 
+
+	if (GetPlayer()->GetMover()->GetTypeId() == TYPEID_PLAYER)
+	{
+		((Player*)GetPlayer()->GetMover())->m_movementInfo = movementInfo;
+		((Player*)GetPlayer()->GetMover())->SetPosition(movementInfo.GetPos()->x,movementInfo.GetPos()->y,movementInfo.GetPos()->z,movementInfo.GetPos()->o);
+	}
+	else
+		((Creature*)GetPlayer()->GetMover())->Relocate(movementInfo.GetPos()->x,movementInfo.GetPos()->y,movementInfo.GetPos()->z,movementInfo.GetPos()->o);
+
+    // for later may be we can use for anticheat
+	DEBUG_LOG("Guid %s", guid.GetString().c_str());
+    DEBUG_LOG("unknown1 %u", unknown1);
 }
 
 void WorldSession::HandleSetActionBarTogglesOpcode(WorldPacket& recv_data)
@@ -1394,16 +1443,37 @@ void WorldSession::HandleMoveSetCanFlyAckOpcode( WorldPacket & recv_data )
 {
     // fly mode on/off
     DEBUG_LOG("WORLD: CMSG_MOVE_SET_CAN_FLY_ACK");
-    //recv_data.hexlike();
+    recv_data.hexlike();
+
+    uint64 guid;
+    uint32 unk;
+
+    recv_data >> guid;
+
+    // skip not personal message;
+    if(GetPlayer()->GetGUID()!=guid)
+	{
+		recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
+        return;
+	}
+
+	recv_data >> unk;
+	DEBUG_LOG("   unk %d",unk);
 
     MovementInfo movementInfo;
 
-    recv_data >> Unused<uint64>();                          // guid
-    recv_data >> Unused<uint32>();                          // unk
     recv_data >> movementInfo;
+	GetPlayer()->GetMover()->ShowMovementInfo(GetPlayer()->GetGUIDLow(), movementInfo, LookupOpcodeName(recv_data.GetOpcode())); 
     recv_data >> Unused<uint32>();                          // unk2
 
-    _player->m_movementInfo.SetMovementFlags(movementInfo.GetMovementFlags());
+	if (GetPlayer()->GetMover()->GetTypeId() == TYPEID_PLAYER)
+	{
+		((Player*)GetPlayer()->GetMover())->canFLY = (movementInfo.HasMovementFlag(MOVEFLAG_FLYING));
+		((Player*)GetPlayer()->GetMover())->m_movementInfo = movementInfo;
+		((Player*)GetPlayer()->GetMover())->SetPosition(movementInfo.GetPos()->x,movementInfo.GetPos()->y,movementInfo.GetPos()->z,movementInfo.GetPos()->o);
+	}
+	else
+		((Creature*)GetPlayer()->GetMover())->Relocate(movementInfo.GetPos()->x,movementInfo.GetPos()->y,movementInfo.GetPos()->z,movementInfo.GetPos()->o);
 }
 
 void WorldSession::HandleRequestPetInfoOpcode( WorldPacket & /*recv_data */)

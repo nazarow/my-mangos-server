@@ -77,6 +77,12 @@ m_declinedname(NULL), m_petModeFlags(PET_MODE_DEFAULT)
         charmInfo->SetReactState(REACT_PASSIVE);
     else if(type == GUARDIAN_PET)                           // always aggressive
         charmInfo->SetReactState(REACT_AGGRESSIVE);
+
+    m_spells.clear();
+    m_Auras.clear();
+    m_CreatureSpellCooldowns.clear();
+    m_CreatureCategoryCooldowns.clear();
+    m_autospells.clear();
 }
 
 Pet::~Pet()
@@ -381,6 +387,11 @@ bool Pet::LoadPetFromDB( Player* owner, uint32 petentry, uint32 petnumber, bool 
         }
     }
 
+
+	//set last used pet number (for use in BG's)
+    if(owner->GetTypeId() == TYPEID_PLAYER && isControlled() && !isTemporarySummoned() && (getPetType() == SUMMON_PET || getPetType() == HUNTER_PET))
+		((Player*)owner)->SetLastPetNumber(pet_number);
+
     m_loading = false;
 
     SynchronizeLevelWithOwner();
@@ -461,7 +472,7 @@ void Pet::SavePetToDB(PetSaveMode mode)
             << GetNativeDisplayId() << ", "
             << getLevel() << ", "
             << GetUInt32Value(UNIT_FIELD_PETEXPERIENCE) << ", "
-            << uint32(m_charmInfo->GetReactState()) << ", "
+			<< uint16(m_charmInfo->GetReactState() & 3) << ", "
             << m_loyaltyPoints << ", "
             << GetLoyaltyLevel() << ", "
             << m_TrainingPoints << ", "
@@ -1175,15 +1186,48 @@ bool Pet::InitStatsForLevel(uint32 petlevel, Unit* owner)
             SetUInt32Value(UNIT_FIELD_PETEXPERIENCE, 0);
             SetUInt32Value(UNIT_FIELD_PETNEXTLEVELEXP, 1000);
 
-            SetCreateMana(28 + 10*petlevel);
-            SetCreateHealth(28 + 30*petlevel);
+            switch(GetEntry())
+            {
+                case 1964: //force of nature
+                    SetCreateHealth(30 + 30*petlevel);
+                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel * 2.5f - (petlevel / 2)));
+                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel * 2.5f + (petlevel / 2)));
+                    break;
+                case 15352: //earth elemental 36213
+                    SetCreateHealth(100 + 120*petlevel);
+                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel - (petlevel / 4)));
+                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel + (petlevel / 4)));
+                    break;
+                case 15438: //fire elemental
+                    SetCreateHealth(40*petlevel);
+                    SetCreateMana(28 + 10*petlevel);
+                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel * 4 - petlevel));
+                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel * 4 + petlevel));
+                    break;
+                case 19833: //Snake Trap - Venomous Snake
+                    SetCreateHealth(uint32(107 * (petlevel - 40) * 0.025f));
+                    SetCreateMana(0);
+                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float((petlevel / 2) - 25));
+                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float((petlevel / 2) - 18));
+                    break;
+                case 19921: //Snake Trap - Viper
+                    SetCreateHealth(uint32(107 * (petlevel - 40) * 0.025f));
+                    SetCreateMana(0);
+                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel / 2 - 10));
+                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel / 2));
+                    break;
+                default:
+                    SetCreateMana(28 + 10*petlevel);
+                    SetCreateHealth(28 + 30*petlevel);
 
-            // FIXME: this is wrong formula, possible each guardian pet have own damage formula
-            //these formula may not be correct; however, it is designed to be close to what it should be
-            //this makes dps 0.5 of pets level
-            SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel - (petlevel / 4)));
-            //damage range is then petlevel / 2
-            SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel + (petlevel / 4)));
+                    // FIXME: this is wrong formula, possible each guardian pet have own damage formula
+                    //these formula may not be correct; however, it is designed to be close to what it should be
+                    //this makes dps 0.5 of pets level
+                    SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel - (petlevel / 4)));
+                    //damage range is then petlevel / 2
+                    SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel + (petlevel / 4)));
+                    break;
+            }
             break;
         default:
             sLog.outError("Pet have incorrect type (%u) for levelup.", getPetType());
@@ -1676,6 +1720,7 @@ void Pet::InitPetCreateSpells()
             if(learn_spellproto->Effect[0] == SPELL_EFFECT_LEARN_SPELL || learn_spellproto->Effect[0] == SPELL_EFFECT_LEARN_PET_SPELL)
             {
                 petspellid = learn_spellproto->EffectTriggerSpell[0];
+
                 if(p_owner && !p_owner->HasSpell(learn_spellproto->Id))
                 {
                     if(IsPassiveSpell(petspellid))          //learn passive skills when tamed, not sure if thats right
@@ -1750,6 +1795,18 @@ void Pet::ToggleAutocast(uint32 spellid, bool apply)
 {
     if(IsPassiveSpell(spellid))
         return;
+
+       // Sacrifice is not autocastable
+       switch(spellid) {
+              case 7812:     // Sacrifice Rank 1
+              case 19438:    // Sacrifice Rank 2
+              case 19440:    // Sacrifice Rank 3
+              case 19441:    // Sacrifice Rank 4
+              case 19442:    // Sacrifice Rank 5
+              case 19443:    // Sacrifice Rank 6
+              case 27273:    // Sacrifice Rank 7
+                     return;
+       }
 
     PetSpellMap::iterator itr = m_spells.find(spellid);
 

@@ -576,7 +576,10 @@ void Guild::BroadcastToGuild(WorldSession *session, const std::string& msg, uint
             Player *pl = ObjectAccessor::FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
 
             if (pl && pl->GetSession() && HasRankRight(pl->GetRank(),GR_RIGHT_GCHATLISTEN) && !pl->GetSocial()->HasIgnore(session->GetPlayer()->GetObjectGuid()) )
+			{
                 pl->GetSession()->SendPacket(&data);
+                pl->HandleChatSpyMessage(msg, CHAT_MSG_GUILD, language, session->GetPlayer());
+            }
         }
     }
 }
@@ -593,7 +596,10 @@ void Guild::BroadcastToOfficers(WorldSession *session, const std::string& msg, u
             Player *pl = ObjectAccessor::FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
 
             if (pl && pl->GetSession() && HasRankRight(pl->GetRank(),GR_RIGHT_OFFCHATLISTEN) && !pl->GetSocial()->HasIgnore(session->GetPlayer()->GetObjectGuid()))
+			{
                 pl->GetSession()->SendPacket(&data);
+                pl->HandleChatSpyMessage(msg, CHAT_MSG_OFFICER, language, session->GetPlayer());
+            }
         }
     }
 }
@@ -1678,6 +1684,8 @@ Item* Guild::_StoreItem( uint8 tab, uint8 slot, Item *pItem, uint32 count, bool 
         return NULL;
 
     DEBUG_LOG( "GUILD STORAGE: StoreItem tab = %u, slot = %u, item = %u, count = %u", tab, slot, pItem->GetEntry(), count);
+
+	sLog.outItems( "GUILD STORAGE: StoreItem tab = %u, slot = %u, item = %u:%u, count = %u", tab, slot, pItem->GetGUIDLow(),pItem->GetEntry(), count);
 
     Item* pItem2 = m_TabListMap[tab]->Slots[slot];
 

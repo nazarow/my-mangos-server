@@ -61,6 +61,8 @@ enum LogType
 const int LogType_count = int(LogError) +1;
 
 Log::Log() :
+    dmgLogfile(NULL), myLogfile(NULL), moneyLogfile(NULL), itemsLogfile(NULL), arenaLogFile(NULL),
+    cheatLogfile(NULL), instanceLogfile(NULL),
     raLogfile(NULL), logfile(NULL), gmLogfile(NULL), charLogfile(NULL),
     dberLogfile(NULL), m_colored(false), m_includeTime(false), m_gmlog_per_account(false)
 {
@@ -258,7 +260,17 @@ void Log::Initialize()
 
     charLogfile = openLogFile("CharLogFile","CharLogTimestamp","a");
     dberLogfile = openLogFile("DBErrorLogFile",NULL,"a");
-    raLogfile = openLogFile("RaLogFile",NULL,"a");
+
+	cmdLogfile = openLogFile("CmdLogFile","CmdLogTimestamp","a");
+	myLogfile = openLogFile("MyLogFile","MyLogTimestamp","a");
+	moneyLogfile = openLogFile("MoneyLogFile","MoneyLogTimestamp","a");
+	itemsLogfile = openLogFile("ItemsLogFile","ItemsLogTimestamp","a");
+	cheatLogfile = openLogFile("CheatLogFile","CheatLogTimestamp","a");
+	instanceLogfile = openLogFile("InstanceLogFile","InstanceLogTimestamp","a");
+
+	raLogfile = openLogFile("RaLogFile",NULL,"a");
+    arenaLogFile = openLogFile("ArenaLogFile",NULL,"a");
+	dmgLogfile = openLogFile("DmgLogFile",NULL,"a");
     worldLogfile = openLogFile("WorldLogFile","WorldLogTimestamp","a");
 
     // Main log file settings
@@ -343,6 +355,37 @@ std::string Log::GetTimestampStr()
     //       SS     seconds (2 digits 00-59)
     char buf[20];
     snprintf(buf,20,"%04d-%02d-%02d_%02d-%02d-%02d",aTm->tm_year+1900,aTm->tm_mon+1,aTm->tm_mday,aTm->tm_hour,aTm->tm_min,aTm->tm_sec);
+    return std::string(buf);
+}
+
+void Log::outTimestampMs(FILE* file)
+{
+	SYSTEMTIME systemTime;
+	GetSystemTime(&systemTime);
+	fprintf(file,"%04d%02d%02d-%02d:%02d:%02d.%03d ",
+	systemTime.wYear, systemTime.wMonth, systemTime.wDay,
+	systemTime.wHour, systemTime.wMinute, systemTime.wSecond,
+	systemTime.wMilliseconds);
+}
+
+void Log::outTimestampMss(FILE* file)
+{
+	SYSTEMTIME systemTime;
+	GetSystemTime(&systemTime);
+	fprintf(file,"%02d:%02d:%02d.%03d",
+	systemTime.wHour, systemTime.wMinute, systemTime.wSecond,
+	systemTime.wMilliseconds);
+}
+
+std::string Log::GetTimestampStrMs()
+{
+	SYSTEMTIME systemTime;
+	GetSystemTime(&systemTime);
+    char buf[21];
+	sprintf(buf,"%04d%02d%02d-%02d:%02d:%02d.%03d",
+	systemTime.wYear, systemTime.wMonth, systemTime.wDay,
+	systemTime.wHour, systemTime.wMinute, systemTime.wSecond,
+	systemTime.wMilliseconds);
     return std::string(buf);
 }
 
@@ -827,6 +870,177 @@ void Log::outMenu( const char * str, ... )
     fflush(stdout);
 }
 
+void Log::outCmd( const char * str, ... )
+{
+    if (!str) return;
+    va_list ap;
+    if(cmdLogfile)
+    {
+        outTimestampMss(cmdLogfile);
+        va_start(ap, str);
+        vfprintf(cmdLogfile, str, ap);
+        fprintf(cmdLogfile, "\n" );
+        va_end(ap);
+        fflush(cmdLogfile);
+    }
+    fflush(stdout);
+}
+
+void Log::outMy( const char * str, ... )
+{
+    if (!str)
+        return;
+
+    if (IsMyLogInConsole() && myLogfile)
+    {
+        if (m_colored)
+            SetColor(true,m_colors[LogDetails]);
+
+        if (m_includeTime)
+            outTime();
+
+        va_list ap;
+        va_start(ap, str);
+        vutf8printf(stdout, str, &ap);
+        va_end(ap);
+
+        if (m_colored)
+            ResetColor(true);
+
+        printf( "\n" );
+    }
+
+    va_list ap;
+    if (myLogfile)
+    {
+        outTimestampMs(myLogfile);
+        va_start(ap, str);
+        vfprintf(myLogfile, str, ap);
+        fprintf(myLogfile, "\n" );
+        va_end(ap);
+        fflush(myLogfile);
+    }
+    fflush(stdout);
+}
+
+void Log::outMyInLine( const char * str, ... )
+{
+    if (!str) return;
+    if (myLogfile)
+    {
+        va_list ap;
+        va_start(ap, str);
+        vfprintf(myLogfile, str, ap);
+        va_end(ap);
+    }
+}
+
+void Log::outMoney( const char * str, ... )
+{
+    if (!str) return;
+    va_list ap;
+    if (moneyLogfile)
+    {
+        outTimestampMs(moneyLogfile);
+        va_start(ap, str);
+        vfprintf(moneyLogfile, str, ap);
+        fprintf(moneyLogfile, "\n" );
+        va_end(ap);
+        fflush(moneyLogfile);
+    }
+    fflush(stdout);
+}
+
+void Log::outItems( const char * str, ... )
+{
+    if (!str) return;
+    va_list ap;
+    if (itemsLogfile)
+    {
+        outTimestampMs(itemsLogfile);
+        va_start(ap, str);
+        vfprintf(itemsLogfile, str, ap);
+        fprintf(itemsLogfile, "\n");
+        va_end(ap);
+        fflush(itemsLogfile);
+    }
+    fflush(stdout);
+}
+
+void Log::outCheat( const char * str, ... )
+{
+    if (!str)
+        return;
+
+    if (IsMyLogInConsole() && cheatLogfile)
+    {
+        if (m_colored)
+            SetColor(true,m_colors[LogError]);
+
+        if (m_includeTime)
+            outTime();
+
+        va_list ap;
+        va_start(ap, str);
+        vutf8printf(stdout, str, &ap);
+        va_end(ap);
+
+        if (m_colored)
+            ResetColor(true);
+
+        printf( "\n" );
+    }
+
+    va_list ap;
+    if (cheatLogfile)
+    {
+        outTimestampMs(cheatLogfile);
+        va_start(ap, str);
+        vfprintf(cheatLogfile, str, ap);
+        fprintf(cheatLogfile, "\n" );
+        va_end(ap);
+        fflush(cheatLogfile);
+    }
+    fflush(stdout);
+}
+
+void Log::outInstance( const char * str, ... )
+{
+    if (!str)
+        return;
+
+    if (IsMyLogInConsole() && instanceLogfile)
+    {
+        if (m_colored)
+            SetColor(true,m_colors[LogDetails]);
+
+        if (m_includeTime)
+            outTime();
+
+        va_list ap;
+        va_start(ap, str);
+        vutf8printf(stdout, str, &ap);
+        va_end(ap);
+
+        if (m_colored)
+            ResetColor(true);
+
+        printf( "\n" );
+    }
+
+    va_list ap;
+    if (instanceLogfile)
+    {
+        outTimestampMs(instanceLogfile);
+        va_start(ap, str);
+        vfprintf(instanceLogfile, str, ap);
+        fprintf(instanceLogfile, "\n" );
+        va_end(ap);
+        fflush(instanceLogfile);
+    }
+    fflush(stdout);
+}
+
 void Log::outRALog(    const char * str, ... )
 {
     if (!str)
@@ -843,6 +1057,38 @@ void Log::outRALog(    const char * str, ... )
         fflush(raLogfile);
     }
 
+    fflush(stdout);
+}
+
+void Log::outArena( const char * str, ... )
+{
+    if (!str) return;
+    if (arenaLogFile)
+    {
+        va_list ap;
+        outTimestamp(arenaLogFile);
+        va_start(ap, str);
+        vfprintf(arenaLogFile, str, ap);
+        fprintf(arenaLogFile, "\n" );
+        va_end(ap);
+        fflush(arenaLogFile);
+    }
+    fflush(stdout);
+}
+
+void Log::outDmg( const char * str, ... )
+{
+    if (!str) return;
+    va_list ap;
+    if (dmgLogfile)
+    {
+        outTimestamp(dmgLogfile);
+        va_start(ap, str);
+        vfprintf(dmgLogfile, str, ap);
+        fprintf(dmgLogfile, "\n" );
+        va_end(ap);
+        fflush(dmgLogfile);
+    }
     fflush(stdout);
 }
 
@@ -937,4 +1183,32 @@ void error_db_log(const char * str, ...)
     va_end(ap);
 
     sLog.outErrorDb("%s", buf);
+}
+
+void my_log(const char * str, ...)
+{
+    if( !str )
+        return;
+
+    char buf[256000];
+    va_list ap;
+    va_start(ap, str);
+    vsnprintf(buf,256000, str, ap);
+    va_end(ap);
+
+	sLog.outMy("%s", buf);
+}
+
+void instance_log(const char * str, ...)
+{
+    if( !str )
+        return;
+
+    char buf[256000];
+    va_list ap;
+    va_start(ap, str);
+    vsnprintf(buf, 256000, str, ap);
+    va_end(ap);
+
+	sLog.outInstance("%s", buf);
 }

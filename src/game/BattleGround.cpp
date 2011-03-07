@@ -513,8 +513,8 @@ void BattleGround::SendPacketToAll(WorldPacket *packet)
 
         if (Player *plr = sObjectMgr.GetPlayer(itr->first))
             plr->GetSession()->SendPacket(packet);
-        else
-            sLog.outError("BattleGround:SendPacketToAll: %s not found!", itr->first.GetString().c_str());
+//        else
+//            sLog.outError("BattleGround:SendPacketToAll: %s not found!", itr->first.GetString().c_str());
     }
 }
 
@@ -528,7 +528,7 @@ void BattleGround::SendPacketToTeam(Team teamId, WorldPacket *packet, Player *se
         Player *plr = sObjectMgr.GetPlayer(itr->first);
         if (!plr)
         {
-            sLog.outError("BattleGround:SendPacketToTeam: %s not found!", itr->first.GetString().c_str());
+//            sLog.outError("BattleGround:SendPacketToTeam: %s not found!", itr->first.GetString().c_str());
             continue;
         }
 
@@ -562,7 +562,7 @@ void BattleGround::PlaySoundToTeam(uint32 SoundID, Team teamId)
         Player *plr = sObjectMgr.GetPlayer(itr->first);
         if (!plr)
         {
-            sLog.outError("BattleGround:PlaySoundToTeam: %s not found!", itr->first.GetString().c_str());
+//            sLog.outError("BattleGround:PlaySoundToTeam: %s not found!", itr->first.GetString().c_str());
             continue;
         }
 
@@ -588,7 +588,7 @@ void BattleGround::CastSpellOnTeam(uint32 SpellID, Team teamId)
 
         if (!plr)
         {
-            sLog.outError("BattleGround:CastSpellOnTeam: %s not found!", itr->first.GetString().c_str());
+//            sLog.outError("BattleGround:CastSpellOnTeam: %s not found!", itr->first.GetString().c_str());
             continue;
         }
 
@@ -639,7 +639,7 @@ void BattleGround::RewardReputationToTeam(uint32 faction_id, uint32 Reputation, 
 
         if (!plr)
         {
-            sLog.outError("BattleGround:RewardReputationToTeam: %s not found!", itr->first.GetString().c_str());
+//            sLog.outError("BattleGround:RewardReputationToTeam: %s not found!", itr->first.GetString().c_str());
             continue;
         }
 
@@ -706,12 +706,13 @@ void BattleGround::EndBattleGround(Team winner)
     {
         winner_arena_team = sObjectMgr.GetArenaTeamById(GetArenaTeamIdForTeam(winner));
         loser_arena_team = sObjectMgr.GetArenaTeamById(GetArenaTeamIdForTeam(GetOtherTeam(winner)));
-        if (winner_arena_team && loser_arena_team)
+        if(winner_arena_team && loser_arena_team && GetWinner()!=3)	//kia arena system
         {
             loser_rating = loser_arena_team->GetStats().rating;
             winner_rating = winner_arena_team->GetStats().rating;
             int32 winner_change = winner_arena_team->WonAgainst(loser_rating);
             int32 loser_change = loser_arena_team->LostAgainst(winner_rating);
+			sLog.outArena("Arena match Type: %u for Team1Id: %u - Team2Id: %u ended. WinnerTeamId: %u. Rating %i %i. RatingChange: %i %i.", m_ArenaType, m_ArenaTeamIds[BG_TEAM_ALLIANCE], m_ArenaTeamIds[BG_TEAM_HORDE], winner_arena_team?winner_arena_team->GetId():0, winner_rating, loser_rating, winner_change, loser_change);	//kia arena log
             DEBUG_LOG("--- Winner rating: %u, Loser rating: %u, Winner change: %i, Loser change: %i ---", winner_rating, loser_rating, winner_change, loser_change);
             SetArenaTeamRatingChangeForTeam(winner, winner_change);
             SetArenaTeamRatingChangeForTeam(GetOtherTeam(winner), loser_change);
@@ -720,6 +721,8 @@ void BattleGround::EndBattleGround(Team winner)
         {
             SetArenaTeamRatingChangeForTeam(ALLIANCE, 0);
             SetArenaTeamRatingChangeForTeam(HORDE, 0);
+			sLog.outArena("Arena match Type: %u for Team1Id: %u - Team2Id: %u ended. Battle fail. Rating %i %i. Looser - %s team", 
+				m_ArenaType, m_ArenaTeamIds[BG_TEAM_ALLIANCE], m_ArenaTeamIds[BG_TEAM_HORDE], sObjectMgr.GetArenaTeamById(GetArenaTeamIdForTeam(ALLIANCE))?sObjectMgr.GetArenaTeamById(GetArenaTeamIdForTeam(ALLIANCE))->GetRating():0, sObjectMgr.GetArenaTeamById(GetArenaTeamIdForTeam(HORDE))?sObjectMgr.GetArenaTeamById(GetArenaTeamIdForTeam(HORDE))->GetRating():0, (winner==4)?"1":"2");  //kia arena log
         }
     }
 
@@ -767,7 +770,7 @@ void BattleGround::EndBattleGround(Team winner)
         //if(!team) team = plr->GetTeam();
 
         // per player calculation
-        if (isArena() && isRated() && winner_arena_team && loser_arena_team)
+        if (isArena() && isRated() && winner_arena_team && loser_arena_team && GetWinner()!=3)	//kia arena system
         {
             if (team == winner)
                 winner_arena_team->MemberWon(plr,loser_rating);
@@ -780,8 +783,10 @@ void BattleGround::EndBattleGround(Team winner)
             RewardMark(plr,ITEM_WINNER_COUNT);
             RewardQuestComplete(plr);
         }
-        else
+        else if(GetWinner()!=3) //kia bg system
+        {
             RewardMark(plr,ITEM_LOSER_COUNT);
+        }
 
         plr->CombatStopWithPets(true);
 
@@ -899,7 +904,10 @@ void BattleGround::RewardItem(Player *plr, uint32 item_id, uint32 count)
 
     if( count != 0 && !dest.empty())                        // can add some
         if (Item* item = plr->StoreNewItem( dest, item_id, true, 0))
+		{
             plr->SendNewItem(item,count,true,false);
+			sLog.outItems("Storage::BGReward %u,%u for %s", item_id, count, plr->GetName());
+		}
 
     if (no_space_count > 0)
         SendRewardMarkByMail(plr,item_id,no_space_count);
@@ -1009,6 +1017,8 @@ void BattleGround::RemovePlayerAtLeave(ObjectGuid guid, bool Transport, bool Sen
         BattleGroundQueueTypeId bgQueueTypeId = BattleGroundMgr::BGQueueTypeId(GetTypeID(), GetArenaType());
         if (plr)
         {
+     	    plr->ResetHonorCount();	//kia honor count
+
             plr->ClearAfkReports();
 
             if (!team) team = plr->GetTeam();
@@ -1579,7 +1589,7 @@ bool BattleGround::DelObject(uint32 type)
     GameObject *obj = GetBgMap()->GetGameObject(m_BgObjects[type]);
     if (!obj)
     {
-        sLog.outError("Can't find gobject guid: %u",GUID_LOPART(m_BgObjects[type]));
+        sLog.outError("Can't find Battleground gobject type:%u guid:%u",type, GUID_LOPART(m_BgObjects[type]));	//kia change log
         return false;
     }
 

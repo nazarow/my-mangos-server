@@ -161,7 +161,8 @@ void WorldSession::HandlePetAction( WorldPacket & recv_data )
                 case REACT_PASSIVE:                         //passive
                 case REACT_DEFENSIVE:                       //recovery
                 case REACT_AGGRESSIVE:                      //activete
-                    charmInfo->SetReactState( ReactStates(spellid) );
+					if (pet->GetCharmInfo())
+                        pet->GetCharmInfo()->SetReactState( ReactStates(spellid) );
                     break;
             }
             break;
@@ -304,16 +305,24 @@ void WorldSession::HandlePetNameQueryOpcode( WorldPacket & recv_data )
     DETAIL_LOG( "HandlePetNameQuery. CMSG_PET_NAME_QUERY" );
 
     uint32 petnumber;
-    uint64 petguid;
+    ObjectGuid petguid;
 
     recv_data >> petnumber;
     recv_data >> petguid;
 
+	sLog.outMy("HPNQ::%s %u for %s", petguid.GetString().c_str(), petnumber, _player?_player->GetName():"xxx");
+
     SendPetNameQuery(petguid,petnumber);
 }
 
-void WorldSession::SendPetNameQuery( uint64 petguid, uint32 petnumber)
+void WorldSession::SendPetNameQuery(ObjectGuid petguid, uint32 petnumber)
 {
+	if (!_player->IsInWorld())
+	{
+		sLog.outError("Player %s not in World", _player->GetName());
+		return;
+	}
+
     Creature* pet = _player->GetMap()->GetAnyTypeCreature(petguid);
     if(!pet || !pet->GetCharmInfo() || pet->GetCharmInfo()->GetPetNumber() != petnumber)
         return;
@@ -593,19 +602,21 @@ void WorldSession::HandlePetUnlearnOpcode(WorldPacket& recvPacket)
         pet->unlearnSpell(spell_id,false);
     }
 
-    pet->SetTP(pet->getLevel() * (pet->GetLoyaltyLevel() - 1));
-
     for(int i = 0; i < MAX_UNIT_ACTION_BAR_INDEX; ++i)
         if(UnitActionBarEntry const* ab = charmInfo->GetActionBarEntry(i))
             if(ab->GetAction() && ab->IsActionBarForSpell())
                 charmInfo->SetActionBar(i,0,ACT_DISABLED);
 
     // relearn pet passives
-    pet->LearnPetPassives();
+    //pet->LearnPetPassives();
+	pet->_SaveSpells();
+	pet->InitPetCreateSpells();	//kia fix
+
+    pet->SetTP(pet->getLevel() * (pet->GetLoyaltyLevel() - 1));
 
     pet->m_resetTalentsTime = time(NULL);
     pet->m_resetTalentsCost = cost;
-    GetPlayer()->ModifyMoney(-(int32)cost);
+    GetPlayer()->ModifyMoney(-(int32)cost,"pet_unlearn");
 
     GetPlayer()->PetSpellInitialize();
 }
@@ -684,6 +695,7 @@ void WorldSession::HandlePetCastSpellOpcode( WorldPacket& recvPacket )
     recvPacket >> targets.ReadForCaster(pet);
 
     pet->clearUnitState(UNIT_STAT_MOVING);
+    pet->InterruptNonMeleeSpells(false);
 
     Spell *spell = new Spell(pet, spellInfo, false);
     spell->m_targets = targets;

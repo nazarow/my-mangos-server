@@ -388,7 +388,12 @@ void ThreatManager::addThreat(Unit* pVictim, float pThreat, bool crit, SpellScho
     if(!pVictim->isAlive() || !getOwner()->isAlive() )
         return;
 
-    MANGOS_ASSERT(getOwner()->GetTypeId()== TYPEID_UNIT);
+    //kia MANGOS_ASSERT(getOwner()->GetTypeId()== TYPEID_UNIT);
+	if (getOwner()->GetTypeId()!= TYPEID_UNIT)
+	{
+		sLog.outMy("ThreatManager::Assert Owner!=UNIT [%s]",getOwner()?getOwner()->GetName():"---");
+		return;
+	}
 
     float threat = ThreatCalcHelper::CalcThreat(pVictim, iOwner, pThreat, crit, schoolMask, pThreatSpell);
 

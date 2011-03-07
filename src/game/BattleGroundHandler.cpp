@@ -539,6 +539,9 @@ void WorldSession::HandleAreaSpiritHealerQueryOpcode( WorldPacket & recv_data )
     ObjectGuid guid;
     recv_data >> guid;
 
+	if (!GetPlayer()->GetMap())	//kia chk map
+		return;
+
     Creature *unit = GetPlayer()->GetMap()->GetCreature(guid);
     if (!unit)
         return;
@@ -559,6 +562,9 @@ void WorldSession::HandleAreaSpiritHealerQueueOpcode( WorldPacket & recv_data )
 
     ObjectGuid guid;
     recv_data >> guid;
+
+	if (!GetPlayer()->IsInWorld() || !GetPlayer()->GetMap())	//kia
+		return;
 
     Creature *unit = GetPlayer()->GetMap()->GetCreature(guid);
     if (!unit)

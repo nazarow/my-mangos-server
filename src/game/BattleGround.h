@@ -116,6 +116,8 @@ enum BattleGroundStartTimeIntervals
     BG_START_DELAY_1M               = 60000,                // ms (1 minute)
     BG_START_DELAY_30S              = 30000,                // ms (30 seconds)
     BG_START_DELAY_15S              = 15000,                // ms (15 seconds) Used only in arena
+	BG_START_DELAY_10S              = 10000,                // ms (10 seconds)
+	BG_START_DELAY_5S               = 5000,                 // ms (5 seconds)
     BG_START_DELAY_NONE             = 0,                    // ms
 };
 
@@ -377,6 +379,8 @@ class BattleGround
 
         void StartBattleGround();
 
+        GameObject* GetBGObject(uint32 type);
+        Creature* GetBGCreature(uint32 type);
         /* Location */
         void SetMapId(uint32 MapID) { m_MapId = MapID; }
         uint32 GetMapId() const { return m_MapId; }

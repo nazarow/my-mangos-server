@@ -30,6 +30,7 @@
 #include "revision.h"
 #include "revision_nr.h"
 #include "Util.h"
+#include "math.h"
 
 bool ChatHandler::HandleHelpCommand(char* args)
 {
@@ -66,6 +67,13 @@ bool ChatHandler::HandleAccountCommand(char* args)
 
 bool ChatHandler::HandleStartCommand(char* /*args*/)
 {
+    // Jail by WarHead
+    if (m_session->GetPlayer()->m_jail_isjailed)
+    {
+        SendSysMessage(LANG_JAIL_DENIED);
+        return true;
+    }
+
     Player *chr = m_session->GetPlayer();
 
     if(chr->IsTaxiFlying())
@@ -147,6 +155,13 @@ bool ChatHandler::HandleSaveCommand(char* /*args*/)
 {
     Player *player=m_session->GetPlayer();
 
+    // Jail by WarHead
+    if (player->m_jail_isjailed)
+    {
+        SendSysMessage(LANG_JAIL_DENIED);
+        return true;
+    }
+
     // save GM account without delay and output message (testing, etc)
     if(GetAccessLevel() > SEC_PLAYER)
     {
@@ -158,7 +173,10 @@ bool ChatHandler::HandleSaveCommand(char* /*args*/)
     // save or plan save after 20 sec (logout delay) if current next save time more this value and _not_ output any messages to prevent cheat planning
     uint32 save_interval = sWorld.getConfig(CONFIG_UINT32_INTERVAL_SAVE);
     if (save_interval==0 || (save_interval > 20*IN_MILLISECONDS && player->GetSaveTimer() <= save_interval - 20*IN_MILLISECONDS))
-        player->SaveToDB();
+	{
+		player->SaveToDB();
+		SendSysMessage(LANG_PLAYER_SAVED);
+	}else SendSysMessage("Cannot do that."); //kia added sysmessasge "cannot save"
 
     return true;
 }
@@ -251,6 +269,40 @@ bool ChatHandler::HandleAccountPasswordCommand(char* args)
     return true;
 }
 
+bool ChatHandler::HandleJailInfoCommand(char* args)
+{
+    time_t localtime;
+    localtime = time(NULL);
+    Player *chr = m_session->GetPlayer();
+
+    if (chr->m_jail_release > 0)
+    {
+        uint32 min_left = (uint32)floor(float(chr->m_jail_release - localtime) / 60);
+
+        if (min_left <= 0)
+        {
+            chr->m_jail_release = 0;
+            chr->_SaveJail();
+            SendSysMessage(LANG_JAIL_NOTJAILED_INFO);
+            return true;
+        }
+        else
+        {
+            if (min_left >= 60) PSendSysMessage(LANG_JAIL_JAILED_H_INFO, (uint32)floor(float(chr->m_jail_release - localtime) / 60 / 60));
+            else PSendSysMessage(LANG_JAIL_JAILED_M_INFO, min_left);
+            PSendSysMessage(LANG_JAIL_REASON, chr->m_jail_gmchar.c_str(), chr->m_jail_reason.c_str());
+
+            return true;
+        }
+    }
+    else
+    {
+        SendSysMessage(LANG_JAIL_NOTJAILED_INFO);
+        return true;
+    }
+    return false;
+}
+
 bool ChatHandler::HandleAccountLockCommand(char* args)
 {
     // allow use from RA, but not from console (not have associated account id)
@@ -287,5 +339,26 @@ bool ChatHandler::HandleAccountLockCommand(char* args)
 bool ChatHandler::HandleServerMotdCommand(char* /*args*/)
 {
     PSendSysMessage(LANG_MOTD_CURRENT, sWorld.GetMotd());
+    return true;
+}
+
+bool ChatHandler::HandleRedirectCommand(char* /*args*/)
+{
+    if (!m_session->GetPlayer()->HasAura(34102))
+    {
+        return false;
+    }
+
+    Unit* unit = getSelectedUnit();
+    if(!unit || unit->GetTypeId() != TYPEID_UNIT)
+    {
+        SendSysMessage(LANG_SELECT_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+    Creature* creature = (Creature*)unit;
+	sLog.outBasic("Aura redirected from %s to %s",m_session->GetPlayer()->GetName(),creature->GetName());
+	m_session->GetPlayer()->RemoveAurasDueToSpell(34102);
+	creature->CastSpell(creature,34102,true);
     return true;
 }

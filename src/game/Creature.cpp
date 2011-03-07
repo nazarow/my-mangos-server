@@ -45,6 +45,8 @@
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"
+#include "OutdoorPvPMgr.h"
+#include "NullCreatureAI.h"
 
 // apply implementation of the singletons
 #include "Policies/SingletonImp.h"
@@ -126,6 +128,7 @@ Unit(), i_AI(NULL),
 lootForPickPocketed(false), lootForBody(false), lootForSkin(false), m_groupLootTimer(0), m_groupLootId(0),
 m_lootMoney(0), m_lootGroupRecipientId(0),
 m_corpseDecayTimer(0), m_respawnTime(0), m_respawnDelay(25), m_corpseDelay(60), m_respawnradius(5.0f),
+m_isPet(false), m_isTotem(false),
 m_subtype(subtype), m_defaultMovementType(IDLE_MOTION_TYPE), m_equipmentId(0),
 m_AlreadyCallAssistance(false), m_AlreadySearchedAssistance(false),
 m_regenHealth(true), m_AI_locked(false), m_isDeadByDefault(false), m_needNotify(false),
@@ -142,6 +145,7 @@ m_creatureInfo(NULL), m_splineFlags(SPLINEFLAG_WALKMODE)
     m_CreatureCategoryCooldowns.clear();
 
     m_splineFlags = SPLINEFLAG_WALKMODE;
+	m_spellId = 0;
 }
 
 Creature::~Creature()
@@ -354,6 +358,9 @@ bool Creature::UpdateEntry(uint32 Entry, Team team, const CreatureData *data /*=
             SetPvP(false);
     }
 
+    if (GetCreatureInfo()->unit_flags & UNIT_FLAG_PVP || GetCreatureInfo()->unit_flags & UNIT_FLAG_PVP_ATTACKABLE)
+        SetPvP(true);	//kia
+
     for(int i = 0; i < CREATURE_MAX_SPELLS; ++i)
         m_spells[i] = GetCreatureInfo()->spells[i];
 
@@ -444,6 +451,13 @@ void Creature::Update(uint32 update_diff, uint32 diff)
         {
             if( m_respawnTime <= time(NULL) )
             {
+				if (uint32 spawner = sObjectMgr.GetUnitOwner(GetGUIDLow()))	//kia not spawn without spawner
+					if (GetMap()->GetPersistentState()->GetCreatureRespawnTime(spawner)) 
+					{
+						m_respawnTime = GetMap()->GetPersistentState()->GetCreatureRespawnTime(spawner);
+						break;
+					}
+
                 DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS, "Respawning...");
                 m_respawnTime = 0;
                 lootForPickPocketed = false;
@@ -703,6 +717,20 @@ bool Creature::AIM_Initialize()
     return true;
 }
 
+void Creature::AIM_Release()
+{
+    // make sure nothing can change the AI during AI update
+    if(m_AI_locked)
+    {
+        sLog.outDebug("AIM_Release: failed to Release, locked.");
+    }
+
+    CreatureAI * oldAI = i_AI;
+    if (oldAI)
+        delete oldAI;
+    i_AI = new NullCreatureAI(this);
+}
+
 bool Creature::Create(uint32 guidlow, Map *map, uint32 Entry, Team team, const CreatureData *data /*= NULL*/, GameEventCreatureData const* eventData /*= NULL*/)
 {
     MANGOS_ASSERT(map);
@@ -713,6 +741,7 @@ bool Creature::Create(uint32 guidlow, Map *map, uint32 Entry, Team team, const C
 
     if (bResult)
     {
+		if (data) SetSummonPoint(data->posX, data->posY, data->posZ, data->orientation); //kia summon
         //Notify the map's instance data.
         //Only works if you create the object in it, not if it is moves to that map.
         //Normally non-players do not teleport to other maps.
@@ -966,6 +995,7 @@ void Creature::SetLootRecipient(Unit *unit)
 
     if (!unit)
     {
+        SetPlayersDamage(0);	//kia dmg system
         m_lootRecipientGuid.Clear();
         m_lootGroupRecipientId = 0;
         RemoveFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_TAPPED);
@@ -1239,6 +1269,10 @@ bool Creature::LoadFromDB(uint32 guidlow, Map *map)
 
     m_respawnTime  = map->GetPersistentState()->GetCreatureRespawnTime(GetGUIDLow());
 
+	if (uint32 spawner = sObjectMgr.GetUnitOwner(GetCreatureInfo()->Entry))	//kia not spawn without spawner
+		if (map->GetPersistentState()->GetCreatureRespawnTime(spawner)) 
+			m_respawnTime = map->GetPersistentState()->GetCreatureRespawnTime(spawner);
+
     if(m_respawnTime > time(NULL))                          // not ready to respawn
     {
         m_deathState = DEAD;
@@ -1364,6 +1398,11 @@ void Creature::DeleteFromDB()
     WorldDatabase.CommitTransaction();
 }
 
+bool Creature::IsWithinSightDist(Unit const* u) const
+{
+    return IsWithinDistInMap(u, sWorld.getConfig(CONFIG_FLOAT_SIGHT_MONSTER));
+}
+
 float Creature::GetAttackDistance(Unit const* pl) const
 {
     float aggroRate = sWorld.getConfig(CONFIG_FLOAT_RATE_CREATURE_AGGRO);
@@ -1448,6 +1487,7 @@ void Creature::SetDeathState(DeathState s)
         i_motionMaster.Clear();
         SetMeleeDamageSchool(SpellSchools(cinfo->dmgschool));
         LoadCreatureAddon(true);
+		SetUsed(false);		//kia
     }
 }
 
@@ -1466,6 +1506,9 @@ bool Creature::FallGround()
             GetEntry(), GetMap()->GetId(), GetPositionX(), GetPositionX(), GetPositionZ(), tz);
         return false;
     }
+
+	if (tz == INVALID_HEIGHT)	//kia not fall underground
+		tz = GetPositionZ();
 
     // Abort too if the ground is very near
     if (fabs(GetPositionZ() - tz) < 0.1f)
@@ -1768,6 +1811,10 @@ bool Creature::CanAssistTo(const Unit* u, const Unit* enemy, bool checkfaction /
     // only free creature
     if (!GetCharmerOrOwnerGuid().IsEmpty())
         return false;
+
+	// only attackable creature //kia
+	if (HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE))
+		return false;
 
     // only from same creature faction
     if (checkfaction)

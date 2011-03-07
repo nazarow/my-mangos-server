@@ -288,6 +288,10 @@ void WorldSession::HandleGetChannelMemberCountOpcode(WorldPacket &recvPacket)
     //recvPacket.hexlike();
     std::string channelname;
     recvPacket >> channelname;
+
+	if (!_player)	//kia chk player
+		return;
+
     if(ChannelMgr* cMgr = channelMgr(_player->GetTeam()))
     {
         if(Channel *chn = cMgr->GetChannel(channelname, _player))

@@ -219,7 +219,9 @@ void WorldSession::HandleSendMail(WorldPacket & recv_data )
 
     pl->SendMailResult(0, MAIL_SEND, MAIL_OK);
 
-    pl->ModifyMoney( -int32(reqmoney) );
+    uint32 itemTextId = !body.empty() ? sObjectMgr.CreateItemText( body ) : 0;
+
+    pl->ModifyMoney( -int32(reqmoney), "send_mail", items_count);
 
     bool needItemDelay = false;
 
@@ -489,7 +491,7 @@ void WorldSession::HandleMailTakeItem(WorldPacket & recv_data )
                     .SendMailTo(MailReceiver(sender, sender_guid), _player, MAIL_CHECK_MASK_COD_PAYMENT);
             }
 
-            pl->ModifyMoney( -int32(m->COD) );
+            pl->ModifyMoney( -int32(m->COD),"mail_COD",m->sender);
         }
         m->COD = 0;
         m->state = MAIL_STATE_CHANGED;
@@ -533,7 +535,7 @@ void WorldSession::HandleMailTakeMoney(WorldPacket & recv_data )
 
     pl->SendMailResult(mailId, MAIL_MONEY_TAKEN, MAIL_OK);
 
-    pl->ModifyMoney(m->money);
+	pl->ModifyMoney(m->money,"mail_take_money",m->sender);
     m->money = 0;
     m->state = MAIL_STATE_CHANGED;
     pl->m_mailsUpdated = true;

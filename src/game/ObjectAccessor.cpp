@@ -102,7 +102,10 @@ ObjectAccessor::SaveAllPlayers()
     HashMapHolder<Player>::MapType& m = HashMapHolder<Player>::GetContainer();
     HashMapHolder<Player>::MapType::iterator itr = m.begin();
     for(; itr != m.end(); ++itr)
+    {
+        if (itr->second->m_jail_isjailed) continue; // Prevent jailed players to be saved
         itr->second->SaveToDB();
+    }
 }
 
 void ObjectAccessor::KickPlayer(ObjectGuid guid)

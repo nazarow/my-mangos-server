@@ -429,7 +429,7 @@ SpellSpecific GetSpellSpecific(uint32 spellId)
             if (IsSealSpell(spellInfo))
                 return SPELL_SEAL;
 
-            if (spellInfo->SpellFamilyFlags & UI64LIT(0x10000100))
+            if (spellInfo->SpellFamilyFlags & UI64LIT(0x10000180))
                 return SPELL_BLESSING;
 
             if ((spellInfo->SpellFamilyFlags & UI64LIT(0x00000820180400)) && (spellInfo->AttributesEx3 & 0x200))
@@ -628,6 +628,9 @@ bool IsPositiveEffect(uint32 spellId, SpellEffectIndex effIndex)
         case SPELL_EFFECT_ENERGIZE_PCT:
             return true;
 
+        // Charge casted on self to run - so must be positive
+        case SPELL_EFFECT_CHARGE:
+            return true;
             // non-positive aura use
         case SPELL_EFFECT_APPLY_AURA:
         case SPELL_EFFECT_APPLY_AREA_AURA_FRIEND:
@@ -1760,7 +1763,15 @@ bool SpellMgr::IsRankSpellDueToSpell(SpellEntry const *spellInfo_1,uint32 spellI
     if(!spellInfo_1 || !spellInfo_2) return false;
     if(spellInfo_1->Id == spellId_2) return false;
 
-    return GetFirstSpellInChain(spellInfo_1->Id)==GetFirstSpellInChain(spellId_2);
+	uint32 spellId_a = GetFirstSpellInChain(spellInfo_1->Id);		//kia fix rank spells
+	uint32 spellId_b = GetFirstSpellInChain(spellId_2);
+	SpellChainNode const* node1 = GetSpellChainNode(spellId_a);
+	SpellChainNode const* node2 = GetSpellChainNode(spellId_b);
+	if (node1 && node1->req)
+		spellId_a = GetFirstSpellInChain(node1->req);
+	if (node2 && node2->req)
+		spellId_b = GetFirstSpellInChain(node2->req);
+    return spellId_a == spellId_b;
 }
 
 bool SpellMgr::canStackSpellRanksInSpellBook(SpellEntry const *spellInfo) const
@@ -1863,6 +1874,11 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                         (spellInfo_2->Id == 23170 && spellInfo_1->Id == 23171))
                         return false;
 
+                    // Defensive Stance and Defensive Stance passive  //kia
+                    if ((spellInfo_1->Id == 7164 && spellInfo_2->Id == 7376) ||
+                        (spellInfo_2->Id == 7164 && spellInfo_1->Id == 7376))
+                        return false;
+
                     // Male Shadowy Disguise
                     if ((spellInfo_1->Id == 32756 && spellInfo_2->Id == 38080) ||
                         (spellInfo_2->Id == 32756 && spellInfo_1->Id == 38080))
@@ -1876,7 +1892,12 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                     // Regular and Night Elf Ghost
                     if ((spellInfo_1->Id == 8326 && spellInfo_2->Id == 20584) ||
                         (spellInfo_2->Id == 8326 && spellInfo_1->Id == 20584))
-                         return false;
+                        return false;
+
+                    // Battle Stance and Battle Stance passive //kia
+                    if ((spellInfo_1->Id == 7165 && spellInfo_2->Id == 21156) ||
+                        (spellInfo_2->Id == 7165 && spellInfo_1->Id == 21156))
+                        return false;
 
                     break;
                 }
@@ -1895,6 +1916,31 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                     if ((spellInfo_2->SpellFamilyFlags & UI64LIT(0x2)) && spellInfo_1->Id == 23694)
                         return false;
 
+					//Berserker Stance and Berserker Stance passive
+                    if ((spellInfo_1->Id == 2458 && spellInfo_2->Id == 7381) ||
+                        (spellInfo_2->Id == 2458 && spellInfo_1->Id == 7381))
+                        return false;
+
+					//Defensive Stance and Defensive Stance passive
+                    if ((spellInfo_1->Id == 71 && spellInfo_2->Id == 7376) ||
+                        (spellInfo_2->Id == 71 && spellInfo_1->Id == 7376))
+                        return false;
+
+					// Defensive Stance and Improved Defensive Stance //kia
+                    if ((spellInfo_1->Id == 71 && spellInfo_2->Id == 29595) ||
+                        (spellInfo_2->Id == 71 && spellInfo_1->Id == 29595))
+                        return false;
+
+                    // Battle Stance and Battle Stance passive //kia
+                    if ((spellInfo_1->Id == 2457 && spellInfo_2->Id == 21156) ||
+                        (spellInfo_2->Id == 2457 && spellInfo_1->Id == 21156))
+                        return false;
+
+			        //Berserker Stance and Berserker Stance passive //kia
+                    if ((spellInfo_1->Id == 7366 && spellInfo_2->Id == 7381) ||
+                        (spellInfo_2->Id == 7366 && spellInfo_1->Id == 7381))
+                        return false;
+
                     break;
                 }
                 case SPELLFAMILY_DRUID:
@@ -1907,12 +1953,52 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                     if (spellId_1 == 40216 && spellId_2 == 42016)
                         return false;
 
+                    // Travel Form (Shapeshift) and Travel Form (Passive) //kia
+                    if ((spellId_1 == 783 && spellId_2 == 5419) ||
+                        (spellId_2 == 783 && spellId_1 == 5419))
+                        return false;
+
+                    // Bear Form (Shapeshift) and Bear Form (Passive) //kia
+                    if ((spellId_1 == 1178 && spellId_2 == 5487) ||
+                        (spellId_2 == 1178 && spellId_1 == 5487))
+                        return false;
+
+                    // Dire Bear Form (Shapeshift) and Dire Bear Form (Passive) //kia
+                    if ((spellId_1 == 9634 && spellId_2 == 9635) ||
+                        (spellId_2 == 9634 && spellId_1 == 9635))
+                        return false;
+
+                    // Swift Flight Form (Shapeshift) and Swift Flight Form (Passive) //kia
+                    if ((spellId_1 == 40120 && spellId_2 == 40122) ||
+                        (spellId_2 == 40120 && spellId_1 == 40122))
+                        return false;
+
+                    // Swift Flight Form (Shapeshift) and Swift Flight Form (Passive) //kia
+                    if ((spellId_1 == 40120 && spellId_2 == 40121) ||
+                        (spellId_2 == 40120 && spellId_1 == 40121))
+                        return false;
+
+                    // Flight Form (Shapeshift) and Flight Form (Passive) //kia
+                    if ((spellId_1 == 33943 && spellId_2 == 33948) ||
+                        (spellId_2 == 33943 && spellId_1 == 33948))
+                        return false;
+
+                    // Flight Form (Shapeshift) and Flight Form (Passive) //kia
+                    if ((spellId_1 == 33943 && spellId_2 == 34764) ||
+                        (spellId_2 == 33943 && spellId_1 == 34764))
+                        return false;
+
                     break;
                 }
                 case SPELLFAMILY_ROGUE:
                 {
                     // Garrote-Silence -> Garrote (multi-family check)
                     if (spellInfo_1->SpellIconID == 498 && spellInfo_1->SpellVisual == 0 && spellInfo_2->SpellIconID == 498)
+                        return false;
+
+                    // Shadowmeld (Racial) and Shadowmeld (Passive) //kia
+                    if ((spellId_1 == 20580 && spellId_2 == 21009) ||
+                        (spellId_2 == 20580 && spellId_1 == 21009))
                         return false;
 
                     break;
@@ -1944,6 +2030,13 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
             // Dragonmaw Illusion, Blood Elf Illusion, Human Illusion, Illidari Agent Illusion, Scarlet Crusade Disguise
             if(spellInfo_1->SpellIconID == 1691 && spellInfo_2->SpellIconID == 1691)
                 return false;
+			// Headless Horseman Body Regen, Ghost Visual, Head Visual
+			if (((spellInfo_1->Id == 42403) != (spellInfo_2->Id == 42403)) ||
+				((spellInfo_1->Id == 42413) != (spellInfo_2->Id == 42413)) ||
+				((spellInfo_1->Id == 42556) != (spellInfo_2->Id == 42556)) ||
+				((spellInfo_1->Id == 43105) != (spellInfo_2->Id == 43105)) ||
+				((spellInfo_1->Id == 42575) != (spellInfo_2->Id == 42575)))
+				return false;
             break;
         case SPELLFAMILY_MAGE:
             if( spellInfo_2->SpellFamilyName == SPELLFAMILY_MAGE )
@@ -1956,6 +2049,11 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                 // Blink & Improved Blink
                 if (((spellInfo_1->SpellFamilyFlags & UI64LIT(0x0000000000010000)) && (spellInfo_2->SpellVisual == 72 && spellInfo_2->SpellIconID == 1499)) ||
                     ((spellInfo_2->SpellFamilyFlags & UI64LIT(0x0000000000010000)) && (spellInfo_1->SpellVisual == 72 && spellInfo_1->SpellIconID == 1499)))
+                    return false;
+
+                // Invisibility //kia
+                if ((spellInfo_1->Id == 66 && spellInfo_2->Id == 32612) ||
+                    (spellInfo_2->Id == 66 && spellInfo_1->Id == 32612))
                     return false;
 
                 // Fireball & Pyroblast (Dots)
@@ -2030,6 +2128,26 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
             if (spellInfo_2->Id == 2825 && spellInfo_1->SpellIconID == 38 && spellInfo_1->SpellVisual == 0)
                 return false;
 
+			//Berserker Stance and Berserker Stance passive
+            if ((spellInfo_1->Id == 2458 && spellInfo_2->Id == 7381) ||
+                (spellInfo_2->Id == 2458 && spellInfo_1->Id == 7381))
+                return false;
+
+			//Defensive Stance and Defensive Stance passive
+            if ((spellInfo_1->Id == 71 && spellInfo_2->Id == 7376) ||
+                (spellInfo_2->Id == 71 && spellInfo_1->Id == 7376))
+                return false;
+
+			// Battle Stance and Battle Stance passive //kia
+            if ((spellInfo_1->Id == 2457 && spellInfo_2->Id == 21156) ||
+                (spellInfo_2->Id == 2457 && spellInfo_1->Id == 21156))
+                return false;
+
+			//Berserker Stance and Berserker Stance passive //kia
+            if ((spellInfo_1->Id == 7366 && spellInfo_2->Id == 7381) ||
+                (spellInfo_2->Id == 7366 && spellInfo_1->Id == 7381))
+                return false;
+
             break;
         case SPELLFAMILY_PRIEST:
             if (spellInfo_2->SpellFamilyName == SPELLFAMILY_PRIEST)
@@ -2048,6 +2166,11 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
         case SPELLFAMILY_DRUID:
             if (spellInfo_2->SpellFamilyName == SPELLFAMILY_DRUID)
             {
+                // Lacerate and Moonfire
+                if (spellInfo_1->SpellIconID == 225 && spellInfo_2->SpellIconID == 2246 ||
+                     spellInfo_2->SpellIconID == 225 && spellInfo_1->SpellIconID == 2246 )
+                     return false;
+
                 //Omen of Clarity and Blood Frenzy
                 if (((spellInfo_1->SpellFamilyFlags == UI64LIT(0x0) && spellInfo_1->SpellIconID == 108) && (spellInfo_2->SpellFamilyFlags & UI64LIT(0x20000000000000))) ||
                     ((spellInfo_2->SpellFamilyFlags == UI64LIT(0x0) && spellInfo_2->SpellIconID == 108) && (spellInfo_1->SpellFamilyFlags & UI64LIT(0x20000000000000))))
@@ -2072,6 +2195,31 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                 if ((spellInfo_1->Id == 16864 && spellInfo_2->Id == 37311) ||
                     (spellInfo_2->Id == 16864 && spellInfo_1->Id == 37311))
                     return false;
+
+                // Cat Form (Shapeshift) and Cat Form (Passive) //kia
+                if ((spellId_1 == 768 && spellId_2 == 3025) ||
+                    (spellId_2 == 768 && spellId_1 == 3025))
+                    return false;
+
+                // Bear Form (Shapeshift) and Bear Form (Passive2) //kia
+                if ((spellId_1 == 5487 && spellId_2 == 21178) ||
+                    (spellId_2 == 5487 && spellId_1 == 21178))
+                    return false;
+
+                // Dire Bear Form (Shapeshift) and Bear Form (Passive2) //kia
+                if ((spellId_1 == 9634 && spellId_2 == 21178) ||
+                    (spellId_2 == 9634 && spellId_1 == 21178))
+                    return false;
+
+                // Aquatic Form (Shapeshift) and Aquatic Form (Passive) //kia
+                if ((spellId_1 == 1066 && spellId_2 == 5421) ||
+                    (spellId_2 == 1066 && spellId_1 == 5421))
+                    return false;
+
+                // Flight Form (Shapeshift) and Flight Form (Passive) //kia
+                if ((spellId_1 == 33943 && spellId_2 == 34764) ||
+                    (spellId_2 == 33943 && spellId_1 == 34764))
+                    return false;
             }
 
             // Leader of the Pack and Scroll of Stamina (multi-family check)
@@ -2080,6 +2228,31 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
 
             // Dragonmaw Illusion (multi-family check)
             if (spellId_1 == 42016 && spellId_2 == 40216 )
+                return false;
+
+            // Travel Form (Shapeshift) and Travel Form (Passive) //kia
+            if ((spellId_1 == 783 && spellId_2 == 5419) ||
+                (spellId_2 == 783 && spellId_1 == 5419))
+                return false;
+
+            // Flight Form (Shapeshift) and Flight Form (Passive) //kia
+            if ((spellId_1 == 33943 && spellId_2 == 33948) ||
+                (spellId_2 == 33943 && spellId_1 == 33948))
+                return false;
+
+            // Swift Flight Form (Shapeshift) and Swift Flight Form (Passive) //kia
+            if ((spellId_1 == 40120 && spellId_2 == 40122) ||
+                (spellId_2 == 40120 && spellId_1 == 40122))
+                return false;
+
+            // Swift Flight Form (Shapeshift) and Swift Flight Form (Passive) //kia
+            if ((spellId_1 == 40120 && spellId_2 == 40121) ||
+                (spellId_2 == 40120 && spellId_1 == 40121))
+                return false;
+
+            // Bear Form (Shapeshift) and Bear Form (Passive) //kia
+            if ((spellId_1 == 1178 && spellId_2 == 5487) ||
+                (spellId_2 == 1178 && spellId_1 == 5487))
                 return false;
 
             break;
@@ -2095,6 +2268,12 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
             // Garrote -> Garrote-Silence (multi-family check)
             if (spellInfo_1->SpellIconID == 498 && spellInfo_2->SpellIconID == 498 && spellInfo_2->SpellVisual == 0)
                 return false;
+
+            // Shadowmeld (Racial) and Shadowmeld (Passive) //kia
+            if ((spellId_1 == 20580 && spellId_2 == 21009) ||
+                (spellId_2 == 20580 && spellId_1 == 21009))
+                return false;
+
             break;
         case SPELLFAMILY_HUNTER:
             if (spellInfo_2->SpellFamilyName == SPELLFAMILY_HUNTER)
@@ -3784,6 +3963,13 @@ DiminishingGroup GetDiminishingReturnsGroupForSpell(SpellEntry const* spellproto
     // Explicit Diminishing Groups
     switch(spellproto->SpellFamilyName)
     {
+        case SPELLFAMILY_MAGE:
+        {
+            // Polymorph
+            if ((spellproto->SpellFamilyFlags & UI64LIT(0x00001000000)) && spellproto->EffectApplyAuraName[0]==SPELL_AURA_MOD_CONFUSE)
+                return DIMINISHING_POLYMORPH;
+            break;
+        }
         case SPELLFAMILY_GENERIC:
             // some generic arena related spells have by some strange reason MECHANIC_TURN
             if  (spellproto->Mechanic == MECHANIC_TURN)
@@ -3794,6 +3980,12 @@ DiminishingGroup GetDiminishingReturnsGroupForSpell(SpellEntry const* spellproto
             // Kidney Shot
             if (spellproto->SpellFamilyFlags & UI64LIT(0x00000200000))
                 return DIMINISHING_KIDNEYSHOT;
+            // Sap
+            else if (spellproto->SpellFamilyFlags & UI64LIT(0x00000000080))
+                return DIMINISHING_POLYMORPH;
+            // Gouge
+            else if (spellproto->SpellFamilyFlags & UI64LIT(0x00000000008))
+                return DIMINISHING_POLYMORPH;
             // Blind
             else if (spellproto->SpellFamilyFlags & UI64LIT(0x00001000000))
                 return DIMINISHING_BLIND_CYCLONE;
@@ -3808,6 +4000,12 @@ DiminishingGroup GetDiminishingReturnsGroupForSpell(SpellEntry const* spellproto
         }
         case SPELLFAMILY_WARLOCK:
         {
+            // Death Coil
+            if (spellproto->SpellFamilyFlags & UI64LIT(0x00000080000))
+                return DIMINISHING_DEATHCOIL;
+            // Seduction
+            if (spellproto->SpellFamilyFlags & UI64LIT(0x00040000000))
+                return DIMINISHING_FEAR;
             // Fear
             if (spellproto->SpellFamilyFlags & UI64LIT(0x40840000000))
                 return DIMINISHING_WARLOCK_FEAR;
@@ -3821,6 +4019,9 @@ DiminishingGroup GetDiminishingReturnsGroupForSpell(SpellEntry const* spellproto
             // Cyclone
             if (spellproto->SpellFamilyFlags & UI64LIT(0x02000000000))
                 return DIMINISHING_BLIND_CYCLONE;
+            // Nature's Grasp trigger
+            if (spellproto->SpellFamilyFlags & UI64LIT(0x00000000200) && spellproto->Attributes == 0x49010000)
+                return DIMINISHING_CONTROL_ROOT;
             break;
         }
         case SPELLFAMILY_WARRIOR:
@@ -3831,7 +4032,11 @@ DiminishingGroup GetDiminishingReturnsGroupForSpell(SpellEntry const* spellproto
             break;
         }
         default:
+        {
+            if(spellproto->Id == 12494) // frostbite
+                return DIMINISHING_TRIGGER_ROOT;
             break;
+        }
     }
 
     // Get by mechanic

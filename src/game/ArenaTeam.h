@@ -144,7 +144,7 @@ class ArenaTeam
         uint32 GetBackgroundColor() const { return m_BackgroundColor; }
 
         void SetCaptain(ObjectGuid guid);
-        bool AddMember(ObjectGuid playerGuid);
+        bool AddMember(ObjectGuid playerGuid, bool New=false);
         void DelMember(ObjectGuid guid);
 
         void SetEmblem(uint32 backgroundColor, uint32 emblemStyle, uint32 emblemColor, uint32 borderStyle, uint32 borderColor);

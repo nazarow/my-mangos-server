@@ -82,6 +82,10 @@ void WorldSession::HandleSwapInvItemOpcode( WorldPacket & recv_data )
         _player->SendEquipError( EQUIP_ERR_ITEM_DOESNT_GO_TO_SLOT, NULL, NULL );
         return;
     }
+	if (_player->IsCastingSpell())
+	{
+		_player->SendEquipError(EQUIP_ERR_ITEMS_CANT_BE_SWAPPED, NULL, NULL );
+	}
 
     uint16 src = ( (INVENTORY_SLOT_BAG_0 << 8) | srcslot );
     uint16 dst = ( (INVENTORY_SLOT_BAG_0 << 8) | dstslot );
@@ -580,7 +584,7 @@ void WorldSession::HandleSellItemOpcode( WorldPacket & recv_data )
                     _player->AddItemToBuyBackSlot( pItem );
                 }
 
-                _player->ModifyMoney( pProto->SellPrice * count );
+				_player->ModifyMoney( pProto->SellPrice * count, "sell_item", pItem->GetGUIDLow());
             }
             else
                 _player->SendSellError( SELL_ERR_CANT_SELL_ITEM, pCreature, itemguid, 0);
@@ -625,7 +629,7 @@ void WorldSession::HandleBuybackItem(WorldPacket & recv_data)
         uint8 msg = _player->CanStoreItem( NULL_BAG, NULL_SLOT, dest, pItem, false );
         if( msg == EQUIP_ERR_OK )
         {
-            _player->ModifyMoney( -(int32)price );
+			_player->ModifyMoney( -(int32)price , "buy_back", pItem->GetGUIDLow());
             _player->RemoveItemFromBuyBackSlot( slot, false );
             _player->ItemAddedQuestCheck( pItem->GetEntry(), pItem->GetCount());
             _player->StoreItem( dest, pItem, true );
@@ -909,7 +913,7 @@ void WorldSession::HandleBuyBankSlotOpcode(WorldPacket& recvPacket)
     }
 
     _player->SetBankBagSlotCount(slot);
-    _player->ModifyMoney(-int32(price));
+	_player->ModifyMoney(-int32(price),"buy_bank_slot",slotEntry->ID);
 
      data << uint32(ERR_BANKSLOT_OK);
      SendPacket(&data);

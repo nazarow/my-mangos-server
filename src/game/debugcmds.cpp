@@ -30,8 +30,10 @@
 #include "BattleGroundMgr.h"
 #include <fstream>
 #include "ObjectMgr.h"
+#include "World.h"
 #include "ObjectGuid.h"
 #include "SpellMgr.h"
+#include "OutdoorPvPMgr.h"
 
 bool ChatHandler::HandleDebugSendSpellFailCommand(char* args)
 {
@@ -576,6 +578,12 @@ bool ChatHandler::HandleDebugArenaCommand(char* /*args*/)
     return true;
 }
 
+bool ChatHandler::HandleDebugOutdoorPvPCommand(char* /*args*/)
+{
+    sOutdoorPvPMgr.ToggleOutdoorPvPTesting();
+    return true;
+}
+
 bool ChatHandler::HandleDebugSpellCheckCommand(char* /*args*/)
 {
     sLog.outString( "Check expected in code spell properties base at table 'spell_check' content...");
@@ -592,6 +600,16 @@ bool ChatHandler::HandleDebugAnimCommand(char* args)
 
     m_session->GetPlayer()->HandleEmoteCommand(emote_id);
     return true;
+}
+
+bool ChatHandler::HandleDebugTargetGuid(char* args)
+{
+	Player* player = getSelectedPlayer();
+	sWorld.TargetGuid=(player?player->GetGUIDLow():0);
+	if (*args)
+		sWorld.TargetGuid = atoi((char*)args);
+	PSendSysMessage("Selected target %d",sWorld.TargetGuid);
+	return true;
 }
 
 bool ChatHandler::HandleDebugSetAuraStateCommand(char* args)
@@ -1053,5 +1071,63 @@ bool ChatHandler::HandleDebugSpellModsCommand(char* args)
     data << int32(value);
     chr->GetSession()->SendPacket(&data);
 
+    return true;
+}
+
+bool ChatHandler::HandleDebugModItemVisualCommand(char* args)
+{
+    uint32 item;
+    if (!ExtractUInt32(&args, item))
+        return false;
+
+    uint32 visual;
+    if (!ExtractUInt32(&args, visual))
+        return false;
+
+	ItemPrototype const* proto = sItemStorage.LookupEntry<ItemPrototype>(item);
+	const_cast<ItemPrototype*>(proto)->DisplayInfoID = visual;
+
+	return true;
+}
+
+bool ChatHandler::HandleDebugThreatList(char* args)
+{
+    Creature* target = getSelectedCreature();
+    if(!target || target->IsTotem() || target->IsPet())
+        return false;
+
+    ThreatList const& tlist = target->getThreatManager().getThreatList();
+    uint32 cnt = 0;
+    PSendSysMessage("Threat list of %s (guid %u)",target->GetName(), target->GetGUIDLow());
+    for(ThreatList::const_iterator itr = tlist.begin(); itr != tlist.end(); ++itr)
+    {
+        Unit* unit = (*itr)->getTarget();
+        if(!unit)
+            continue;
+        ++cnt;
+        PSendSysMessage("   %u.   %s   (guid %u)  - threat %f",cnt,unit->GetName(), unit->GetGUIDLow(), (*itr)->getThreat());
+    }
+    SendSysMessage("End of threat list.");
+    return true;
+}
+
+bool ChatHandler::HandleDebugHostileRefList(char* args)
+{
+    Unit* target = getSelectedUnit();
+    if(!target)
+        target = m_session->GetPlayer();
+    HostileReference* ref = target->getHostileRefManager().getFirst();
+    uint32 cnt = 0;
+    PSendSysMessage("Hostil reference list of %s (guid %u)",target->GetName(), target->GetGUIDLow());
+    while(ref)
+    {
+        if(Unit * unit = ref->getSource()->getOwner())
+        {
+            ++cnt;
+            PSendSysMessage("   %u.   %s   (guid %u)  - threat %f",cnt,unit->GetName(), unit->GetGUIDLow(), ref->getThreat());
+        }
+        ref = ref->next();
+    }
+    SendSysMessage("End of hostil reference list.");
     return true;
 }

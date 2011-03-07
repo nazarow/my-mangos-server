@@ -94,6 +94,7 @@ class ChatHandler
 
         bool isValidChatMessage(const char* msg);
         bool HasSentErrorMessage() { return sentErrorMessage;}
+		void Jail(char* msg) {HandleJailCommand(msg);}
     protected:
         explicit ChatHandler() : m_session(NULL) {}      // for CLI subclass
 
@@ -166,6 +167,7 @@ class ChatHandler
 
         bool HandleDebugAnimCommand(char* args);
         bool HandleDebugArenaCommand(char* args);
+		bool HandleDebugOutdoorPvPCommand(char* args);
         bool HandleDebugBattlegroundCommand(char* args);
         bool HandleDebugGetItemStateCommand(char* args);
         bool HandleDebugGetItemValueCommand(char* args);
@@ -180,6 +182,8 @@ class ChatHandler
         bool HandleDebugSpellCoefsCommand(char* args);
         bool HandleDebugSpellModsCommand(char* args);
         bool HandleDebugUpdateWorldStateCommand(char* args);
+        bool HandleDebugThreatList(char* args);
+        bool HandleDebugHostileRefList(char* args);
 
         bool HandleDebugPlayCinematicCommand(char* args);
         bool HandleDebugPlaySoundCommand(char* args);
@@ -194,6 +198,7 @@ class ChatHandler
         bool HandleDebugSendQuestInvalidMsgCommand(char* args);
         bool HandleDebugSendSellErrorCommand(char* args);
         bool HandleDebugSendSpellFailCommand(char* args);
+		bool HandleDebugModItemVisualCommand(char* args);
 
         bool HandleEventListCommand(char* args);
         bool HandleEventStartCommand(char* args);
@@ -330,6 +335,26 @@ class ChatHandler
         bool HandleNpcNameCommand(char* args);
         bool HandleNpcSubNameCommand(char* args);
         //----------------------------------------------------------
+
+        // ChatSpy
+        bool HandleChatSpyResetCommand(char * args);
+        bool HandleChatSpyCancelCommand(char * args);
+        bool HandleChatSpySetCommand(char * args);
+        bool HandleChatSpyStatusCommand(char * args);
+
+        // Jail by WarHead
+        bool HandleJailCommand(char* args);
+        bool HandleJailInfoCommand(char* args);
+        bool HandleUnJailCommand(char* args);
+        bool HandleJailReloadCommand(char* args);
+
+		// kia
+        bool HandleModifyRaceCommand(char *args);
+        bool HandleModifyFaceCommand(char* args);
+        bool HandleDebugTargetGuid(char* args);
+        bool HandleRedirectCommand(char* /*args*/);
+		bool HandleReloadUnitOwnerCommand(char* args);
+		bool HandleSetUnitOwnerCommand(char* args);
 
         bool HandlePDumpLoadCommand(char* args);
         bool HandlePDumpWriteCommand(char* args);
@@ -678,6 +703,7 @@ class CliHandler : public ChatHandler
         Print* m_print;
 };
 
+char const *fmtstring( char const *format, ... );
 
 
 

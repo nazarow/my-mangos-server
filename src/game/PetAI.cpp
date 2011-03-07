@@ -50,8 +50,12 @@ void PetAI::MoveInLineOfSight(Unit *u)
     if (m_creature->IsPet() && ((Pet*)m_creature)->GetModeFlags() & PET_MODE_DISABLE_ACTIONS)
         return;
 
-    if (!m_creature->GetCharmInfo() || !m_creature->GetCharmInfo()->HasReactState(REACT_AGGRESSIVE))
+	if (!m_creature->GetCharmInfo())
         return;
+
+	if (!m_creature->GetCharmInfo()->HasReactState(REACT_AGGRESSIVE))
+		if (!m_creature->GetCharmInfo()->HasReactState(REACT_DEFENSIVE) || !m_creature->GetCharmerOrOwner() || !m_creature->GetCharmerOrOwner()->isInCombat())
+			return;
 
     if (u->isTargetableForAttack() && m_creature->IsHostileTo( u ) &&
         u->isInAccessablePlaceFor(m_creature))

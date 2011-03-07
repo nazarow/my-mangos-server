@@ -29,6 +29,8 @@
 #include "ObjectAccessor.h"
 #include "ScriptMgr.h"
 #include "Group.h"
+#include "BattleGround.h"
+#include "BattleGroundAV.h"
 
 void WorldSession::HandleQuestgiverStatusQueryOpcode( WorldPacket & recv_data )
 {
@@ -418,6 +420,11 @@ void WorldSession::HandleQuestgiverCompleteQuest(WorldPacket& recv_data)
 
     if (Quest const *pQuest = sObjectMgr.GetQuestTemplate(quest))
     {
+        if(GetPlayer()->InBattleGround())
+            if(BattleGround* bg = GetPlayer()->GetBattleGround())
+                if(bg->GetTypeID() == BATTLEGROUND_AV)
+                    ((BattleGroundAV*)bg)->HandleQuestComplete(quest, GetPlayer());
+
         if (_player->GetQuestStatus( quest ) != QUEST_STATUS_COMPLETE)
         {
             if (pQuest->IsRepeatable())
@@ -625,6 +632,9 @@ void WorldSession::HandleQuestgiverStatusMultipleQuery(WorldPacket& /*recvPacket
     {
         uint8 questStatus = DIALOG_STATUS_NONE;
         uint8 defstatus = DIALOG_STATUS_NONE;
+
+		if (!GetPlayer() || !GetPlayer()->IsInWorld() || !GetPlayer()->GetMap()) //kia
+			continue;
 
         if (itr->IsCreatureOrPet())
         {

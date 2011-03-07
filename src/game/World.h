@@ -77,8 +77,9 @@ enum WorldTimers
     WUPDATE_UPTIME      = 4,
     WUPDATE_CORPSES     = 5,
     WUPDATE_EVENTS      = 6,
-    WUPDATE_DELETECHARS = 7,
-    WUPDATE_COUNT       = 8
+    WUPDATE_AUTOBROADCAST = 7,
+    WUPDATE_DELETECHARS = 8,
+    WUPDATE_COUNT       = 9
 };
 
 /// Configuration elements
@@ -164,6 +165,9 @@ enum eConfigUInt32Values
     CONFIG_UINT32_ARENA_RATING_DISCARD_TIMER,
     CONFIG_UINT32_ARENA_AUTO_DISTRIBUTE_INTERVAL_DAYS,
     CONFIG_UINT32_ARENA_SEASON_ID,
+	CONFIG_UINT32_INTERVAL_LOG_UPDATE,
+	CONFIG_UINT32_MIN_LOG_UPDATE,
+	CONFIG_UINT32_NUMTHREADS,
     CONFIG_UINT32_GUILD_EVENT_LOG_COUNT,
     CONFIG_UINT32_GUILD_BANK_EVENT_LOG_COUNT,
     CONFIG_UINT32_TIMERBAR_FATIGUE_GMLEVEL,
@@ -423,6 +427,7 @@ class World
 
         WorldSession* FindSession(uint32 id) const;
         void AddSession(WorldSession *s);
+        void SendRNDBroadcast();
         bool RemoveSession(uint32 id);
         /// Get the number of current active sessions
         void UpdateMaxSessionCounters();
@@ -549,6 +554,15 @@ class World
         static float GetVisibleUnitGreyDistance()           { return m_VisibleUnitGreyDistance;       }
         static float GetVisibleObjectGreyDistance()         { return m_VisibleObjectGreyDistance;     }
 
+		//movement anticheat
+        static bool GetEnableMvAnticheat() {return m_EnableMvAnticheat;}
+        static uint32 GetTeleportToPlaneAlarms() {return m_TeleportToPlaneAlarms;}
+        static uint32 GetMistimingDelta()  {return m_MistimingDelta;}
+        static uint32 GetMistimingAlarms() {return m_MistimingAlarms;}
+        bool GetAlarmKickMvAnticheat()  {return m_AlarmKickMvAnticheat;}    
+        uint32 GetAlarmCountMvAnticheat() {return m_AlarmCountMvAnticheat;} 
+        //<<< end movement anticheat
+
         void ProcessCliCommands();
         void QueueCliCommand(CliCommandHolder* commandHolder) { cliCmdQueue.add(commandHolder); }
 
@@ -563,6 +577,9 @@ class World
         void LoadDBVersion();
         char const* GetDBVersion() { return m_DBVersion.c_str(); }
         char const* GetCreatureEventAIVersion() { return m_CreatureEventAIVersion.c_str(); }
+
+		void RecordTimeDiff(const char * text, ...);
+		uint32 TargetGuid;
 
     protected:
         void _UpdateGameTime();
@@ -602,6 +619,9 @@ class World
         IntervalTimer m_timers[WUPDATE_COUNT];
         uint32 mail_timer;
         uint32 mail_timer_expires;
+        uint32 m_updateTime, m_updateTimeSum; 
+		uint32 m_updateTimeCount;
+        uint32 m_currentTime;
 
         typedef UNORDERED_MAP<uint32, Weather*> WeatherMap;
         WeatherMap m_weathers;
@@ -631,7 +651,13 @@ class World
         static float m_MaxVisibleDistanceInFlight;
         static float m_VisibleUnitGreyDistance;
         static float m_VisibleObjectGreyDistance;
-
+        //movement anticheat enable flag
+        static bool m_EnableMvAnticheat;
+        static uint32 m_TeleportToPlaneAlarms;
+        static uint32 m_MistimingDelta;
+        static uint32 m_MistimingAlarms;
+        bool m_AlarmKickMvAnticheat;
+        uint32 m_AlarmCountMvAnticheat;
         // CLI command holder to be thread safe
         ACE_Based::LockedQueue<CliCommandHolder*,ACE_Thread_Mutex> cliCmdQueue;
 

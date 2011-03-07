@@ -54,6 +54,13 @@
 #include "DBCStores.h"
 #include "CreatureEventAIMgr.h"
 
+bool ChatHandler::HandleJailReloadCommand(char* arg)
+{
+    sObjectMgr.LoadJailConf();
+    SendSysMessage(LANG_JAIL_RELOAD);
+    return true;
+}
+ 
 //reload commands
 bool ChatHandler::HandleReloadAllCommand(char* /*args*/)
 {
@@ -200,7 +207,7 @@ bool ChatHandler::HandleReloadConfigCommand(char* /*args*/)
 {
     sLog.outString( "Re-Loading config settings..." );
     sWorld.LoadConfigSettings(true);
-    sMapMgr.InitializeVisibilityDistanceInfo();
+	sMapMgr.InitializeVisibilityDistanceInfo();
     SendGlobalSysMessage("World config settings reloaded.");
     return true;
 }
@@ -2038,6 +2045,7 @@ bool ChatHandler::HandleAddItemCommand(char* args)
     }
 
     Item* item = plTarget->StoreNewItem( dest, itemId, true, Item::GenerateItemRandomPropertyId(itemId));
+	sLog.outItems("Storage::AddItem %u,%u for %s from %s", itemId, count, plTarget?plTarget->GetName():"---", pl?pl->GetName():"---");
 
     // remove binding (let GM give it to another player later)
     if(pl==plTarget)
@@ -2094,6 +2102,7 @@ bool ChatHandler::HandleAddItemSetCommand(char* args)
             if (msg == EQUIP_ERR_OK)
             {
                 Item* item = plTarget->StoreNewItem( dest, pProto->ItemId, true);
+				sLog.outItems("Storage::AddItemSet %u for %s from %s", pProto->ItemId, plTarget?plTarget->GetName():"---", pl?pl->GetName():"---");
 
                 // remove binding (let GM give it to another player later)
                 if (pl==plTarget)
@@ -3636,7 +3645,7 @@ bool ChatHandler::HandleNpcChangeEntryCommand(char *args)
     return true;
 }
 
-bool ChatHandler::HandleNpcInfoCommand(char* /*args*/)
+bool ChatHandler::HandleNpcInfoCommand(char* args)
 {
     Creature* target = getSelectedCreature();
 
@@ -3668,6 +3677,36 @@ bool ChatHandler::HandleNpcInfoCommand(char* /*args*/)
     PSendSysMessage(LANG_NPCINFO_LOOT,  cInfo->lootid,cInfo->pickpocketLootId,cInfo->SkinLootId);
     PSendSysMessage(LANG_NPCINFO_DUNGEON_ID, target->GetInstanceId());
     PSendSysMessage(LANG_NPCINFO_POSITION,float(target->GetPositionX()), float(target->GetPositionY()), float(target->GetPositionZ()));
+	PSendSysMessage("Mechanic immune: %X",cInfo->MechanicImmuneMask);
+	float sx,sy,sz,so;
+	target->GetSummonPoint(sx,sy,sz,so);
+	PSendSysMessage("Summon pos: %f %f %f %f", sx, sy, sz, so);
+	Unit* owner;
+	if (target->getVictim())
+		owner = target->getVictim();
+	else owner = m_session->GetPlayer();
+	PSendSysMessage("CanInitATT[%i] isTA[%i] isInAcc[%i] DistanceZ[%f] hostile[%i] AttackDist[%f] WithDist[%i] InLOS[%i] Stopped[%i] victim[%s]",target->CanInitiateAttack(),owner->isTargetableForAttack(),
+		owner->isInAccessablePlaceFor(target),target->GetDistanceZ(owner),target->IsHostileTo(owner),target->GetAttackDistance(owner),
+		target->IsWithinDistInMap(owner,target->GetAttackDistance(owner)),target->IsWithinLOSInMap(owner),target->IsStopped(),target->getVictim()?target->getVictim()->GetName():"---");
+
+	uint32 own = sObjectMgr.GetUnitOwner(target->GetGUIDLow());
+	if (own)
+		PSendSysMessage("Owner: %u (%s)", own, sObjectMgr.GetCreatureData(own)?sObjectMgr.GetCreatureTemplate(sObjectMgr.GetCreatureData(own)->id)->Name:"--");
+
+	std::string threat="";
+	ThreatList const& threatList = target->getThreatManager().getThreatList();
+    for (ThreatList::const_iterator i = threatList.begin(); i != threatList.end(); ++i)
+        if(Unit* Temp = ObjectAccessor::GetUnit(*target,(*i)->getUnitGuid()))
+		{
+			threat.append("{");
+			threat.append(Temp->GetName());
+		    char buf[20];
+			snprintf(buf,20,"%.2f",(*i)->getThreat());
+			threat.append(":");
+			threat.append(buf);
+			threat.append("}");
+		}
+	PSendSysMessage("Threat list: %s",threat.c_str());
 
     if ((npcflags & UNIT_NPC_FLAG_VENDOR) )
     {
@@ -4675,6 +4714,7 @@ bool ChatHandler::HandleQuestCompleteCommand(char* args)
         {
             Item* item = player->StoreNewItem( dest, id, true);
             player->SendNewItem(item,count-curItemCount,true,false);
+			sLog.outItems("Storage::QuestComplete [%u] %u,%u for %s from %s", entry, id, count-curItemCount, player?player->GetName():"---", m_session->GetPlayer()?m_session->GetPlayer()->GetName():"---");
         }
     }
 
@@ -4715,7 +4755,7 @@ bool ChatHandler::HandleQuestCompleteCommand(char* args)
     // If the quest requires money
     int32 ReqOrRewMoney = pQuest->GetRewOrReqMoney();
     if (ReqOrRewMoney < 0)
-        player->ModifyMoney(-ReqOrRewMoney);
+        player->ModifyMoney(-ReqOrRewMoney,"quest_req",entry);
 
     player->CompleteQuest(entry);
     return true;
@@ -6332,4 +6372,371 @@ bool ChatHandler::HandleModifyGenderCommand(char *args)
         ChatHandler(player).PSendSysMessage(LANG_YOUR_GENDER_CHANGED, gender_full, GetNameLink().c_str());
 
     return true;
+}
+
+bool ChatHandler::HandleModifyRaceCommand(char *args)	//kia added modrace
+{
+    if(!*args)
+        return false;
+
+    Player *player = getSelectedPlayer();
+
+    if(!player)
+    {
+        PSendSysMessage(LANG_PLAYER_NOT_FOUND);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    PlayerInfo const* info = sObjectMgr.GetPlayerInfo(player->getRace(), player->getClass());
+    if(!info)
+        return false;
+
+    char const* race_str = (char*)args;
+    int race_len = strlen(race_str);
+
+    Races race;
+
+	char const* race_full = "";
+
+    if(!strncmp(race_str, "human", race_len))            // HUMAN
+    {
+		if(player->getRace() == RACE_HUMAN)
+            return true;
+
+        race = RACE_HUMAN;
+		race_full = "human";
+    }
+    else if (!strncmp(race_str, "orc", race_len))        // ORC
+    {
+        if(player->getRace() == RACE_ORC)
+            return true;
+
+        race = RACE_ORC;
+		race_full = "orc";
+    }
+    else if (!strncmp(race_str, "dwarf", race_len))      // DWARF
+    {
+        if(player->getRace() == RACE_DWARF)
+            return true;
+
+        race = RACE_DWARF;
+		race_full = "dwarf";
+    }
+    else if (!strncmp(race_str, "nightelf", race_len))   // NIGHTELF
+    {
+        if(player->getRace() == RACE_NIGHTELF)
+            return true;
+
+        race = RACE_NIGHTELF;
+		race_full = "nightelf";
+    }
+    else if (!strncmp(race_str, "undead", race_len))     // UNDEAD_PLAYER
+    {
+        if(player->getRace() == RACE_UNDEAD)
+            return true;
+
+        race = RACE_UNDEAD;
+		race_full = "undead";
+    }
+    else if (!strncmp(race_str, "tauren", race_len))     // TAUREN
+    {
+        if(player->getRace() == RACE_TAUREN)
+            return true;
+
+        race = RACE_TAUREN;
+		race_full = "tauren";
+    }
+    else if (!strncmp(race_str, "gnome", race_len))     // GNOME
+    {
+        if(player->getRace() == RACE_GNOME)
+            return true;
+
+        race = RACE_GNOME;
+		race_full = "gnome";
+    }
+    else if (!strncmp(race_str, "troll", race_len))     // TROLL
+    {
+        if(player->getRace() == RACE_TROLL)
+            return true;
+
+        race = RACE_TROLL;
+		race_full = "troll";
+    }
+    else if (!strncmp(race_str, "bloodelf", race_len))  // BLOODELF
+    {
+        if(player->getRace() == RACE_BLOODELF)
+            return true;
+
+        race = RACE_BLOODELF;
+		race_full = "bloodelf";
+    }
+    else if (!strncmp(race_str, "draenei", race_len))  // DRAENEI
+    {
+        if(player->getRace() == RACE_DRAENEI)
+            return true;
+
+        race = RACE_DRAENEI;
+		race_full = "draenei";
+    }
+    else
+    {
+        SendSysMessage(LANG_INVALID_RACE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+	info = sObjectMgr.GetPlayerInfo(race, player->getClass());
+    if(!info)
+    {
+        SendSysMessage(LANG_INVALID_RACE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+	// Remove old spells
+    info = sObjectMgr.GetPlayerInfo(player->getRace(), player->getClass());
+    PlayerInfo const* infonew = sObjectMgr.GetPlayerInfo(race, player->getClass());
+    for (PlayerCreateInfoSpells::const_iterator itr = info->spell.begin(); itr!=info->spell.end(); ++itr)
+    {
+		bool tflag = false;
+        uint32 tspell = *itr;
+		for (PlayerCreateInfoSpells::const_iterator itrnew = infonew->spell.begin(); itrnew!=infonew->spell.end(); ++itrnew)
+			if (tspell == *itrnew)
+				tflag = true;
+        if (!tflag)
+		{
+			sLog.outDebug("PLAYER %s (Class: %u Race: %u): Remove racial spell, id = %u", player->GetName(), uint32(player->getClass()), uint32(player->getRace()), tspell);
+			player->removeSpell(tspell);
+		}
+    }
+
+    // Set race
+    player->SetByteValue(UNIT_FIELD_BYTES_0, 0, race);
+	player->setFactionForRace(race);
+
+    // Change display ID
+    player->InitDisplayIds();
+
+	// Learn new spells
+    for (PlayerCreateInfoSpells::const_iterator itrnew = infonew->spell.begin(); itrnew!=infonew->spell.end(); ++itrnew)
+    {
+		bool tflag = false;
+        uint32 tspell = *itrnew;
+		for (PlayerCreateInfoSpells::const_iterator itr = info->spell.begin(); itr!=info->spell.end(); ++itr)
+			if (tspell == *itr)
+				tflag = true;
+        if (!tflag)
+		{
+			sLog.outDebug("PLAYER %s (Class: %u Race: %u): Learn racial spell, id = %u", player->GetName(), uint32(player->getClass()), uint32(player->getRace()), tspell);
+			player->learnSpell(tspell, true);
+		}
+    }
+
+    PSendSysMessage(LANG_YOU_CHANGE_FACE, player->GetName(), race_full);
+
+    if (needReportToTarget(player))
+        ChatHandler(player).PSendSysMessage(LANG_YOUR_RACE_CHANGED, race_full, GetNameLink().c_str());
+
+    return true;
+}
+
+bool ChatHandler::HandleModifyFaceCommand(char* args)	//kia added modface
+{
+    Player* target = NULL;
+    ObjectGuid target_guid;
+    std::string target_name;
+    if (!ExtractPlayerTarget(&args,&target,&target_guid,&target_name))
+        return false;
+
+	if (!target || !target->IsInWorld())
+		return false;
+
+	Player *player = getSelectedPlayer();
+	if (!player)
+		player = m_session->GetPlayer();
+
+	// Set face
+	player->SetUInt32Value(PLAYER_BYTES, target->GetUInt32Value(PLAYER_BYTES));
+	player->SetByteValue(PLAYER_BYTES_2, 0, target->GetByteValue(PLAYER_BYTES_2, 0));
+
+    // Change display ID
+    player->InitVisibleBits();
+
+    PSendSysMessage(LANG_YOU_CHANGE_FACE, player->GetName());
+
+    if (needReportToTarget(player))
+        ChatHandler(player).PSendSysMessage(LANG_YOUR_FACE_CHANGED, GetNameLink().c_str());
+
+    return true;
+}
+
+bool ChatHandler::HandleChatSpySetCommand(char *args)
+{
+    if(!args)
+        return false;
+
+    char* name = strtok((char*)args, " ");
+    std::string cname;
+    Player* target = NULL;
+
+    if(name)
+    {
+        cname = name;
+        normalizePlayerName(cname);
+        target = sObjectMgr.GetPlayer(cname.c_str());
+    }
+    else
+        target = getSelectedPlayer();
+
+    if(!target || target->GetSession() == m_session)
+    {
+        SendSysMessage(LANG_PLAYER_NOT_FOUND);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    target->m_chatSpyGuid = m_session->GetPlayer()->GetGUID();
+    PSendSysMessage(LANG_CHATSPY_APEENDED, target->GetName(), target->GetGUIDLow());
+    return true;
+}
+
+bool ChatHandler::HandleChatSpyResetCommand(char* /*args*/)
+{
+    HashMapHolder<Player>::MapType &m = HashMapHolder<Player>::GetContainer();
+    HashMapHolder<Player>::MapType::iterator itr = m.begin();
+    for(; itr != m.end(); ++itr)
+    {
+        Player* plr = itr->second->GetSession()->GetPlayer();
+        if (plr && plr->m_chatSpyGuid)
+        {
+            if(Player* spy = sObjectMgr.GetPlayer(plr->m_chatSpyGuid))
+                if(spy->IsInWorld())
+                    ChatHandler(spy).PSendSysMessage(LANG_CHATSPY_CANCELLEDMASSIVE,
+                        plr->GetName(), plr->GetGUIDLow());
+            plr->m_chatSpyGuid = 0;
+        }
+    }
+    SendSysMessage("All |cff00cc00ChatSpy|rs reset.");
+    return true;
+}
+
+bool ChatHandler::HandleChatSpyCancelCommand(char* args)
+{
+    if(!args)
+        return false;
+
+    char* name = strtok((char*)args, " ");
+    std::string cname;
+    Player* target = NULL;
+
+    if(name)
+    {
+        cname = name;
+        normalizePlayerName(cname);
+        target = sObjectMgr.GetPlayer(cname.c_str());
+    }
+    else
+        target = getSelectedPlayer();
+
+    if(!target || target->GetSession() == m_session)
+    {
+        SendSysMessage(LANG_PLAYER_NOT_FOUND);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    // ok, player found
+    if(!target->m_chatSpyGuid)
+    {
+        PSendSysMessage(LANG_CHATSPY_NOCHATSPY, target->GetName(), target->GetGUIDLow());
+        SetSentErrorMessage(true);
+        return false;
+    }
+    if(target->m_chatSpyGuid == m_session->GetPlayer()->GetGUID())
+        SendSysMessage(LANG_CHATSPY_YOURCANCELLED);
+    else
+    {
+        Player* spy = sObjectMgr.GetPlayer(target->m_chatSpyGuid);
+        PSendSysMessage(LANG_CHATSPY_SMBCANCELLED, (spy ? spy->GetName() : "ERROR"), (spy ? spy->GetGUIDLow() : 0));
+    }
+    target->m_chatSpyGuid = 0;
+    return true;
+}
+
+bool ChatHandler::HandleChatSpyStatusCommand(char* args)
+{
+    uint32 spynr = 0;
+    SendSysMessage(LANG_CHATSPY_LISTOFSPYS);
+
+    HashMapHolder<Player>::MapType &m = HashMapHolder<Player>::GetContainer();
+    HashMapHolder<Player>::MapType::iterator itr = m.begin();
+    for(; itr != m.end(); ++itr)
+    {
+        Player* plr = itr->second->GetSession()->GetPlayer();
+        if (plr && plr->m_chatSpyGuid)
+        {
+            Player* spy = sObjectMgr.GetPlayer(plr->m_chatSpyGuid);
+            PSendSysMessage(LANG_CHATSPY_ONESPYSANOTHER,
+                (spy ? spy->GetName() : "ERROR"), (spy ? spy->GetGUIDLow() : 0),
+                plr->GetName(), plr->GetGUIDLow()
+            );
+            spynr++;
+        }
+    }
+    PSendSysMessage(LANG_CHATSPY_TOTAL, spynr);
+    return true;
+}
+
+bool ChatHandler::HandleReloadUnitOwnerCommand(char* /*arg*/)
+{
+    sLog.outString( "Re-Loading UnitOwner from `unit_owner`...");
+    sObjectMgr.LoadUnitOwner();
+    SendGlobalSysMessage("DB table `unit_owner` reloaded.");
+    return true;
+}
+
+bool ChatHandler::HandleSetUnitOwnerCommand(char* args)
+{
+    Creature* target = NULL;
+	Creature* owner = NULL;
+	uint32 lowguid = 0;
+
+    if(*args)
+    {
+        lowguid = atoi(args);
+        if(!lowguid)
+            return false;
+
+        if (!sObjectMgr.GetCreatureData(lowguid))
+		{
+			PSendSysMessage("Creature with guid %u not exist!", lowguid);
+			return false;
+		}
+    }
+    else
+	    return false;
+
+	target = getSelectedCreature();
+
+    if(!target)
+    {
+        SendSysMessage(LANG_SELECT_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+	if (uint32 targ = target->GetGUIDLow())
+	{
+	    WorldDatabase.PQuery("delete from unit_owner where guid=%u;", targ);
+		WorldDatabase.PQuery("insert into unit_owner values (%u, %u);", targ, lowguid);
+		UnitOwnerMap owntmp = sObjectMgr.mUnitOwner;
+		sObjectMgr.mUnitOwner.clear();
+		for (UnitOwnerMap::iterator itr = owntmp.begin(); itr != owntmp.end(); ++itr)
+			if (itr->first != targ)
+				sObjectMgr.mUnitOwner.insert(UnitOwnerMap::value_type(itr->first,itr->second));
+        sObjectMgr.mUnitOwner.insert(UnitOwnerMap::value_type(targ, lowguid));
+		return true;
+	}
+	return false;
 }

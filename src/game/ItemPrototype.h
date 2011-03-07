@@ -117,6 +117,7 @@ enum ItemPrototypeFlags
     ITEM_FLAG_USEABLE_IN_ARENA                = 0x00200000,
     ITEM_FLAG_THROWABLE                       = 0x00400000, // Only items of ITEM_SUBCLASS_WEAPON_THROWN have it but not all, so can't be used as in game check
     ITEM_FLAG_SPECIALUSE                      = 0x00800000, // last used flag in 2.3.0
+	ITEM_FLAG_TMP_BROKEN                      = 0x02000000, // kia
 };
 
 enum BagFamilyMask

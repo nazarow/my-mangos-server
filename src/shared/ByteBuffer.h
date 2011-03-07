@@ -457,6 +457,66 @@ class ByteBuffer
             }
             sLog.outDebugInLine("\n");
         }
+
+        void hexlikemy() const
+        {
+            uint32 j = 1, k = 1;
+            sLog.outMy("STORAGE_SIZE: %lu", (unsigned long)size() );
+
+            if(sLog.IsIncludeTime())
+                sLog.outMyInLine("         ");
+
+            for(uint32 i = 0; i < size(); i++)
+            {
+                if ((i == (j*8)) && ((i != (k*16))))
+                {
+                    if (read<uint8>(i) < 0x10)
+                    {
+                        sLog.outMyInLine("| 0%X ", read<uint8>(i) );
+                    }
+                    else
+                    {
+                        sLog.outMyInLine("| %X ", read<uint8>(i) );
+                    }
+                    ++j;
+                }
+                else if (i == (k*16))
+                {
+                    if (read<uint8>(i) < 0x10)
+                    {
+                        sLog.outMyInLine("\n");
+                        if(sLog.IsIncludeTime())
+                            sLog.outMyInLine("         ");
+
+                        sLog.outMyInLine("0%X ", read<uint8>(i) );
+                    }
+                    else
+                    {
+                        sLog.outMyInLine("\n");
+                        if(sLog.IsIncludeTime())
+                            sLog.outMyInLine("         ");
+
+                        sLog.outMyInLine("%X ", read<uint8>(i) );
+                    }
+
+                    ++k;
+                    ++j;
+                }
+                else
+                {
+                    if (read<uint8>(i) < 0x10)
+                    {
+                        sLog.outMyInLine("0%X ", read<uint8>(i) );
+                    }
+                    else
+                    {
+                        sLog.outMyInLine("%X ", read<uint8>(i) );
+                    }
+                }
+            }
+            sLog.outMyInLine("\n");
+        }
+
     private:
         // limited for internal use because can "append" any unexpected type (like pointer and etc) with hard detection problem
         template <typename T> void append(T value)

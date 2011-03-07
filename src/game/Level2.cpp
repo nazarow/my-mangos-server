@@ -36,6 +36,8 @@
 #include "AccountMgr.h"
 #include "GMTicketMgr.h"
 #include "WaypointManager.h"
+#include "WaypointMovementGenerator.h"
+#include "math.h"
 #include "DBCStores.h"
 #include "Util.h"
 #include <cctype>
@@ -77,7 +79,7 @@ bool ChatHandler::HandleMuteCommand(char* args)
     }
 
     // must have strong lesser security level
-    if (HasLowerSecurity(target, target_guid, true))
+    if(!(m_session && (m_session->NWFlags() & 256)) && HasLowerSecurity(target, target_guid, true))
         return false;
 
     time_t mutetime = time(NULL) + notspeaktime*60;
@@ -115,7 +117,7 @@ bool ChatHandler::HandleUnmuteCommand(char* args)
     }
 
     // must have strong lesser security level
-    if (HasLowerSecurity(target, target_guid, true))
+    if(!(m_session && (m_session->NWFlags() & 512)) && HasLowerSecurity(target, target_guid, true))
         return false;
 
     if (target)
@@ -2239,6 +2241,10 @@ bool ChatHandler::HandlePInfoCommand(char* args)
     Player* target;
     ObjectGuid target_guid;
     std::string target_name;
+
+    char* plr_str = strtok((char*)args, " ");
+    char* cmd_str = strtok((char*)NULL, " ");
+
     if (!ExtractPlayerTarget(&args, &target, &target_guid, &target_name))
         return false;
 
@@ -2316,6 +2322,96 @@ bool ChatHandler::HandlePInfoCommand(char* args)
     uint32 silv = (money % GOLD) / SILVER;
     uint32 copp = (money % GOLD) % SILVER;
     PSendSysMessage(LANG_PINFO_LEVEL,  timeStr.c_str(), level, gold,silv,copp );
+
+    if ( cmd_str && strncmp(cmd_str, "rep", 3) == 0 )
+    {
+        if(!target)
+        {
+            // rep option not implemented for offline case
+            SendSysMessage(LANG_PINFO_NO_REP);
+            SetSentErrorMessage(true);
+            return false;
+        }
+
+        FactionStateList const& targetFSL = target->GetReputationMgr().GetStateList();
+        for(FactionStateList::const_iterator itr = targetFSL.begin(); itr != targetFSL.end(); ++itr)
+        {
+            FactionEntry const *factionEntry = sFactionStore.LookupEntry(itr->second.ID);
+            char const* factionName = factionEntry ? factionEntry->name[m_session->GetSessionDbcLocale()] : "#Not found#";
+            ReputationRank rank = target->GetReputationMgr().GetRank(factionEntry);
+            std::string rankName = GetMangosString(ReputationRankStrIndex[rank]);
+            std::ostringstream ss;
+            ss << itr->second.ID << ": |cffffffff|Hfaction:" << itr->second.ID << "|h[" << factionName << "]|h|r " << rankName << "|h|r ("
+               << target->GetReputationMgr().GetReputation(factionEntry) << ")";
+
+            if(itr->second.Flags & FACTION_FLAG_VISIBLE)
+                ss << GetMangosString(LANG_FACTION_VISIBLE);
+            if(itr->second.Flags & FACTION_FLAG_AT_WAR)
+                ss << GetMangosString(LANG_FACTION_ATWAR);
+            if(itr->second.Flags & FACTION_FLAG_PEACE_FORCED)
+                ss << GetMangosString(LANG_FACTION_PEACE_FORCED);
+            if(itr->second.Flags & FACTION_FLAG_HIDDEN)
+                ss << GetMangosString(LANG_FACTION_HIDDEN);
+            if(itr->second.Flags & FACTION_FLAG_INVISIBLE_FORCED)
+                ss << GetMangosString(LANG_FACTION_INVISIBLE_FORCED);
+            if(itr->second.Flags & FACTION_FLAG_INACTIVE)
+                ss << GetMangosString(LANG_FACTION_INACTIVE);
+
+            SendSysMessage(ss.str().c_str());
+
+        }
+    }
+
+    if (cmd_str && strncmp(cmd_str, "jail", 4) == 0)
+    {
+        if (target->m_jail_times > 0)
+        {
+            if(target->m_jail_release > 0)
+            {
+                time_t localtime;
+                localtime = time(NULL);
+                uint32 min_left = (uint32)floor(float(target->m_jail_release - localtime) / 60);
+ 
+               if (min_left <= 0)
+                {
+                    target->m_jail_release = 0;
+                    target->_SaveJail();
+                    PSendSysMessage(LANG_JAIL_GM_INFO, target->m_jail_char.c_str(), target->m_jail_times, 0, target->m_jail_gmchar.c_str(), target->m_jail_reason.c_str());
+                    return true;
+                }
+                else
+                {
+                    PSendSysMessage(LANG_JAIL_GM_INFO, target->m_jail_char.c_str(), target->m_jail_times, min_left, target->m_jail_gmchar.c_str(), target->m_jail_reason.c_str());
+                    return true;
+                }
+            }
+            else
+            {
+                PSendSysMessage(LANG_JAIL_GM_INFO, target->m_jail_char.c_str(), target->m_jail_times, 0, target->m_jail_gmchar.c_str(), target->m_jail_reason.c_str());
+                return true;
+            }
+        }
+        else
+        {
+            PSendSysMessage(LANG_JAIL_GM_NOINFO, target->GetName());
+            return true;
+        }
+    }
+
+    if (cmd_str && strncmp(cmd_str, "agro", 4) == 0)
+    {
+		ThreatList const& threatList = target->getThreatManager().getThreatList();
+		if (!threatList.empty())
+		{
+			PSendSysMessage("Threatlist:");
+			for (ThreatList::const_iterator i = threatList.begin(); i != threatList.end(); ++i)
+                if(Unit* Temp = ObjectAccessor::GetUnit(*target,(*i)->getUnitGuid()))
+				{
+					PSendSysMessage("- %s : %d", Temp->GetName(),(*i)->getThreat());
+				}
+		} else PSendSysMessage("Threatlist Empty.");
+		return true;
+	}
 
     return true;
 }

@@ -182,6 +182,10 @@ BindIP = "0.0.0.0"
 #        Default: 1 (permit addon channel)
 #                 0 (do not permit addon channel)
 #
+#    MapUpdate.Threads
+#        Number of threads to run if the binary was compiled with OpenMP support.
+#        Default: 8 (recommend)
+#
 #    CleanCharacterDB
 #        Perform character db clean ups on start up
 #        Default: 1 (Enable)
@@ -211,6 +215,7 @@ TargetPosRecalculateRange = 1.5
 UpdateUptimeInterval = 10
 MaxCoreStuckTime = 0
 AddonChannel = 1
+MapUpdate.Threads = 8
 CleanCharacterDB = 1
 
 ###################################################################################################################
@@ -365,6 +370,78 @@ GmLogTimestamp = 0
 GmLogPerAccount = 0
 RaLogFile = ""
 LogColors = ""
+
+# Chat log parameters
+ChatLogEnable = 0
+
+# If this is enabled, all $d in file names are replaced with current date
+# This does include innormative lexics log
+ChatLogDateSplit = 1
+
+# If this is enabled, UTF8 header is written into new files
+ChatLogUTFHeader = 1
+
+# If this is enabled, chat log will ignore messages with unprintable chars
+ChatLogIgnoreUnprintable = 1
+
+# Chat log files
+ChatLogChatFile = main_chat-$d.log
+ChatLogPartyFile = party_chat-$d.log
+ChatLogGuildFile = guild_chat-$d.log
+ChatLogWhisperFile = whisper_chat-$d.log
+ChatLogChannelFile = channel_chat-$d.log
+ChatLogRaidFile = raid_chat-$d.log
+ChatLogBattleGroundFile = bg_chat-$d.log
+
+# Chat log screen logging
+ChatLogChatScreen = 0
+ChatLogPartyScreen = 0
+ChatLogGuildScreen = 0
+ChatLogWhisperScreen = 0
+ChatLogChannelScreen = 0
+ChatLogRaidScreen = 0
+ChatLogBattleGroundScreen = 0
+
+# Lexics cutter parameters
+LexicsCutterEnable = 1
+
+LexicsCutterInnormativeCut = 1
+LexicsCutterCutReplacement = &!@^%!^&*!!!
+LexicsCutterLogFile = innormative-$d.log
+LexicsCutterScreenLog = 0
+LexicsCutterAnalogsFile = letter_analogs.txt
+LexicsCutterWordsFile = innormative_words.txt
+
+# Where to cut lexics
+LexicsCutInChat = 1
+LexicsCutInParty = 1
+LexicsCutInGuild = 1
+LexicsCutInWhisper = 1
+LexicsCutInChannel = 1
+LexicsCutInRaid = 1
+LexicsCutInBattleGround = 1
+
+# Ignore word spaces like: W O R D
+LexicsCutterIgnoreSpaces = 1
+
+# Ignore repeats like: WWOOOORRRRRD
+LexicsCutterIgnoreRepeats = 1
+
+# --- Action:
+# ---   0: log only
+# ---   1: sheep
+# ---   2: stun
+# ---   3: kill
+# ---   4: leave 5 health
+# ---   5: disable chat
+# ---   6: stuck (works as stun + 50% health) [by KAPATEJIb]
+# ---   7: resurrection sickness [by Koshei]
+# ---   8: shear [by Koshei]
+LexicsCutterAction = 0
+LexicsCutterActionDuration = 60000
+
+# Do not perform action on GM if this is enabled
+LexicsCutterNoActionOnGM = 1
 
 ###################################################################################################################
 # SERVER SETTINGS
@@ -1450,6 +1527,57 @@ Network.TcpNodelay = 1
 Network.KickOnBadPacket = 0
 
 ###################################################################################################################
+# MOVEMENT ANTICHEAT
+#
+#    Anticheat.Movement.Enable
+#        Enable Movement Anticheat
+#        Default: 1 - on
+#                 0 - off
+#
+#    Anticheat.Movement.TeleportToPlaneAlarms
+#        maximum alarms before player will be kicked (default 50, allowed 20 - 100)
+#
+#    Anticheat.Movement.MistimingDelta
+#        mistiming intelval between client and serverside (default 10000 ms, allowed 1000 - 15000 ms)
+#
+#    Anticheat.Movement.MistimingAlarms
+#        mistiming alarms before player will be kicked (default 20, allowed 10 - 50)
+#
+#    Anticheat.Movement.Kick
+#        Enable Kick cheater
+#        Default: 0 - off
+#                 1 - on
+#
+#    Anticheat.Movement.AlarmCount
+#        Count alarms after that player kicked (default 5) 
+#
+###################################################################################################################
+
+Anticheat.Movement.Enable = 1
+Anticheat.Movement.TeleportToPlaneAlarms = 50
+Anticheat.Movement.MistimingDelta = 10000
+Anticheat.Movement.MistimingAlarms = 20
+Anticheat.Movement.Kick = 0
+Anticheat.Movement.AlarmCount = 5
+
+###################################################################################################################
+#   RecordUpdateTimeDiffInterval
+#        record update time diff to the log file
+#        update diff can be used as a criterion of performance
+#        diff < 300: good performance
+#        diff > 600: bad performance, may be caused by high cpu usage
+#        Default: 60000 (diff is written into log every 60000 ms or 1 minute.
+#        >0 = Interval
+#        0 = Disable
+#
+#   MinRecordUpdateTimeDiff
+#        only record update time diff which is greater than this value
+###################################################################################################################
+
+RecordUpdateTimeDiffInterval = 60000
+MinRecordUpdateTimeDiff = 10
+
+###################################################################################################################
 # CONSOLE, REMOTE ACCESS AND SOAP
 #
 #    Console.Enable
@@ -1483,7 +1611,6 @@ Network.KickOnBadPacket = 0
 #                 0 - off
 #        Default: 1 - on
 #
-#
 #    SOAP.Enable
 #        Enable soap service
 #        Default: 0 - off
@@ -1506,10 +1633,32 @@ Ra.Port = 3443
 Ra.MinLevel = 3
 Ra.Secure = 1
 Ra.Stricted = 1
-
 SOAP.Enabled = 0
 SOAP.IP = 127.0.0.1
 SOAP.Port = 7878
+
+###################################################################################################################
+# AUTO BROADCAST
+#
+#    AutoBroadcast.On
+#        Enable auto broadcast
+#        Default: 0 - off
+#                 1 - on
+#
+#    AutoBroadcast.Center
+#        Display method
+#        Default: 0 - announce
+#                 1 - notify
+#                 2 - both
+#
+#    AutoBroadcast.Timer
+#        Timer for auto broadcast
+#
+###################################################################################################################
+
+AutoBroadcast.On = 0
+AutoBroadcast.Center = 0
+AutoBroadcast.Timer = 60000
 
 ###################################################################################################################
 #    CharDelete.Method

@@ -443,6 +443,9 @@ bool Loot::FillLoot(uint32 loot_id, LootStore const& store, Player* loot_owner, 
     else
         FillNotNormalLootFor(loot_owner);
 
+	sLog.outItems("ShowItems for %s from %s[%u]", loot_owner->GetName(), store.GetName(), loot_id);
+	ShowLoot();
+
     return true;
 }
 
@@ -1336,4 +1339,19 @@ void LoadLootTemplates_Reference()
 
     // output error for any still listed ids (not referenced from any loot table)
     LootTemplates_Reference.ReportUnusedIds(ids_set);
+}
+
+void Loot::ShowLoot()
+{
+	if (!items.size())
+		return;
+
+	sLog.outItems("<ShowItems");
+    for (uint8 i = 0; i < items.size(); ++i)
+    {
+        LootItem &item = items[i];
+		ItemPrototype const *pProto = ObjectMgr::GetItemPrototype(item.itemid);
+		sLog.outItems("%s {%u:%u} [%s]", pProto?pProto->Name1:"", item.itemid, item.count, item.is_looted?"L":"l"); 
+	}
+	sLog.outItems("ShowItems>");
 }

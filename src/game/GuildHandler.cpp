@@ -743,7 +743,7 @@ void WorldSession::HandleSaveGuildEmblemOpcode(WorldPacket& recvPacket)
         return;
     }
 
-    GetPlayer()->ModifyMoney(-10*GOLD);
+    GetPlayer()->ModifyMoney(-10*GOLD,"G_save_emblem");
     guild->SetEmblem(EmblemStyle, EmblemColor, BorderStyle, BorderColor, BackgroundColor);
 
     //"Guild Emblem saved."
@@ -885,7 +885,7 @@ void WorldSession::HandleGuildBankDepositMoney( WorldPacket & recv_data )
     CharacterDatabase.BeginTransaction();
 
     pGuild->SetBankMoney(pGuild->GetGuildBankMoney()+money);
-    GetPlayer()->ModifyMoney(-int(money));
+    GetPlayer()->ModifyMoney(-int(money), "GB_deposit");
     GetPlayer()->SaveGoldToDB();
 
     CharacterDatabase.CommitTransaction();
@@ -944,7 +944,7 @@ void WorldSession::HandleGuildBankWithdrawMoney( WorldPacket & recv_data )
         return;
     }
 
-    GetPlayer()->ModifyMoney(money);
+    GetPlayer()->ModifyMoney(money, "GB_withdraw");
     GetPlayer()->SaveGoldToDB();
 
     CharacterDatabase.CommitTransaction();
@@ -1098,7 +1098,8 @@ void WorldSession::HandleGuildBankBuyTab( WorldPacket & recv_data )
 
     // Go on with creating tab
     pGuild->CreateNewBankTab();
-    GetPlayer()->ModifyMoney(-int(TabCost));
+    GetPlayer()->ModifyMoney(-int(TabCost),"GB_buy_tab",TabId);
+    pGuild->SetBankMoneyPerDay(GetPlayer()->GetRank(), WITHDRAW_MONEY_UNLIMITED);
     pGuild->SetBankRightsAndSlots(GetPlayer()->GetRank(), TabId, GUILD_BANK_RIGHT_FULL, WITHDRAW_SLOT_UNLIMITED, true);
     pGuild->Roster();                                       // broadcast for tab rights update
     pGuild->DisplayGuildBankTabsInfo(this);

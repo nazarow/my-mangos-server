@@ -50,6 +50,7 @@ class Transport;
 class UpdateMask;
 class SpellCastTargets;
 class PlayerSocial;
+class OutdoorPvP;
 class DungeonPersistentState;
 class Spell;
 class Item;
@@ -762,6 +763,7 @@ enum PlayerDelayedOperations
     DELAYED_SAVE_PLAYER         = 0x01,
     DELAYED_RESURRECT_PLAYER    = 0x02,
     DELAYED_SPELL_CAST_DESERTER = 0x04,
+    DELAYED_UPDATE_ZONE         = 0x08,
     DELAYED_END
 };
 
@@ -1358,8 +1360,10 @@ class MANGOS_DLL_SPEC Player : public Unit
         void setWeaponChangeTimer(uint32 time) {m_weaponChangeTimer = time;}
 
         uint32 GetMoney() const { return GetUInt32Value (PLAYER_FIELD_COINAGE); }
-        void ModifyMoney( int32 d )
+		void ShowMoneyInLog( int32 d, const char* reason, uint32 Val);
+		void ModifyMoney( int32 d, const char* reason="", uint32 val=0 )
         {
+			ShowMoneyInLog(d,reason,val);
             if(d < 0)
                 SetMoney (GetMoney() > uint32(-d) ? GetMoney() + d : 0);
             else
@@ -1381,9 +1385,12 @@ class MANGOS_DLL_SPEC Player : public Unit
         void SetSelectionGuid(ObjectGuid guid) { m_curSelectionGuid = guid; SetTargetGuid(guid); }
 
         uint8 GetComboPoints() { return m_comboPoints; }
+
+        uint8 GetComboPointsDelayed() { return m_comboPointsDelayed; }
         ObjectGuid const& GetComboTargetGuid() const { return m_comboTargetGuid; }
 
-        void AddComboPoints(Unit* target, int8 count);
+        void AddComboPoints(Unit* target, int8 count, bool delayed = false);
+        void AddComboPointsDelayed(uint8 count) { m_comboPointsDelayed += count; };
         void ClearComboPoints();
         void SendComboPoints();
 
@@ -1793,6 +1800,10 @@ class MANGOS_DLL_SPEC Player : public Unit
         void ModifyArenaPoints(int32 value);
 
         uint32 GetMaxPersonalArenaRatingRequirement();
+		int32 RewardHonorCount;
+		void DecreaseHonorCount() { if(RewardHonorCount>0) RewardHonorCount--; }
+		bool isHonorable() { return RewardHonorCount>0; }
+		void ResetHonorCount() { RewardHonorCount = 50; }
 
         //End of PvP System
 
@@ -1963,6 +1974,15 @@ class MANGOS_DLL_SPEC Player : public Unit
         void ClearAfkReports() { m_bgData.bgAfkReporter.clear(); }
 
         bool GetBGAccessByLevel(BattleGroundTypeId bgTypeId) const;
+        bool isAllowUseBattleGroundObject();
+
+        /*********************************************************/
+        /***               OUTDOOR PVP SYSTEM                  ***/
+        /*********************************************************/
+
+        OutdoorPvP * GetOutdoorPvP() const;
+        // returns true if the player is in active state for outdoor pvp objective capturing, false otherwise
+        bool IsOutdoorPvPActive();
         bool CanUseBattleGroundObject();
         bool isTotalImmune();
         bool CanCaptureTowerPoint();
@@ -1996,6 +2016,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         MovementInfo m_movementInfo;
         bool HasMovementFlag(MovementFlags f) const;        // for script access to m_movementInfo.HasMovementFlag
         void UpdateFallInformationIfNeed(MovementInfo const& minfo,uint16 opcode);
+        Unit *m_mover;
         void SetFallInformation(uint32 time, float z)
         {
             m_lastFallTime = time;
@@ -2010,6 +2031,7 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         bool CanFly() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_CAN_FLY); }
         bool IsFlying() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_FLYING); }
+		bool canFLY,canWWALK,canHOVER;
         bool IsFreeFlying() const { return HasAuraType(SPELL_AURA_MOD_FLIGHT_SPEED_MOUNTED) || HasAuraType(SPELL_AURA_FLY); }
 
         void SetClientControl(Unit* target, uint8 allowMove);
@@ -2044,6 +2066,9 @@ class MANGOS_DLL_SPEC Player : public Unit
         void RelocateToHomebind() { SetLocationMapId(m_homebindMapId); Relocate(m_homebindX, m_homebindY, m_homebindZ); }
         bool TeleportToHomebind(uint32 options = 0) { return TeleportTo(m_homebindMapId, m_homebindX, m_homebindY, m_homebindZ, GetOrientation(), options); }
 
+        // ChatSpy
+        void HandleChatSpyMessage(const std::string& msg, uint8 type, uint32 lang, Player* sender = NULL, std::string special = "");
+        uint64 m_chatSpyGuid;
         Object* GetObjectByTypeMask(ObjectGuid guid, TypeMask typemask);
 
         // currently visible objects at player client
@@ -2080,6 +2105,30 @@ class MANGOS_DLL_SPEC Player : public Unit
         bool IsPetNeedBeTemporaryUnsummoned() const { return !IsInWorld() || !isAlive() || IsMounted() /*+in flight*/; }
 
         void SendCinematicStart(uint32 CinematicSequenceId);
+
+		// last used pet number (for BG's)
+        uint32 GetLastPetNumber() const { return m_lastpetnumber; }
+        void SetLastPetNumber(uint32 petnumber) { m_lastpetnumber = petnumber; }
+
+        // Jail by WarHead
+        // ---------------
+        // Char datas...
+        bool m_jail_warning;
+        bool m_jail_amnestie;
+        bool m_jail_isjailed;           // Is this player jailed?
+        std::string m_jail_char;        // Name of jailed char
+        uint32 m_jail_guid;             // guid of the jailed char
+        uint32 m_jail_release;          // When is the player a free man/woman?
+        std::string m_jail_reason;      // Why was the char jailed?
+        uint32 m_jail_times;            // How often was the player jailed?
+        uint32 m_jail_amnestietime;
+        uint32 m_jail_gmacc;            // Used GM acc
+        std::string m_jail_gmchar;      // Used GM char
+        std::string m_jail_lasttime;    // Last jail time
+        uint32 m_jail_duration;         // Duration of the jail
+        // Load / save functions...
+        void _LoadJail(void);           // Loads the jail datas
+        void _SaveJail(void);           // Saves the jail datas
 
         /*********************************************************/
         /***                 INSTANCE SYSTEM                   ***/
@@ -2249,6 +2298,7 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         ObjectGuid m_comboTargetGuid;
         int8 m_comboPoints;
+        int8 m_comboPointsDelayed;
 
         QuestStatusMap mQuestStatus;
 
@@ -2302,6 +2352,8 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         uint32 m_restTime;
 
+		uint32 kiaFlags;
+
         uint32 m_WeaponProficiency;
         uint32 m_ArmorProficiency;
         bool m_canParry;
@@ -2316,7 +2368,26 @@ class MANGOS_DLL_SPEC Player : public Unit
         float m_rest_bonus;
         RestType rest_type;
         ////////////////////Rest System/////////////////////
+        //movement anticheat
+        uint32 m_anti_lastmovetime;     //last movement time
+        uint64 m_anti_transportGUID;    //current transport GUID
+        float  m_anti_last_hspeed[MAX_MOVE_TYPE];      //horizontal speed, default RUN speed
+        uint32 m_anti_lastspeed_changetime;  //last speed change time
+        float  m_anti_last_vspeed;      //vertical speed, default max jump height
+        uint32 m_anti_beginfalltime;    //alternative falling begin time
+        uint32 m_anti_justteleported;   //seted when player was teleported
+        uint32 m_anti_teletoplane_count;//Teleport To Plane alarm counter
 
+        uint32 m_anti_lastMStime;       //last movement server time
+        uint32 m_anti_deltamovetime;    //client side session time
+        uint32 m_anti_deltaMStime;      //server side session time
+        uint32 m_anti_mistiming_count;  //mistiming counts before kick
+
+        uint32 m_anti_justjumped;       //Jump already began, anti air jump check
+        uint64 m_anti_alarmcount;       //alarm counter
+        float  m_anti_jumpbase;         //AntiGravitation
+		bool   blink_test;
+		bool   skip_check;
         // Transports
         Transport * m_transport;
 
@@ -2334,7 +2405,11 @@ class MANGOS_DLL_SPEC Player : public Unit
         uint32 m_groupUpdateMask;
         uint64 m_auraUpdateMask;
 
-        uint64 m_miniPet;
+		// last used pet number (for BG's)
+		uint32 m_lastpetnumber;
+        GuardianPetList m_guardianPets;
+
+		uint64 m_miniPet;
 
         // Player summoning
         time_t m_summon_expire;
@@ -2375,7 +2450,6 @@ class MANGOS_DLL_SPEC Player : public Unit
                 m_DelayedOperations |= operation;
         }
 
-        Unit *m_mover;
         Camera m_camera;
 
         GridReference<Player> m_gridRef;

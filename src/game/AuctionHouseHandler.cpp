@@ -271,7 +271,7 @@ void WorldSession::HandleAuctionSellItem( WorldPacket & recv_data )
             GetPlayerName(), GetAccountId(), it->GetProto()->Name1, it->GetEntry(), it->GetCount());
     }
 
-    pl->ModifyMoney( -int32(deposit) );
+    pl->ModifyMoney( -int32(deposit), "AH_sell", GUID_LOPART(item));
 
     uint32 auction_time = uint32(etime * sWorld.getConfig(CONFIG_FLOAT_RATE_AUCTION_TIME));
 
@@ -377,18 +377,18 @@ void WorldSession::HandleAuctionPlaceBid( WorldPacket & recv_data )
         {
             if ( auction->bidder == pl->GetGUIDLow() )
             {
-                pl->ModifyMoney( -int32(price - auction->bid));
+                pl->ModifyMoney( -int32(price - auction->bid),"AH_bid",auction->bidder);
             }
             else
             {
                 // mail to last bidder and return money
                 SendAuctionOutbiddedMail( auction , price );
-                pl->ModifyMoney( -int32(price) );
+				pl->ModifyMoney( -int32(price),"AH_bid",auction->bidder );
             }
         }
         else
         {
-            pl->ModifyMoney( -int32(price) );
+            pl->ModifyMoney( -int32(price), "AH_bid");
         }
         auction->bidder = pl->GetGUIDLow();
         auction->bid = price;
@@ -403,11 +403,11 @@ void WorldSession::HandleAuctionPlaceBid( WorldPacket & recv_data )
         // buyout:
         if (pl->GetGUIDLow() == auction->bidder )
         {
-            pl->ModifyMoney(-int32(auction->buyout - auction->bid));
+            pl->ModifyMoney(-int32(auction->buyout - auction->bid),"AH_buyout");
         }
         else
         {
-            pl->ModifyMoney(-int32(auction->buyout));
+            pl->ModifyMoney(-int32(auction->buyout),"AH_buyout",auction->bidder);
             if ( auction->bidder )                          // buyout for bidded auction ..
             {
                 SendAuctionOutbiddedMail( auction, auction->buyout );
@@ -470,7 +470,7 @@ void WorldSession::HandleAuctionRemoveItem( WorldPacket & recv_data )
                     return;
                 //some auctionBidderNotification would be needed, but don't know that parts..
                 SendAuctionCancelledToBidderMail( auction );
-                pl->ModifyMoney( -int32(auctionCut) );
+                pl->ModifyMoney( -int32(auctionCut),"AH_remove" );
             }
             // Return the item by mail
             std::ostringstream msgAuctionCanceledOwner;

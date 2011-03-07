@@ -1108,6 +1108,53 @@ namespace MaNGOS
                                                             // 0 = default, i => i-1 locale index
     };
 
+	    class AllFriendlyCreaturesInGrid
+    {
+    public:
+        AllFriendlyCreaturesInGrid(Unit const* obj) : pUnit(obj) {}
+        bool operator() (Unit* u)
+        {
+            if(u->isAlive() && u->GetVisibility() == VISIBILITY_ON && u->IsFriendlyTo(pUnit))
+                return true;
+
+            return false;
+        }
+    private:
+        Unit const* pUnit;
+    };
+
+    class AllGameObjectsWithEntryInGrid
+    {
+    public:
+        AllGameObjectsWithEntryInGrid(uint32 ent) : entry(ent) {}
+        bool operator() (GameObject* g)
+        {
+            if(g->GetEntry() == entry)
+                return true;
+
+            return false;
+        }
+    private:
+        uint32 entry;
+    };
+
+    class AllCreaturesOfEntryInRange
+    {
+    public:
+        AllCreaturesOfEntryInRange(Unit const* obj, uint32 ent, float ran) : pUnit(obj), entry(ent), range(ran) {}
+        bool operator() (Unit* u)
+        {
+            if(u->GetEntry() == entry && pUnit->IsWithinDistInMap(u, range))
+                return true;
+
+            return false;
+        }
+    private:
+        Unit const* pUnit;
+        uint32 entry;
+        float range;
+    };
+
     #ifndef WIN32
     template<> void PlayerRelocationNotifier::Visit<Creature>(CreatureMapType &);
     template<> void CreatureRelocationNotifier::Visit<Player>(PlayerMapType &);

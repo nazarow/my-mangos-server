@@ -66,7 +66,7 @@ inline uint32 Traveller<T>::GetTotalTravelTimeTo(float x, float y, float z)
     double speed = Speed();
 
     speed *=  0.001f;                                       // speed is in seconds so convert from second to millisecond
-    return static_cast<uint32>(dist/speed);
+	return static_cast<uint32>(speed?dist/speed:-1);
 }
 
 // specialization for creatures

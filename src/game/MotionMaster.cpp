@@ -266,7 +266,7 @@ void MotionMaster::MoveConfused()
 void MotionMaster::MoveChase(Unit* target, float dist, float angle)
 {
     // ignore movement request if target not exist
-    if (!target)
+    if(!target || !m_owner)	//kia chk owner
         return;
 
     DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS, "%s chase to %s", m_owner->GetObjectGuid().GetString().c_str(), target->GetObjectGuid().GetString().c_str());

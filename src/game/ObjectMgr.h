@@ -163,6 +163,8 @@ typedef std::pair<ExclusiveQuestGroupsMap::const_iterator, ExclusiveQuestGroupsM
 typedef std::pair<ItemRequiredTargetMap::const_iterator, ItemRequiredTargetMap::const_iterator> ItemRequiredTargetMapBounds;
 typedef std::pair<QuestRelationsMap::const_iterator, QuestRelationsMap::const_iterator> QuestRelationsMapBounds;
 
+typedef UNORDERED_MAP<uint32,uint32> UnitOwnerMap;
+
 struct PetLevelInfo
 {
     PetLevelInfo() : health(0), mana(0) { for(int i=0; i < MAX_STATS; ++i ) stats[i] = 0; }
@@ -532,6 +534,7 @@ class ObjectMgr
 
         WorldSafeLocsEntry const *GetClosestGraveYard(float x, float y, float z, uint32 MapId, Team team);
         bool AddGraveYardLink(uint32 id, uint32 zone, Team team, bool inDB = true);
+        void RemoveGraveYardLink(uint32 id, uint32 zone, Team team, bool inDB = false);
         void LoadGraveyardZones();
         GraveYardData const* FindGraveYardData(uint32 id, uint32 zone) const;
 
@@ -664,6 +667,29 @@ class ObjectMgr
         void LoadVendors() { LoadVendors("npc_vendor", false); }
         void LoadTrainerTemplates();
         void LoadTrainers() { LoadTrainers("npc_trainer", false); }
+
+        // Loads the jail conf out of the database
+        void LoadJailConf(void);
+
+        // Jail Config...
+        std::string m_jail_obt;
+        uint32 m_jailconf_max_jails;    // Jail times when the char will be deleted
+        uint32 m_jailconf_max_duration; // Max. jail duration in hours
+        uint32 m_jailconf_min_reason;   // Min. char length of the reason
+        uint32 m_jailconf_warn_player;  // Warn player every login if max_jails is nearly reached?
+        uint32 m_jailconf_amnestie;     // player amnestie
+        float m_jailconf_ally_x;        // Coords of the jail for the allies
+        float m_jailconf_ally_y;
+        float m_jailconf_ally_z;
+        float m_jailconf_ally_o;
+        uint32 m_jailconf_ally_m;
+        float m_jailconf_horde_x;       // Coords of the jail for the horde
+        float m_jailconf_horde_y;
+        float m_jailconf_horde_z;
+        float m_jailconf_horde_o;
+        uint32 m_jailconf_horde_m;
+        uint32 m_jailconf_ban;          // Ban acc if max. jailtimes is reached?
+        uint32 m_jailconf_radius;       // Radius in which a jailed char can walk
 
         std::string GeneratePetName(uint32 entry);
         uint32 GetBaseXP(uint32 level) const;
@@ -962,6 +988,16 @@ class ObjectMgr
         GossipMenuItemsMapBounds GetGossipMenuItemsMapBounds(uint32 uiMenuId) const
         {
             return m_mGossipMenuItemsMap.equal_range(uiMenuId);
+        }
+
+		UnitOwnerMap mUnitOwner;
+		void LoadUnitOwner();
+        uint32 GetUnitOwner(uint32 loguid) const
+        {
+            UnitOwnerMap::const_iterator itr = mUnitOwner.find(loguid);
+            if(itr != mUnitOwner.end())
+                return itr->second;
+            return 0;
         }
 
         ExclusiveQuestGroupsMapBounds GetExclusiveQuestGroupsMapBounds(int32 groupId) const

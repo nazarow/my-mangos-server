@@ -164,6 +164,7 @@ void WorldSession::HandleAutostoreLootItemOpcode( WorldPacket & recv_data )
 
         --loot->unlootedCount;
 
+		sLog.outItems("Loot:Autostore Player %s looted %u:%u,%u from %s",player->GetName(),newitem->GetGUIDLow(),newitem->GetEntry(),item->count,lguid.GetString().c_str());
         player->SendNewItem(newitem, uint32(item->count), false, false, true);
     }
     else
@@ -247,7 +248,7 @@ void WorldSession::HandleLootMoneyOpcode( WorldPacket & /*recv_data*/ )
 
             for (std::vector<Player*>::const_iterator i = playersNear.begin(); i != playersNear.end(); ++i)
             {
-                (*i)->ModifyMoney( money_per_player );
+				(*i)->ModifyMoney( money_per_player, "money_loot", guid.GetEntry());
                 //Offset surely incorrect, but works
                 WorldPacket data( SMSG_LOOT_MONEY_NOTIFY, 4 );
                 data << uint32(money_per_player);
@@ -255,7 +256,7 @@ void WorldSession::HandleLootMoneyOpcode( WorldPacket & /*recv_data*/ )
             }
         }
         else
-            player->ModifyMoney( pLoot->gold );
+			player->ModifyMoney(pLoot->gold, "money_loot", guid.GetEntry());
 
         pLoot->gold = 0;
 
@@ -305,6 +306,8 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
     if(!player->IsInWorld())
         return;
 
+	sLog.outItems("DoLootRelease for %s", player->GetName());
+
     switch(lguid.GetHigh())
     {
         case HIGHGUID_GAMEOBJECT:
@@ -316,6 +319,7 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
                 return;
 
             loot = &go->loot;
+			loot->ShowLoot();
 
             if (go->GetGoType() == GAMEOBJECT_TYPE_DOOR)
             {
@@ -395,6 +399,7 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
                 return;
 
             loot = &corpse->loot;
+			loot->ShowLoot();
 
             if (loot->isLooted())
             {
@@ -408,6 +413,8 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
             Item *pItem = player->GetItemByGuid(lguid );
             if (!pItem)
                 return;
+
+			pItem->loot.ShowLoot();
 
             switch (pItem->loot.loot_type)
             {
@@ -460,6 +467,7 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
                 return;
 
             loot = &pCreature->loot;
+			loot->ShowLoot();
 
             // update next looter
             if(Group* group = pCreature->GetGroupLootRecipient())
@@ -553,6 +561,8 @@ void WorldSession::HandleLootMasterGiveOpcode( WorldPacket & recv_data )
     // now move item from loot to target inventory
     Item * newitem = target->StoreNewItem( dest, item.itemid, true, item.randomPropertyId );
     target->SendNewItem(newitem, uint32(item.count), false, false, true );
+
+	if (newitem) sLog.outItems("Loot:Master Player %s looted %u:%u,%u from %s [%u]",target->GetName(),newitem->GetGUIDLow(),newitem->GetEntry(),item.count,lootguid.GetTypeName(),lootguid.GetEntry());
 
     // mark as looted
     item.count=0;

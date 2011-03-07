@@ -189,7 +189,7 @@ void WorldSession::HandlePetitionBuyOpcode(WorldPacket & recv_data)
         return;
     }
 
-    _player->ModifyMoney(-(int32)cost);
+    _player->ModifyMoney(-(int32)cost,"petition_buy");
     Item *charter = _player->StoreNewItem(dest, charterid, true);
     if(!charter)
         return;
@@ -870,7 +870,7 @@ void WorldSession::HandleTurnInPetitionOpcode(WorldPacket & recv_data)
                 continue;
 
             DEBUG_LOG("PetitionsHandler: adding arena member %s", memberGUID.GetString().c_str());
-            at->AddMember(memberGUID);
+            at->AddMember(memberGUID, true);
             result->NextRow();
         }
     }

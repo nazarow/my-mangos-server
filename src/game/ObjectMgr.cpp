@@ -1413,6 +1413,7 @@ void ObjectMgr::LoadGameobjects()
         }
 
         data.animprogress   = fields[12].GetUInt32();
+        data.ArtKit         = gInfo->type == GAMEOBJECT_TYPE_CAPTURE_POINT ? 21 : 0;
 
         uint32 go_state     = fields[13].GetUInt32();
         if (go_state >= MAX_GO_STATE)
@@ -5204,6 +5205,54 @@ bool ObjectMgr::AddGraveYardLink(uint32 id, uint32 zoneId, Team team, bool inDB)
     return true;
 }
 
+void ObjectMgr::RemoveGraveYardLink(uint32 id, uint32 zoneId, Team team, bool inDB)
+{
+    GraveYardMap::iterator graveLow  = mGraveYardMap.lower_bound(zoneId);
+    GraveYardMap::iterator graveUp   = mGraveYardMap.upper_bound(zoneId);
+    if(graveLow==graveUp)
+    {
+        //sLog.outErrorDb("Table `game_graveyard_zone` incomplete: Zone %u Team %u does not have a linked graveyard.",zoneId,team);
+        return;
+    }
+
+    bool found = false;
+
+    GraveYardMap::iterator itr;
+
+    for(itr = graveLow; itr != graveUp; ++itr)
+    {
+        GraveYardData & data = itr->second;
+
+        // skip not matching safezone id
+        if(data.safeLocId != id)
+            continue;
+
+        // skip enemy faction graveyard at same map (normal area, city, or battleground)
+        // team == 0 case can be at call from .neargrave
+        if(data.team != 0 && team != 0 && data.team != team)
+            continue;
+
+        found = true;
+        break;
+    }
+
+    // no match, return
+    if(!found)
+        return;
+
+    // remove from links
+    mGraveYardMap.erase(itr);
+
+    // remove link from DB
+    if(inDB)
+    {
+        WorldDatabase.PExecute("DELETE FROM game_graveyard_zone WHERE id = '%u' AND ghost_zone = '%u' AND faction = '%u'",id,zoneId,team);
+    }
+
+    return;
+}
+
+
 void ObjectMgr::LoadAreaTriggerTeleports()
 {
     mAreaTriggers.clear();                                  // need for reload case
@@ -5981,6 +6030,122 @@ std::string ObjectMgr::GeneratePetName(uint32 entry)
     }
 
     return *(list0.begin()+urand(0, list0.size()-1)) + *(list1.begin()+urand(0, list1.size()-1));
+}
+
+// Loads the jail conf out of the database
+void ObjectMgr::LoadJailConf(void)
+{
+    CharacterDatabase.BeginTransaction();
+    QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM `jail_conf`");
+    CharacterDatabase.CommitTransaction();
+
+    if (!result)
+    {
+        sLog.outError(GetMangosStringForDBCLocale(LANG_JAIL_CONF_ERR1));
+        sLog.outError(GetMangosStringForDBCLocale(LANG_JAIL_CONF_ERR2));
+
+        m_jailconf_max_jails    = 3;
+        m_jailconf_max_duration = 672;
+        m_jailconf_min_reason   = 25;
+        m_jailconf_warn_player  = 1;
+        m_jailconf_amnestie     = 180;
+
+        m_jailconf_ally_x       = -8673.43f;
+        m_jailconf_ally_y       = 631.795f;
+        m_jailconf_ally_z       = 96.9406f;
+        m_jailconf_ally_o       = 2.1785f;
+        m_jailconf_ally_m       = 0;
+
+        m_jailconf_horde_x      = 2179.85f;
+        m_jailconf_horde_y      = -4763.96f;
+        m_jailconf_horde_z      = 54.911f;
+        m_jailconf_horde_o      = 4.44216f;
+        m_jailconf_horde_m      = 1;
+
+        m_jailconf_ban          = 0;
+        m_jailconf_radius       = 10;
+
+        return;
+    }
+do
+{
+    Field *fields = result->Fetch();
+    m_jail_obt = fields[1].GetString();
+    if(m_jail_obt == "m_jailconf_max_jails")
+    {
+      m_jailconf_max_jails    = fields[2].GetUInt32();
+    }
+    if(m_jail_obt == "m_jailconf_max_duration")
+    {
+      m_jailconf_max_duration = fields[2].GetUInt32();
+    }
+    if(m_jail_obt == "m_jailconf_min_reason")
+    {
+      m_jailconf_min_reason   = fields[2].GetUInt32();
+    }
+    if(m_jail_obt == "m_jailconf_warn_player")
+    {
+      m_jailconf_warn_player  = fields[2].GetUInt32();
+    }
+    if(m_jail_obt == "m_jailconf_amnestie")
+    {
+      m_jailconf_amnestie     = fields[2].GetUInt32();
+    }
+    if(m_jail_obt == "m_jailconf_ally_x")
+    {
+      m_jailconf_ally_x       = fields[3].GetFloat();
+    }
+    if(m_jail_obt == "m_jailconf_ally_y")
+    {
+      m_jailconf_ally_y       = fields[3].GetFloat();
+    }
+    if(m_jail_obt == "m_jailconf_ally_z")
+    {
+      m_jailconf_ally_z       = fields[3].GetFloat();
+    }
+    if(m_jail_obt == "m_jailconf_ally_o")
+    {
+      m_jailconf_ally_o       = fields[3].GetFloat();
+    }
+    if(m_jail_obt == "m_jailconf_ally_m")
+    {
+      m_jailconf_ally_m       = fields[2].GetUInt32();
+    }
+    if(m_jail_obt == "m_jailconf_horde_x")
+    {
+      m_jailconf_horde_x      = fields[3].GetFloat();
+    }
+    if(m_jail_obt == "m_jailconf_horde_y")
+    {
+      m_jailconf_horde_y      = fields[3].GetFloat();
+    }
+    if(m_jail_obt == "m_jailconf_horde_z")
+    {
+      m_jailconf_horde_z      = fields[3].GetFloat();
+    }
+    if(m_jail_obt == "m_jailconf_horde_o")
+    {
+      m_jailconf_horde_o      = fields[3].GetFloat();
+    }
+    if(m_jail_obt == "m_jailconf_horde_m")
+    {
+      m_jailconf_horde_m      = fields[2].GetUInt32();
+    }
+    if(m_jail_obt == "m_jailconf_ban")
+    {
+      m_jailconf_ban = fields[2].GetUInt32();
+    }
+    if(m_jail_obt == "m_jailconf_radius")
+    {
+      m_jailconf_radius = fields[2].GetUInt32();
+    }
+}
+while (result->NextRow());
+delete result;
+
+    sLog.outString("");
+    sLog.outString(GetMangosStringForDBCLocale(LANG_JAIL_CONF_LOADED));
+    sLog.outString("");
 }
 
 void ObjectMgr::LoadCorpses()
@@ -8439,6 +8604,59 @@ CreatureInfo const* GetCreatureTemplateStore(uint32 entry)
 Quest const* GetQuestTemplateStore(uint32 entry)
 {
     return sObjectMgr.GetQuestTemplate(entry);
+}
+
+void ObjectMgr::LoadUnitOwner()
+{
+    mUnitOwner.clear();                                            // need for reload case
+
+    uint32 count = 0;
+
+    QueryResult *result = WorldDatabase.PQuery("SELECT guid, owner FROM unit_owner");
+
+    if(!result)
+    {
+        barGoLink bar(1);
+
+        bar.step();
+
+        sLog.outString();
+        sLog.outErrorDb(">> Loaded 0 unitOwner relations from unit_owner. DB table is empty.");
+        return;
+    }
+
+    barGoLink bar((int)result->GetRowCount());
+
+    do
+    {
+        Field *fields = result->Fetch();
+        bar.step();
+
+        uint32 guid  = fields[0].GetUInt32();
+        uint32 owner = fields[1].GetUInt32();
+
+        if (!sObjectMgr.GetCreatureData(guid))
+        {
+            sLog.outErrorDb("Table unit_owner: Creature guid %u does not exist.", guid);
+            continue;
+        }
+
+        if (!sObjectMgr.GetCreatureData(owner))
+        {
+            sLog.outErrorDb("Table unit_owner: Creature owner %u does not exist.", owner);
+            continue;
+        }
+
+
+        mUnitOwner.insert(UnitOwnerMap::value_type(guid, owner));
+
+        ++count;
+    } while (result->NextRow());
+
+    delete result;
+
+    sLog.outString();
+    sLog.outString(">> Loaded %u unitOwner relations from unit_owner", count);
 }
 
 bool FindCreatureData::operator()( CreatureDataPair const& dataPair )

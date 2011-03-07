@@ -287,6 +287,7 @@ void Item::UpdateDuration(Player* owner, uint32 diff)
 void Item::SaveToDB()
 {
     uint32 guid = GetGUIDLow();
+	sLog.outItems("Item::Save %u owner %u",guid,GUID_LOPART(GetOwnerGUID()));
     switch (uState)
     {
         case ITEM_NEW:
@@ -495,11 +496,13 @@ void Item::LoadLootFromDB(Field *fields)
 
 void Item::DeleteFromDB()
 {
+	sLog.outItems("Item::Del %u:%u owner %u",GetGUIDLow(),GetEntry(),GUID_LOPART(GetOwnerGUID()));
     CharacterDatabase.PExecute("DELETE FROM item_instance WHERE guid = '%u'",GetGUIDLow());
 }
 
 void Item::DeleteFromInventoryDB()
 {
+	sLog.outItems("Item::DelInv %u:%u owner %u",GetGUIDLow(),GetEntry(),GUID_LOPART(GetOwnerGUID()));
     CharacterDatabase.PExecute("DELETE FROM character_inventory WHERE item = '%u'",GetGUIDLow());
 }
 
@@ -993,6 +996,7 @@ Item* Item::CreateItem( uint32 item, uint32 count, Player const* player )
         if (pItem->Create(sObjectMgr.GenerateItemLowGuid(), item, player) )
         {
             pItem->SetCount( count );
+			sLog.outItems("Item:Cr %s %u:%u %u",player?player->GetName():"",pItem->GetGUIDLow(),item,count);
             return pItem;
         }
         else

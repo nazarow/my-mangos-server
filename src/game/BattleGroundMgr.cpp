@@ -1300,6 +1300,8 @@ void BattleGroundMgr::BuildPvpLogDataPacket(WorldPacket *data, BattleGround *bg)
         }
         *data << (int32)itr->second->DamageDone;             // damage done
         *data << (int32)itr->second->HealingDone;            // healing done
+		Player *plr = sObjectMgr.GetPlayer(itr->first);
+		if (type) sLog.outArena("BuildPvPLog: PL: %s[%u]{%s}, damage: %i, heal: %i, kills: %i", plr?plr->GetName():"---", plr?plr->GetGUIDLow():0, plr?plr->GetSession()->GetRemoteAddress().c_str():"x", itr->second->DamageDone, itr->second->HealingDone, itr->second->KillingBlows);
         switch(bg->GetTypeID())                              // battleground specific things
         {
             case BATTLEGROUND_AV:

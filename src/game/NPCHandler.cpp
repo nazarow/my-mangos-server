@@ -267,7 +267,7 @@ void WorldSession::HandleTrainerBuySpellOpcode( WorldPacket & recv_data )
     if(_player->GetMoney() < nSpellCost )
         return;
 
-    _player->ModifyMoney( -int32(nSpellCost) );
+    _player->ModifyMoney( -int32(nSpellCost),"buy_spell", trainer_spell->spell);
 
     WorldPacket data(SMSG_PLAY_SPELL_VISUAL, 12);           // visual effect on trainer
     data << ObjectGuid(guid);
@@ -733,7 +733,7 @@ void WorldSession::HandleBuyStableSlot( WorldPacket & recv_data )
         if(_player->GetMoney() >= SlotPrice->Price)
         {
             ++GetPlayer()->m_stableSlots;
-            _player->ModifyMoney(-int32(SlotPrice->Price));
+            _player->ModifyMoney(-int32(SlotPrice->Price),"buy_stable_slot",GetPlayer()->m_stableSlots);
             SendStableResult(STABLE_SUCCESS_BUY_SLOT);
         }
         else

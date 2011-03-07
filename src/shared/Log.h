@@ -84,6 +84,8 @@ enum Color
 
 const int Color_count = int(WHITE)+1;
 
+class ACE_Thread_Mutex;
+
 class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Thread_Mutex> >
 {
     friend class MaNGOS::OperatorNew<Log>;
@@ -107,9 +109,41 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
             fclose(dberLogfile);
         dberLogfile = NULL;
 
-        if (raLogfile != NULL)
+        if( cmdLogfile != NULL )
+            fclose(cmdLogfile);
+        cmdLogfile = NULL;
+
+        if (myLogfile != NULL)
+            fclose(myLogfile);
+        myLogfile = NULL;
+
+        if (moneyLogfile != NULL)
+            fclose(moneyLogfile);
+        moneyLogfile = NULL;
+
+        if (itemsLogfile != NULL)
+            fclose(itemsLogfile);
+        itemsLogfile = NULL;
+
+        if (cheatLogfile != NULL)
+            fclose(cheatLogfile);
+        cheatLogfile = NULL;
+
+        if (instanceLogfile != NULL)
+            fclose(instanceLogfile);
+        instanceLogfile = NULL;
+
+		if (raLogfile != NULL)
             fclose(raLogfile);
         raLogfile = NULL;
+
+        if (arenaLogFile != NULL)
+            fclose(arenaLogFile);
+        arenaLogFile = NULL;
+
+        if( dmgLogfile != NULL )
+            fclose(dmgLogfile);
+        dmgLogfile = NULL;
 
         if (worldLogfile != NULL)
             fclose(worldLogfile);
@@ -144,7 +178,19 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
         void outWorldPacketDump( uint32 socket, uint32 opcode, char const* opcodeName, ByteBuffer const* packet, bool incoming );
         // any log level
         void outCharDump( const char * str, uint32 account_id, uint32 guid, const char * name );
+		void outCmd( const char * str, ... );               // any log level
+		void outMy( const char * str, ... )          ATTR_PRINTF(2,3);
+															// any log level
+		void outMyInLine( const char * str, ... );          // any log level
+		void outMoney( const char * str, ... );             // any log level
+		void outItems( const char * str, ... );             // any log level
+		void outCheat( const char * str, ... )		ATTR_PRINTF(2,3);
+															// any log level
+		void outInstance( const char * str, ... )	ATTR_PRINTF(2,3);
+															// any log level
         void outRALog( const char * str, ... )       ATTR_PRINTF(2,3);
+        void outArena( const char * str, ... )       ATTR_PRINTF(2,3);
+        void outDmg( const char * str, ... );               // any log level
         uint32 GetLogLevel() const { return m_logLevel; }
         void SetLogLevel(char * Level);
         void SetLogFileLevel(char * Level);
@@ -153,6 +199,10 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
         void outTime();
         static void outTimestamp(FILE* file);
         static std::string GetTimestampStr();
+        static void outTimestampMs(FILE* file);
+		static void outTimestampMss(FILE* file);
+        static std::string GetTimestampStrMs();
+        uint32 getLogFilter() const { return m_logFilter; }
         bool HasLogFilter(uint32 filter) const { return m_logFilter & filter; }
         void SetLogFilter(LogFilters filter, bool on) { if (on) m_logFilter |= filter; else m_logFilter &= ~filter; }
         bool HasLogLevelOrHigher(LogLevel loglvl) const { return m_logLevel >= loglvl || (m_logFileLevel >= loglvl && logfile); }
@@ -160,6 +210,10 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
         bool IsIncludeTime() const { return m_includeTime; }
 
         static void WaitBeforeContinueIfNeed();
+
+		bool IsMyLogInConsole() { return m_myLogInConsole; }
+		void SetMyLogInConsole(bool val) { m_myLogInConsole = val; }
+
     private:
         FILE* openLogFile(char const* configFileName,char const* configTimeStampFlag, char const* mode);
         FILE* openGmlogPerAccount(uint32 account);
@@ -169,6 +223,8 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
         FILE* gmLogfile;
         FILE* charLogfile;
         FILE* dberLogfile;
+        FILE* arenaLogFile;
+        FILE* dmgLogfile;
         FILE* worldLogfile;
 
         // log/console control
@@ -189,6 +245,16 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
         // gm log control
         bool m_gmlog_per_account;
         std::string m_gmlog_filename_format;
+
+		// my log
+		FILE* cmdLogfile;
+		FILE* myLogfile;
+		FILE* moneyLogfile;
+		FILE* itemsLogfile;
+		FILE* cheatLogfile;
+		FILE* instanceLogfile;
+
+		bool m_myLogInConsole;
 };
 
 #define sLog MaNGOS::Singleton<Log>::Instance()
@@ -244,4 +310,6 @@ void MANGOS_DLL_SPEC detail_log(const char * str, ...) ATTR_PRINTF(1,2);
 void MANGOS_DLL_SPEC debug_log(const char * str, ...) ATTR_PRINTF(1,2);
 void MANGOS_DLL_SPEC error_log(const char * str, ...) ATTR_PRINTF(1,2);
 void MANGOS_DLL_SPEC error_db_log(const char * str, ...) ATTR_PRINTF(1,2);
+void MANGOS_DLL_SPEC my_log(const char * str, ...) ATTR_PRINTF(1,2);
+void MANGOS_DLL_SPEC instance_log(const char * str, ...) ATTR_PRINTF(1,2);
 #endif

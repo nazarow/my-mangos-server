@@ -105,6 +105,14 @@ ConfVersion=2010062001
 #        Default: 0 (Ban IP)
 #                 1 (Ban Account)
 #
+#    Auto Registration setting
+#        Default: 0 (not to use)
+#                 1 (Use)
+#
+#    Amount account registered on IP  (Used only Auto Registration)
+#        Default: 0 (not to use)
+#                 1 or more
+#
 ###################################################################################################################
 
 LoginDatabaseInfo = "127.0.0.1;3306;mangos;mangos;realmd"
@@ -126,3 +134,5 @@ RealmsStateUpdateDelay = 20
 WrongPass.MaxCount = 0
 WrongPass.BanTime = 600
 WrongPass.BanType = 0
+UseAutoReg = 0
+AmountIP = 0

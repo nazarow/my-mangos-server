@@ -132,12 +132,12 @@ void WorldSession::HandleGroupInviteOpcode( WorldPacket & recv_data )
         {
             delete group;
             return;
-        }
+        } else sLog.outMy("WorldSession::HGIO %s create invite for %s",GetPlayer()->GetName(),player->GetName());
         if(!group->AddInvite(player))
         {
             delete group;
             return;
-        }
+        } else sLog.outMy("WorldSession::HGIO %s send new invite for %s",GetPlayer()->GetName(),player->GetName());
     }
     else
     {
@@ -145,7 +145,7 @@ void WorldSession::HandleGroupInviteOpcode( WorldPacket & recv_data )
         if(!group->AddInvite(player))
         {
             return;
-        }
+        } else sLog.outMy("WorldSession::HGIO %s send invite for %s",GetPlayer()->GetName(),player->GetName());
     }
 
     // ok, we do it
@@ -324,11 +324,14 @@ void WorldSession::HandleGroupSetLeaderOpcode( WorldPacket & recv_data )
 
 void WorldSession::HandleGroupDisbandOpcode( WorldPacket & /*recv_data*/ )
 {
-    if(!GetPlayer()->GetGroup())
+    if(!GetPlayer() || !GetPlayer()->GetGroup())
         return;
+
+	sLog.outMy("WorldSession: HandleGroupLeaveOpcode for %s %s",GetPlayer()->GetName(),GetPlayer()->GetGroup()->isBGGroup()?"[BG]":"");
 
     if(_player->InBattleGround())
     {
+		sLog.outMy("WorldSession: HGLO for %s in BG",GetPlayer()->GetName());
         SendPartyResult(PARTY_OP_INVITE, "", ERR_INVITE_RESTRICTED);
         return;
     }
@@ -339,7 +342,9 @@ void WorldSession::HandleGroupDisbandOpcode( WorldPacket & /*recv_data*/ )
     // everything is fine, do it
     SendPartyResult(PARTY_OP_LEAVE, GetPlayer()->GetName(), ERR_PARTY_RESULT_OK);
 
+	sLog.outMy("WorldSession: HGLO for %s, start RemoveFromGroup %s",GetPlayer()->GetName(),GetPlayer()->GetGroup()->isBGGroup()?"[BG]":"");
     GetPlayer()->RemoveFromGroup();
+	sLog.outMy("WorldSession: HGLO for %s, end RemoveFromGroup",GetPlayer()->GetName());
 }
 
 void WorldSession::HandleLootMethodOpcode( WorldPacket & recv_data )

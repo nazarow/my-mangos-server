@@ -442,6 +442,7 @@ class MANGOS_DLL_SPEC Creature : public Unit
         bool IsInEvadeMode() const;
 
         bool AIM_Initialize();
+		void AIM_Release();
 
         CreatureAI* AI() { return i_AI; }
 
@@ -553,6 +554,7 @@ class MANGOS_DLL_SPEC Creature : public Unit
         CreatureSpellCooldowns m_CreatureSpellCooldowns;
         CreatureSpellCooldowns m_CreatureCategoryCooldowns;
 
+        bool IsWithinSightDist(Unit const* u) const;
         float GetAttackDistance(Unit const* pl) const;
 
         void SendAIReaction(AiReaction reactionType);
@@ -628,12 +630,18 @@ class MANGOS_DLL_SPEC Creature : public Unit
 
         void SetActiveObjectState(bool on);
 
+        // TODO this method is a hack, move all BattleGroundCreatures to database - or set home-point for BG-creatures
+        //void SetDBTableGuid(uint32 id) { m_DBTableGuid = id; }
         void SetNeedNotify() { m_needNotify = true; }
 
         void SendAreaSpiritHealerQueryOpcode(Player *pl);
 
+        void SetSpellId(uint32 id) { m_spellId = id; }
+        uint32 GetSpellId() const { return m_spellId;}
+
     protected:
-        bool CreateFromProto(uint32 guidlow,uint32 Entry, Team team, const CreatureData *data = NULL, GameEventCreatureData const* eventData =NULL);
+        uint32 m_spellId;
+        bool CreateFromProto(uint32 guidlow, uint32 Entry, Team team, const CreatureData *data = NULL, GameEventCreatureData const* eventData = NULL);
         bool InitEntry(uint32 entry, const CreatureData* data = NULL, GameEventCreatureData const* eventData = NULL);
         void RelocationNotify();
 
@@ -660,6 +668,8 @@ class MANGOS_DLL_SPEC Creature : public Unit
         uint32 m_corpseDelay;                               // (secs) delay between death and corpse disappearance
         float m_respawnradius;
 
+        bool m_isPet;                                       // set only in Pet::Pet
+        bool m_isTotem;                                     // set only in Totem::Totem
         CreatureSubtype m_subtype;                          // set in Creatures subclasses for fast it detect without dynamic_cast use
         void RegenerateMana();
         void RegenerateHealth();

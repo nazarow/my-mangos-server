@@ -59,6 +59,8 @@
 #include "WaypointManager.h"
 #include "GMTicketMgr.h"
 #include "Util.h"
+#include "OutdoorPvPMgr.h"
+#include "Language.h"
 #include "CharacterDatabaseCleaner.h"
 
 INSTANTIATE_SINGLETON_1( World );
@@ -74,6 +76,20 @@ float World::m_MaxVisibleDistanceInBGArenas   = DEFAULT_VISIBILITY_BGARENAS;
 float World::m_MaxVisibleDistanceInFlight     = DEFAULT_VISIBILITY_DISTANCE;
 float World::m_VisibleUnitGreyDistance        = 0;
 float World::m_VisibleObjectGreyDistance      = 0;
+
+//movement anticheat
+bool World::m_EnableMvAnticheat = true;
+uint32  World::m_TeleportToPlaneAlarms = 50;
+uint32 World::m_MistimingAlarms = 20;
+uint32 World::m_MistimingDelta = 2000;
+
+struct ScriptAction
+{
+    uint64 sourceGUID;
+    uint64 targetGUID;
+    uint64 ownerGUID;                                       // owner of source if source is item
+    ScriptInfo const* script;                               // pointer to static script data
+};
 
 /// World constructor
 World::World()
@@ -92,6 +108,8 @@ World::World()
     m_defaultDbcLocale = LOCALE_enUS;
     m_availableDbcLocaleMask = 0;
 
+    m_updateTimeSum = 0; 
+	m_updateTimeCount = 0; 
     for(int i = 0; i < CONFIG_UINT32_VALUE_COUNT; ++i)
         m_configUint32Values[i] = 0;
 
@@ -380,6 +398,8 @@ Weather* World::AddWeather(uint32 zone_id)
 /// Initialize config values
 void World::LoadConfigSettings(bool reload)
 {
+	TargetGuid=0;
+
     if (reload)
     {
         if (!sConfig.Reload())
@@ -417,6 +437,39 @@ void World::LoadConfigSettings(bool reload)
     SetMotd( sConfig.GetStringDefault("Motd", "Welcome to the Massive Network Game Object Server." ) );
 
     ///- Read all rates from the config file
+
+    // movement anticheat
+    m_EnableMvAnticheat = sConfig.GetBoolDefault("Anticheat.Movement.Enable",true);
+    m_TeleportToPlaneAlarms = sConfig.GetIntDefault("Anticheat.Movement.TeleportToPlaneAlarms", 50);
+    if (m_TeleportToPlaneAlarms<20){
+        sLog.outError("Anticheat.Movement.TeleportToPlaneAlarms (%d) must be >=20. Using 20 instead.",m_TeleportToPlaneAlarms);
+        m_TeleportToPlaneAlarms = 20;
+    }
+    if (m_TeleportToPlaneAlarms>100){
+        sLog.outError("Anticheat.Movement.TeleportToPlaneAlarms (%d) must be <=100. Using 100 instead.",m_TeleportToPlaneAlarms);
+        m_TeleportToPlaneAlarms = 100;
+    }
+    m_MistimingDelta = sConfig.GetIntDefault("Anticheat.Movement.MistimingDelta",10000);
+    if (m_MistimingDelta<1000){
+        sLog.outError("Anticheat.Movement.m_MistimingDelta (%d) must be >=1000ms. Using 1000 instead.",m_TeleportToPlaneAlarms);
+        m_MistimingDelta = 1000;
+    }
+    if (m_MistimingDelta>15000){
+        sLog.outError("Anticheat.Movement.m_MistimingDelta (%d) must be <=15000ms. Using 10000 instead.",m_TeleportToPlaneAlarms);
+        m_MistimingDelta = 10000;
+    }
+    m_MistimingAlarms = sConfig.GetIntDefault("Anticheat.Movement.MistimingAlarms",20);
+    if (m_MistimingAlarms<10) {
+        sLog.outError("Anticheat.Movement.MistimingAlarms (%d) must be >=20. Using 10 instead.",m_TeleportToPlaneAlarms);
+        m_MistimingAlarms = 10;
+    }
+    if (m_MistimingAlarms>50){
+        sLog.outError("Anticheat.Movement.m_MistimingAlarms (%d) must be <=50. Using 50 instead.",m_TeleportToPlaneAlarms);
+        m_MistimingAlarms = 50;
+    }
+    m_AlarmKickMvAnticheat = sConfig.GetBoolDefault("Anticheat.Movement.Kick",false);
+    m_AlarmCountMvAnticheat = sConfig.GetIntDefault("Anticheat.Movement.AlarmCount", 5);
+
     setConfigPos(CONFIG_FLOAT_RATE_HEALTH, "Rate.Health", 1.0f);
     setConfigPos(CONFIG_FLOAT_RATE_POWER_MANA, "Rate.Mana", 1.0f);
     setConfig(CONFIG_FLOAT_RATE_POWER_RAGE_INCOME, "Rate.Rage.Income", 1.0f);
@@ -584,6 +637,8 @@ void World::LoadConfigSettings(bool reload)
 
     setConfigMinMax(CONFIG_UINT32_START_GM_LEVEL, "GM.StartLevel", 1, getConfig(CONFIG_UINT32_START_PLAYER_LEVEL), MAX_LEVEL);
     setConfig(CONFIG_BOOL_GM_LOWER_SECURITY, "GM.LowerSecurity", false);
+
+    setConfig(CONFIG_UINT32_NUMTHREADS, "MapUpdate.Threads", 0);
 
     setConfig(CONFIG_UINT32_GROUP_VISIBILITY, "Visibility.GroupMode", 0);
 
@@ -783,6 +838,9 @@ void World::LoadConfigSettings(bool reload)
         m_MaxVisibleDistanceInFlight = MAX_VISIBILITY_DISTANCE - m_VisibleObjectGreyDistance;
     }
 
+	setConfig(CONFIG_UINT32_INTERVAL_LOG_UPDATE, "RecordUpdateTimeDiffInterval", 60000);
+    setConfig(CONFIG_UINT32_MIN_LOG_UPDATE, "MinRecordUpdateTimeDiff", 10);
+ 
     ///- Load the CharDelete related config options
     setConfigMinMax(CONFIG_UINT32_CHARDELETE_METHOD, "CharDelete.Method", 0, 0, 1);
     setConfigMinMax(CONFIG_UINT32_CHARDELETE_MIN_LEVEL, "CharDelete.MinLevel", 0, 0, getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL));
@@ -808,6 +866,8 @@ void World::LoadConfigSettings(bool reload)
         m_dataPath = dataPath;
         sLog.outString("Using DataDir %s", m_dataPath.c_str());
     }
+
+	sLog.SetMyLogInConsole(sConfig.GetBoolDefault("MyLogInConsole", false));	// kia
 
     setConfig(CONFIG_BOOL_VMAP_INDOOR_CHECK, "vmap.enableIndoorCheck", true);
     bool enableLOS = sConfig.GetBoolDefault("vmap.enableLOS", false);
@@ -988,6 +1048,9 @@ void World::SetInitialWorldSettings()
     sObjectMgr.LoadCreatureAddons();                        // must be after LoadCreatureTemplates() and LoadCreatures()
     sLog.outString( ">>> Creature Addon Data loaded" );
     sLog.outString();
+
+    sLog.outString( "Loading UnitOwner Data..." );
+    sObjectMgr.LoadUnitOwner();
 
     sLog.outString( "Loading Gameobject Data..." );
     sObjectMgr.LoadGameobjects();
@@ -1172,6 +1235,9 @@ void World::SetInitialWorldSettings()
     sLog.outString( "Returning old mails..." );
     sObjectMgr.ReturnOrDeleteOldMails(false);
 
+    // Loads the jail conf out of the database
+    sObjectMgr.LoadJailConf();
+
     ///- Load and initialize scripts
     sLog.outString( "Loading Scripts..." );
     sLog.outString();
@@ -1228,12 +1294,16 @@ void World::SetInitialWorldSettings()
     LoginDatabase.PExecute("INSERT INTO uptime (realmid, starttime, startstring, uptime) VALUES('%u', " UI64FMTD ", '%s', 0)",
         realmID, uint64(m_startTime), isoDate);
 
+    static uint32 abtimer = 0;
+    abtimer = sConfig.GetIntDefault("AutoBroadcast.Timer", 60000);
+
     m_timers[WUPDATE_OBJECTS].SetInterval(0);
     m_timers[WUPDATE_SESSIONS].SetInterval(0);
     m_timers[WUPDATE_WEATHERS].SetInterval(1*IN_MILLISECONDS);
     m_timers[WUPDATE_AUCTIONS].SetInterval(MINUTE*IN_MILLISECONDS);
     m_timers[WUPDATE_UPTIME].SetInterval(getConfig(CONFIG_UINT32_UPTIME_UPDATE)*MINUTE*IN_MILLISECONDS);
                                                             //Update "uptime" table based on configuration entry in minutes.
+    m_timers[WUPDATE_AUTOBROADCAST].SetInterval(abtimer);
     m_timers[WUPDATE_CORPSES].SetInterval(20*MINUTE*IN_MILLISECONDS);
     m_timers[WUPDATE_DELETECHARS].SetInterval(DAY*IN_MILLISECONDS); // check for chars to delete every day
 
@@ -1257,6 +1327,10 @@ void World::SetInitialWorldSettings()
     sLog.outString( "Starting BattleGround System" );
     sBattleGroundMgr.CreateInitialBattleGrounds();
     sBattleGroundMgr.InitAutomaticArenaPointDistribution();
+
+    ///- Initialize outdoor pvp
+    sLog.outString( "Starting Outdoor PvP System" );
+    sOutdoorPvPMgr.InitOutdoorPvP();
 
     //Not sure if this can be moved up in the sequence (with static data loading) as it uses MapManager
     sLog.outString( "Loading Transports..." );
@@ -1326,9 +1400,51 @@ void World::DetectDBCLang()
     sLog.outString();
 }
 
+void World::RecordTimeDiff(const char *text, ...)
+{
+    if(m_updateTimeCount != 1)
+        return;
+    if(!text)
+    {
+        m_currentTime = WorldTimer::getMSTime();
+        return;
+    }
+
+    uint32 thisTime = WorldTimer::getMSTime();
+    uint32 diff = WorldTimer::getMSTimeDiff(m_currentTime, thisTime);
+
+    if(diff > m_configUint32Values[CONFIG_UINT32_MIN_LOG_UPDATE])
+    {
+        va_list ap;
+        char str [256];
+        va_start(ap, text);
+        vsnprintf(str,256,text, ap );
+        va_end(ap);
+        sLog.outMy("Difftime %s: %u.", str, diff);
+    }
+
+    m_currentTime = thisTime;
+}
+
 /// Update the World !
 void World::Update(uint32 diff)
 {
+    m_updateTime = uint32(diff);
+    if(m_configUint32Values[CONFIG_UINT32_INTERVAL_LOG_UPDATE])
+    {
+        if(m_updateTimeSum > m_configUint32Values[CONFIG_UINT32_INTERVAL_LOG_UPDATE])
+        {
+            sLog.outBasic("Update time diff: %u. Players online: %u.", m_updateTimeSum / m_updateTimeCount, GetActiveSessionCount());
+            m_updateTimeSum = m_updateTime;
+            m_updateTimeCount = 1;
+        }
+        else
+        {
+            m_updateTimeSum += m_updateTime;
+            ++m_updateTimeCount;
+        }
+    }
+ 
     ///- Update the different timers
     for(int i = 0; i < WUPDATE_COUNT; ++i)
     {
@@ -1365,6 +1481,7 @@ void World::Update(uint32 diff)
         sAuctionMgr.Update();
     }
 
+    RecordTimeDiff(NULL);
     /// <li> Handle session updates when the timer has passed
     if (m_timers[WUPDATE_SESSIONS].Passed())
     {
@@ -1372,6 +1489,7 @@ void World::Update(uint32 diff)
 
         UpdateSessions(diff);
     }
+    RecordTimeDiff("UpdateSessions");
 
     /// <li> Handle weather updates when the timer has passed
     if (m_timers[WUPDATE_WEATHERS].Passed())
@@ -1409,9 +1527,16 @@ void World::Update(uint32 diff)
         ///- Update objects when the timer has passed (maps, transport, creatures,...)
         sMapMgr.Update(diff);                // As interval = 0
 
+        RecordTimeDiff(NULL);
+
         sBattleGroundMgr.Update(diff);
+        RecordTimeDiff("UpdateBattleGroundMgr");
+
+        sOutdoorPvPMgr.Update(diff);
+        RecordTimeDiff("UpdateOutdoorPvPMgr");
     }
 
+    RecordTimeDiff(NULL);
     ///- Delete all characters which have been deleted X days before
     if (m_timers[WUPDATE_DELETECHARS].Passed())
     {
@@ -1421,6 +1546,7 @@ void World::Update(uint32 diff)
 
     // execute callbacks from sql queries that were queued recently
     UpdateResultQueue();
+    RecordTimeDiff("UpdateResultQueue");
 
     ///- Erase corpses once every 20 minutes
     if (m_timers[WUPDATE_CORPSES].Passed())
@@ -1437,6 +1563,17 @@ void World::Update(uint32 diff)
         uint32 nextGameEvent = sGameEventMgr.Update();
         m_timers[WUPDATE_EVENTS].SetInterval(nextGameEvent);
         m_timers[WUPDATE_EVENTS].Reset();
+    }
+
+    static uint32 autobroadcaston = 0;
+    autobroadcaston = sConfig.GetIntDefault("AutoBroadcast.On", 0);
+    if(autobroadcaston == 1)
+    {
+        if (m_timers[WUPDATE_AUTOBROADCAST].Passed())
+        {
+            m_timers[WUPDATE_AUTOBROADCAST].Reset();
+            SendRNDBroadcast();
+        }
     }
 
     /// </ul>
@@ -1851,6 +1988,45 @@ void World::ProcessCliCommands()
             command->m_commandFinished(callbackArg, !handler.HasSentErrorMessage());
 
         delete command;
+    }
+}
+
+void World::SendRNDBroadcast()
+{
+    std::string msg;
+    QueryResult *result = WorldDatabase.PQuery("SELECT `text` FROM `autobroadcast` ORDER BY RAND() LIMIT 1");
+
+    if(!result)
+        return;
+
+    msg = result->Fetch()[0].GetString();
+    delete result;
+
+    static uint32 abcenter = 0;
+    abcenter = sConfig.GetIntDefault("AutoBroadcast.Center", 0);
+    if(abcenter == 0)
+    {
+        sWorld.SendWorldText(LANG_AUTO_BROADCAST, msg.c_str());
+
+        sLog.outString("AutoBroadcast: '%s'",msg.c_str());
+    }
+    if(abcenter == 1)
+    {
+        WorldPacket data(SMSG_NOTIFICATION, (msg.size()+1));
+        data << msg;
+        sWorld.SendGlobalMessage(&data);
+
+        sLog.outString("AutoBroadcast: '%s'",msg.c_str());
+    }
+    if(abcenter == 2)
+    {
+        sWorld.SendWorldText(LANG_AUTO_BROADCAST, msg.c_str());
+
+        WorldPacket data(SMSG_NOTIFICATION, (msg.size()+1));
+        data << msg;
+        sWorld.SendGlobalMessage(&data);
+
+        sLog.outString("AutoBroadcast: '%s'",msg.c_str());
     }
 }
 

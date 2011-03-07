@@ -20,6 +20,7 @@
 #define MANGOSSERVER_ERRORS_H
 
 #include "Common.h"
+#include "Log.h"
 
 #ifndef HAVE_CONFIG_H
 #  define HAVE_ACE_STACK_TRACE_H 1
@@ -35,6 +36,8 @@
 if (!(CONDITION)) \
 { \
     ACE_Stack_Trace st; \
+	my_log("%s:%i: Error: Assertion in %s failed: %s\nStack Trace:\n%s", \
+			__FILE__, __LINE__, __FUNCTION__, STRINGIZE(CONDITION), st.c_str()); \
     printf("%s:%i: Error: Assertion in %s failed: %s\nStack Trace:\n%s", \
         __FILE__, __LINE__, __FUNCTION__, STRINGIZE(CONDITION), st.c_str()); \
     assert(STRINGIZE(CONDITION) && 0); \

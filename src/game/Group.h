@@ -175,6 +175,7 @@ class MANGOS_DLL_SPEC Group
 
         // group manipulation methods
         bool   Create(ObjectGuid guid, const char * name);
+		void   GetGroupNames(Player* player);
         bool   LoadGroupFromDB(Field *fields);
         bool   LoadMemberFromDB(uint32 guidLow, uint8 subgroup, bool assistant);
         bool   AddInvite(Player *player);

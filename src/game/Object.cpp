@@ -30,7 +30,6 @@
 #include "UpdateMask.h"
 #include "Util.h"
 #include "MapManager.h"
-#include "Log.h"
 #include "Transports.h"
 #include "TargetedMovementGenerator.h"
 #include "WaypointMovementGenerator.h"
@@ -507,6 +506,9 @@ void Object::BuildValuesUpdate(uint8 updatetype, ByteBuffer * data, UpdateMask *
             if (((GameObject*)this)->ActivateToQuest(target) || target->isGameMaster())
                 IsActivateToQuest = true;
 
+            if (GetUInt32Value(GAMEOBJECT_ARTKIT))
+                updateMask->SetBit(GAMEOBJECT_ARTKIT);
+
             updateMask->SetBit(GAMEOBJECT_DYN_FLAGS);
         }
         else if (isType(TYPEMASK_UNIT))
@@ -553,7 +555,7 @@ void Object::BuildValuesUpdate(uint8 updatetype, ByteBuffer * data, UpdateMask *
                 if (index == UNIT_NPC_FLAGS)
                 {
                     // remove custom flag before sending
-                    uint32 appendValue = m_uint32Values[index] & ~UNIT_NPC_FLAG_GUARD;
+                    uint32 appendValue = m_uint32Values[index] & ~(UNIT_NPC_FLAG_GUARD+ UNIT_NPC_FLAG_OUTDOORPVP);
 
                     if (GetTypeId() == TYPEID_UNIT)
                     {
@@ -1032,16 +1034,22 @@ void WorldObject::Relocate(float x, float y, float z)
 
 uint32 WorldObject::GetZoneId() const
 {
+	if (!GetTerrain()) return 0;	//kia tmp fix
+
     return GetTerrain()->GetZoneId(m_positionX, m_positionY, m_positionZ);
 }
 
 uint32 WorldObject::GetAreaId() const
 {
+	if (!GetTerrain()) return 0;	//kia tmp fix
+
     return GetTerrain()->GetAreaId(m_positionX, m_positionY, m_positionZ);
 }
 
 void WorldObject::GetZoneAndAreaId(uint32& zoneid, uint32& areaid) const
 {
+	if (!GetTerrain()) { zoneid=0; areaid=0; return; } //kia tmp fix
+
     GetTerrain()->GetZoneAndAreaId(zoneid, areaid, m_positionX, m_positionY, m_positionZ);
 }
 
@@ -1331,7 +1339,7 @@ void WorldObject::UpdateGroundPositionZ(float x, float y, float &z) const
 {
     float new_z = GetTerrain()->GetHeight(x,y,z,true);
     if(new_z > INVALID_HEIGHT)
-        z = new_z+ 0.05f;                                   // just to be sure that we are not a few pixel under the surface
+        z = new_z; //+ 0.05f;                                   // just to be sure that we are not a few pixel under the surface
 }
 
 void WorldObject::UpdateAllowedPositionZ(float x, float y, float &z) const
@@ -1565,16 +1573,19 @@ void WorldObject::SendObjectDeSpawnAnim(uint64 guid)
     SendMessageToSet(&data, true);
 }
 
-void WorldObject::SendGameObjectCustomAnim(uint64 guid)
+void WorldObject::SendGameObjectCustomAnim(uint64 guid, uint32 value)
 {
     WorldPacket data(SMSG_GAMEOBJECT_CUSTOM_ANIM, 8+4);
     data << uint64(guid);
-    data << uint32(0);                                      // not known what this is
+    data << uint32(value);                                      // not known what this is
     SendMessageToSet(&data, true);
 }
 
 void WorldObject::SetMap(Map * map)
 {
+	if (!map)	//kia
+		sLog.outError("%s not have map",GetObjectGuid().GetString().c_str());
+
     MANGOS_ASSERT(map);
     m_currMap = map;
     //lets save current map's Id/instanceId
@@ -1584,6 +1595,12 @@ void WorldObject::SetMap(Map * map)
 
 TerrainInfo const* WorldObject::GetTerrain() const
 {
+	if (!m_currMap)		//kia tmp fix
+	{
+		sLog.outMy("GBM::map not found for %u", GetObjectGuid().GetString().c_str());
+		return NULL;
+	}
+
     MANGOS_ASSERT(m_currMap);
     return m_currMap->GetTerrain();
 }
@@ -1769,7 +1786,7 @@ void WorldObject::GetNearPoint(WorldObject const* searcher, float &x, float &y, 
     }
 
     float angle;                                            // candidate of angle for free pos
-
+    
     // special case when one from list empty and then empty side preferred
     if(selector.FirstAngle(angle))
     {
@@ -1787,7 +1804,12 @@ void WorldObject::GetNearPoint(WorldObject const* searcher, float &x, float &y, 
 
     // set first used pos in lists
     selector.InitializeAngle();
-
+    
+    // Debugging LoS problem when angle == 0.00, set some vars
+    bool localDebug = false;
+    uint32 localCounter = 0;
+    uint32 localCounter2 = 0;
+    
     // select in positions after current nodes (selection one by one)
     while(selector.NextAngle(angle))                        // angle for free pos
     {
@@ -1801,13 +1823,28 @@ void WorldObject::GetNearPoint(WorldObject const* searcher, float &x, float &y, 
 
         if(IsWithinLOS(x,y,z))
             return;
+
+        // Start outputting debug when angle == 0.00
+        if(!angle && !localCounter) {
+                sLog.outError("WorldObject::GetNearPoint: DEBUG START (angle = %f, map_id = %u, x = %f, y = %f, z = %f)", angle, GetMapId(), x, y, z);
+                localDebug = true;
+        }
+        
+        if(++localCounter > 100) {
+            sLog.outError("WorldObject::GetNearPoint: FIRST WHILE LOOP more then 100 iterations, BREAK (angle = %f, map_id = %u, x = %f, y = %f, z = %f)", angle, GetMapId(), x, y, z);
+            break;
+        }
     }
 
     // BAD NEWS: not free pos (or used or have LOS problems)
     // Attempt find _used_ pos without LOS problem
+    
+    if(localDebug) sLog.outError("WorldObject::GetNearPoint: CHECKPOINT 1 (angle = %f, map_id = %u, x = %f, y = %f, z = %f)", angle, GetMapId(), x, y, z);
 
     if(!first_los_conflict)
     {
+        if(localDebug) sLog.outError("WorldObject::GetNearPoint: CHECKPOINT 1A (angle = %f, map_id = %u, x = %f, y = %f, z = %f)", angle, GetMapId(), x, y, z);
+        
         x = first_x;
         y = first_y;
 
@@ -1817,12 +1854,18 @@ void WorldObject::GetNearPoint(WorldObject const* searcher, float &x, float &y, 
             UpdateGroundPositionZ(x,y,z);
         return;
     }
+    
+    if(localDebug) sLog.outError("WorldObject::GetNearPoint: CHECKPOINT 2 (angle = %f, map_id = %u, x = %f, y = %f, z = %f)", angle, GetMapId(), x, y, z);
 
     // special case when one from list empty and then empty side preferred
     if( selector.IsNonBalanced() )
     {
+        if(localDebug) sLog.outError("WorldObject::GetNearPoint: CHECKPOINT 2A (angle = %f, map_id = %u, x = %f, y = %f, z = %f)", angle, GetMapId(), x, y, z);
+        
         if(!selector.FirstAngle(angle))                     // _used_ pos
         {
+            if(localDebug) sLog.outError("WorldObject::GetNearPoint: CHECKPOINT 2B (angle = %f, map_id = %u, x = %f, y = %f, z = %f)", angle, GetMapId(), x, y, z);
+            
             GetNearPoint2D(x,y,distance2d,absAngle+angle);
             z = GetPositionZ();
 
@@ -1831,17 +1874,25 @@ void WorldObject::GetNearPoint(WorldObject const* searcher, float &x, float &y, 
             else
                 UpdateGroundPositionZ(x,y,z);
 
-            if(IsWithinLOS(x,y,z))
+            if(IsWithinLOS(x,y,z)) {
+                if(localDebug) sLog.outError("WorldObject::GetNearPoint: RETURN POINT 2 (angle = %f, map_id = %u, x = %f, y = %f, z = %f)", angle, GetMapId(), x, y, z);
                 return;
+            }
         }
     }
+    
+    if(localDebug) sLog.outError("WorldObject::GetNearPoint: CHECKPOINT 3 (angle = %f, map_id = %u, x = %f, y = %f, z = %f)", angle, GetMapId(), x, y, z);
 
     // set first used pos in lists
     selector.InitializeAngle();
+    
+    if(localDebug) sLog.outError("WorldObject::GetNearPoint: CHECKPOINT 4 (angle = %f, map_id = %u, x = %f, y = %f, z = %f)", angle, GetMapId(), x, y, z);
 
     // select in positions after current nodes (selection one by one)
     while(selector.NextUsedAngle(angle))                    // angle for used pos but maybe without LOS problem
     {
+        if(localDebug) sLog.outError("WorldObject::GetNearPoint: CHECKPOINT 4A (angle = %f, map_id = %u, x = %f, y = %f, z = %f)", angle, GetMapId(), x, y, z);
+        
         GetNearPoint2D(x,y,distance2d,absAngle+angle);
         z = GetPositionZ();
 
@@ -1850,9 +1901,18 @@ void WorldObject::GetNearPoint(WorldObject const* searcher, float &x, float &y, 
         else
             UpdateGroundPositionZ(x,y,z);
 
-        if(IsWithinLOS(x,y,z))
+        if(IsWithinLOS(x,y,z)) {
+            if(localDebug) sLog.outError("WorldObject::GetNearPoint: RETURN POINT 3 (angle = %f, map_id = %u, x = %f, y = %f, z = %f)", angle, GetMapId(), x, y, z);
             return;
+        }
+        
+        if(++localCounter2 > 100) {
+            sLog.outError("WorldObject::GetNearPoint: SECOND WHILE LOOP more then 100 iterations, BREAK (angle = %f, map_id = %u, x = %f, y = %f, z = %f)", angle, GetMapId(), x, y, z);
+            break;
+        }
     }
+    
+    if(localDebug) sLog.outError("WorldObject::GetNearPoint: CHECKPOINT 5 (angle = %f, map_id = %u, x = %f, y = %f, z = %f)", angle, GetMapId(), x, y, z);
 
     // BAD BAD NEWS: all found pos (free and used) have LOS problem :(
     x = first_x;
@@ -1952,4 +2012,41 @@ bool WorldObject::IsControlledByPlayer() const
         default:
             return false;
     }
+}
+
+uint64 WorldObject::SummonGameObject(uint32 entry, float x, float y, float z, float ang, float rotation0, float rotation1, float rotation2, float rotation3, uint32 respawnTime)
+{
+	return 0;	// kia temp off
+
+    const GameObjectInfo *gInfo = ObjectMgr::GetGameObjectInfo(entry);
+
+    if (!gInfo)
+    {
+        sLog.outErrorDb("Gameobject template %u not found in database!", entry);
+        return 0;
+    }
+
+    if (gInfo->displayId && !sGameObjectDisplayInfoStore.LookupEntry(gInfo->displayId))
+    {
+        // report to DB errors log as in loading case
+        sLog.outErrorDb("Gameobject (Entry %u GoType: %u) have invalid displayId (%u), not spawned.", entry, gInfo->type, gInfo->displayId);
+        return 0;
+    }
+
+    Map *map = GetMap();
+
+    GameObject* pGameObj = new GameObject;
+    uint32 db_lowGUID = map->GenerateLocalLowGuid(HIGHGUID_GAMEOBJECT);
+
+    if (!pGameObj->Create(db_lowGUID, gInfo->id, map, x, y, z, ang, rotation0, rotation1, rotation2, rotation3, 100, GO_STATE_READY))
+    {
+        delete pGameObj;
+        return 0;
+    }
+
+    pGameObj->SetRespawnTime(respawnTime);
+
+    map->Add(pGameObj);
+
+    return pGameObj->GetGUID();
 }

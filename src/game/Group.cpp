@@ -58,8 +58,10 @@ Group::Group() : m_Id(0), m_groupType(GROUPTYPE_NORMAL),
 
 Group::~Group()
 {
+	sLog.outMy("Group::~Group [leader: %u]", GetLeaderGuid().GetEntry());
     if(m_bgGroup)
     {
+		sLog.outMy("Group::~Group: battleground group being deleted. [leader: %u]", GetLeaderGuid().GetEntry());
         DEBUG_LOG("Group::~Group: battleground group being deleted.");
         if(m_bgGroup->GetBgRaid(ALLIANCE) == this)
             m_bgGroup->SetBgRaid(ALLIANCE, NULL);
@@ -93,6 +95,7 @@ bool Group::Create(ObjectGuid guid, const char * name)
 {
     m_leaderGuid = guid;
     m_leaderName = name;
+	sLog.outMy("Group::Create [leader: %u]", GetLeaderGuid().GetEntry());
 
     m_groupType  = isBGGroup() ? GROUPTYPE_RAID : GROUPTYPE_NORMAL;
 
@@ -186,6 +189,7 @@ bool Group::LoadMemberFromDB(uint32 guidLow, uint8 subgroup, bool assistant)
     m_memberSlots.push_back(member);
 
     SubGroupCounterIncrease(subgroup);
+	sLog.outMy("Group::LoadMember %u [Leader: %u]", member.guid.GetEntry(), GetLeaderGuid().GetEntry());
 
     return true;
 }
@@ -221,6 +225,8 @@ bool Group::AddInvite(Player *player)
     m_invitees.insert(player);
 
     player->SetGroupInvite(this);
+	sLog.outMy("Group::Addinvite for %s [leader: %u]", player->GetName(), GetLeaderGuid().GetEntry());
+	GetGroupNames(player);
 
     return true;
 }
@@ -237,7 +243,10 @@ bool Group::AddLeaderInvite(Player *player)
 
 uint32 Group::RemoveInvite(Player *player)
 {
-    m_invitees.erase(player);
+	if (!player) return 0;
+	sLog.outMy("Group::RemoveInvite for %s [leader: %u]", player->GetName(), GetLeaderGuid().GetEntry());
+	GetGroupNames(player);
+	m_invitees.erase(player);
 
     player->SetGroupInvite(NULL);
     return GetMembersCount();
@@ -245,8 +254,29 @@ uint32 Group::RemoveInvite(Player *player)
 
 void Group::RemoveAllInvites()
 {
+	if (m_invitees.empty()) 
+	{
+		sLog.outMy("Group::RemoveAllInvites fot empty list for group");
+		return;
+	}
+    for(InvitesList::iterator itr=m_invitees.begin(); itr!=m_invitees.end(); ++itr)
+	{
+		if (!(*itr)) 
+		{
+			sLog.outMy("Group::RemoveAllInvites for NULL player");
+			continue;
+		}
+		if ((*itr)->GetTypeId()!=TYPEID_PLAYER) 
+		{
+			sLog.outMy("Group::RemoveAllInvites for unknown type");
+			continue;
+		} 
+	}
+		//else sLog.outMy("Group::RemoveAllInvites for %u [leader: %u]",GUID_LOPART((*itr)->GetGUID()),GUID_LOPART(GetLeaderGUID()));
+	//if (m_invitees.) {return;}//kia crash ???
     for(InvitesList::iterator itr = m_invitees.begin(); itr!=m_invitees.end(); ++itr)
-        (*itr)->SetGroupInvite(NULL);
+		if (!(*itr) || ((*itr)->GetTypeId()!=TYPEID_PLAYER)) {sLog.outError("Group::RemoveAllInvites - group not exist");sLog.outCmd("--GR"); continue;}
+		  else (*itr)->SetGroupInvite(NULL);
 
     m_invitees.clear();
 }
@@ -377,6 +407,9 @@ void Group::Disband(bool hideDestroy)
         player = sObjectMgr.GetPlayer(citr->guid);
         if(!player)
             continue;
+
+		sLog.outMy("Group::Disband for %s [leader: %u]", player->GetName(), GetLeaderGuid().GetEntry());
+		GetGroupNames(player);	//kia log system
 
         //we cannot call _removeMember because it would invalidate member iterator
         //if we are removing player from battleground raid
@@ -778,6 +811,7 @@ void Group::CountTheRoll(Rolls::iterator& rollI)
                     roll->getLoot()->NotifyItemRemoved(roll->itemSlot);
                     --roll->getLoot()->unlootedCount;
                     player->StoreNewItem( dest, roll->itemid, true, item->randomPropertyId);
+					sLog.outItems("Storage::CountTheRoll %u,%u for %s", roll->itemid, item->count, player->GetName());
                 }
                 else
                 {
@@ -824,6 +858,7 @@ void Group::CountTheRoll(Rolls::iterator& rollI)
                     roll->getLoot()->NotifyItemRemoved(roll->itemSlot);
                     --roll->getLoot()->unlootedCount;
                     player->StoreNewItem( dest, roll->itemid, true, item->randomPropertyId);
+					sLog.outItems("Storage::CountTheRoll %u,%u for %s", roll->itemid, item->count, player->GetName());
                 }
                 else
                 {
@@ -1057,6 +1092,8 @@ bool Group::_addMember(ObjectGuid guid, const char* name, bool isAssistant, uint
         return false;
 
     Player *player = sObjectMgr.GetPlayer(guid);
+	if (!player) return false;
+	sLog.outMy("Group::AddMember %s [leader: %u] %s", player->GetName(), GetLeaderGuid().GetEntry(),isBGGroup()?"BG":"");
 
     MemberSlot member;
     member.guid      = guid;
@@ -1079,6 +1116,8 @@ bool Group::_addMember(ObjectGuid guid, const char* name, bool isAssistant, uint
         //if player is not in group, then call set group
         else
             player->SetGroup(this, group);
+
+		GetGroupNames(player);	//kia log system
 
         // if the same group invites the player back, cancel the homebind timer
         if (InstanceGroupBind *bind = GetBoundInstance(player->GetMapId(), player))
@@ -1107,6 +1146,7 @@ bool Group::_removeMember(ObjectGuid guid)
     Player *player = sObjectMgr.GetPlayer(guid);
     if (player)
     {
+		sLog.outMy("Group::RemoveMember %s [leader: %u] %s", player->GetName(), GetLeaderGuid().GetEntry(),isBGGroup()?"BG":"");
         //if we are removing player from battleground raid
         if (isBGGroup())
             player->RemoveFromBattleGroundRaid();
@@ -1167,6 +1207,9 @@ void Group::_setLeader(ObjectGuid guid)
             "DELETE FROM group_instance WHERE leaderguid='%u' AND (permanent = 1 OR "
             "instance IN (SELECT instance FROM character_instance WHERE guid = '%u')"
             ")", leader_lowguid, slot_lowguid);
+		sLog.outMy("DELETE FROM group_instance WHERE leaderguid='%u' AND (permanent = 1 OR "
+            "instance IN (SELECT instance FROM character_instance WHERE guid = '%u')"
+            ")", leader_lowguid, slot_lowguid);
 
         Player *player = sObjectMgr.GetPlayer(slot->guid);
 
@@ -1190,6 +1233,7 @@ void Group::_setLeader(ObjectGuid guid)
         // update the group's solo binds to the new leader
         CharacterDatabase.PExecute("UPDATE group_instance SET leaderGuid='%u' WHERE leaderGuid = '%u'",
             slot_lowguid, leader_lowguid);
+		sLog.outMy("UPDATE group_instance SET leaderGuid='%u' WHERE leaderGuid = '%u'", slot_lowguid, leader_lowguid);	//kia log system
 
         // copy the permanent binds from the new leader to the group
         // overwriting the solo binds with permanent ones if necessary
@@ -1198,7 +1242,9 @@ void Group::_setLeader(ObjectGuid guid)
 
         // update the group leader
         CharacterDatabase.PExecute("UPDATE groups SET leaderGuid='%u' WHERE groupId='%u'", slot_lowguid, m_Id);
+		sLog.outMy("UPDATE groups SET leaderGuid='%u' WHERE groupId='%u'", slot_lowguid, m_Id);
         CharacterDatabase.CommitTransaction();
+		sLog.outMy("Group::SetLeader %s [leader: %u]", player?player->GetName():"None", GetLeaderGuid().GetEntry());
     }
 
     m_leaderGuid = slot->guid;
@@ -1537,7 +1583,7 @@ void Group::ResetInstances(InstanceResetMethod method, Player* SendMsgTo)
             continue;
         }
 
-        if(method == INSTANCE_RESET_ALL)
+        //if(method == INSTANCE_RESET_ALL) //kia
         {
             // the "reset all instances" method can only reset normal maps
             if (entry->map_type == MAP_RAID || diff == DUNGEON_DIFFICULTY_HEROIC)
@@ -1567,7 +1613,10 @@ void Group::ResetInstances(InstanceResetMethod method, Player* SendMsgTo)
             if (state->CanReset())
                 state->DeleteFromDB();
             else
+			{
                 CharacterDatabase.PExecute("DELETE FROM group_instance WHERE instance = '%u'", state->GetInstanceId());
+				sLog.outMy("DELETE FROM group_instance WHERE instance = '%u'", state->GetInstanceId());	//kia log system
+			}
             // i don't know for sure if hash_map iterators
             m_boundInstances[diff].erase(itr);
             itr = m_boundInstances[diff].begin();
@@ -1635,6 +1684,9 @@ InstanceGroupBind* Group::BindToInstance(DungeonPersistentState *state, bool per
 
         bind.state = state;
         bind.perm = permanent;
+        if(!load) 
+			sLog.outMy("Group::BindToInstance: %d is now bound to map %d, instance %d, difficulty %d, permanent %u", 
+			    GetId(), state->GetMapId(), state->GetInstanceId(), state->GetDifficulty(), permanent);	//kia log system
         if (!load)
             DEBUG_LOG("Group::BindToInstance: Group (Id: %d) is now bound to map %d, instance %d, difficulty %d",
                 GetId(), state->GetMapId(), state->GetInstanceId(), state->GetDifficulty());
@@ -1671,6 +1723,97 @@ void Group::_homebindIfInstance(Player *player)
                 player->m_InstanceValid = false;
         }
     }
+}
+
+void Group::GetGroupNames(Player* player)
+{
+    std::string log_str="";
+	if (!player) return;
+
+    log_str.append("  [");
+    log_str.append(player->GetName());
+    log_str.append("]->GROUP:");
+    
+    Group *group = player->GetGroup();
+    if (!group)
+    {
+        log_str.append("[unknown group] ");
+    }
+    else
+    {
+        // obtain group information
+        log_str.append("[");
+
+        uint8 gm_count = group->GetMembersCount();
+        uint8 gm_count_m1 = gm_count - 1;
+        ObjectGuid gm_leader_GUID = group->GetLeaderGuid();
+        Player *gm_member;
+
+        gm_member = sObjectMgr.GetPlayer(gm_leader_GUID);
+        if (gm_member)
+        {
+            log_str.append(gm_member->GetName());
+            log_str.append(",");
+        }
+
+        Group::MemberSlotList g_members = group->GetMemberSlots();
+        
+        for (Group::member_citerator itr = g_members.begin(); itr != g_members.end(); itr++)
+        {
+            if (itr->guid == gm_leader_GUID) continue;
+
+            gm_member = sObjectMgr.GetPlayer(itr->guid);
+            if (gm_member)
+            {
+                log_str.append(itr->name);
+                log_str.append(",");
+            }
+        }
+
+        log_str.erase(log_str.length() - 1);
+        log_str.append("] ");
+    }
+
+    log_str.append(" INV GROUP:");
+    group = player->GetGroupInvite();
+    if (!group)
+    {
+        log_str.append("[unknown invite group] ");
+    }
+    else
+    {
+        // obtain group information
+        log_str.append("[");
+
+        uint8 gm_count = group->GetMembersCount();
+        uint8 gm_count_m1 = gm_count - 1;
+        ObjectGuid gm_leader_GUID = group->GetLeaderGuid();
+        Player *gm_member;
+
+        gm_member = sObjectMgr.GetPlayer(gm_leader_GUID);
+        if (gm_member)
+        {
+            log_str.append(gm_member->GetName());
+            log_str.append(",");
+        }
+
+        for(InvitesList::iterator itr=m_invitees.begin(); itr!=m_invitees.end(); ++itr)
+        {
+			if (!(*itr) || !(*itr)->IsInWorld() || (*itr)->GetGUID() == gm_leader_GUID.GetRawValue()) continue;
+
+			gm_member = sObjectMgr.GetPlayer((*itr)->GetGUID());
+            if (gm_member)
+            {
+				log_str.append((*itr)->GetName());
+                log_str.append(",");
+            }
+        }
+
+        log_str.erase(log_str.length() - 1);
+        log_str.append("] ");
+    }
+	sLog.outMy("%s",log_str.c_str());
+	return;
 }
 
 static void RewardGroupAtKill_helper(Player* pGroupGuy, Unit* pVictim, uint32 count, bool PvP, float group_rate, uint32 sum_level, bool is_dungeon, Player* not_gray_member_with_max_level, Player* member_with_max_level, uint32 xp )

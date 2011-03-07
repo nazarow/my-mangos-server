@@ -279,6 +279,8 @@ struct Loot
     LootItem* LootItemInSlot(uint32 lootslot, Player* player, QuestItem** qitem = NULL, QuestItem** ffaitem = NULL, QuestItem** conditem = NULL);
     uint32 GetMaxSlotInLootFor(Player* player) const;
 
+	void ShowLoot();
+
     private:
         void FillNotNormalLootFor(Player* player);
         QuestItemList* FillFFALoot(Player* player);

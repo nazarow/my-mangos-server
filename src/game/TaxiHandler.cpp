@@ -28,6 +28,7 @@
 #include "Path.h"
 #include "WaypointMovementGenerator.h"
 #include "DestinationHolderImp.h"
+#include "World.h"
 
 void WorldSession::HandleTaxiNodeStatusQueryOpcode( WorldPacket & recv_data )
 {
@@ -41,6 +42,17 @@ void WorldSession::HandleTaxiNodeStatusQueryOpcode( WorldPacket & recv_data )
 
 void WorldSession::SendTaxiStatus(ObjectGuid guid)
 {
+	if (!GetPlayer() || !GetPlayer()->IsInWorld() || !GetPlayer()->GetMap()) //kia
+		return;
+
+	ObjectGuid og;
+	og = guid;
+	if (!og.IsCreatureOrPet())
+	{
+		sLog.outError("WorldSession::SendTaxiStatus - %s not creature [%s]",og.GetString().c_str() , WorldSession::GetPlayerName());
+		return;
+	}
+
     // cheating checks
     Creature *unit = GetPlayer()->GetMap()->GetCreature(guid);
     if (!unit)
@@ -186,22 +198,99 @@ void WorldSession::HandleActivateTaxiExpressOpcode ( WorldPacket & recv_data )
 void WorldSession::HandleMoveSplineDoneOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG( "WORLD: Received CMSG_MOVE_SPLINE_DONE" );
+    recv_data.hexlike();
 
     MovementInfo movementInfo;                              // used only for proper packet read
 
     recv_data >> movementInfo;
     recv_data >> Unused<uint32>();                          // unk
-
+	GetPlayer()->GetMover()->ShowMovementInfo(GetPlayer()->GetGUIDLow(), movementInfo, LookupOpcodeName(recv_data.GetOpcode())); 
 
     // in taxi flight packet received in 2 case:
     // 1) end taxi path in far (multi-node) flight
     // 2) switch from one map to other in case multi-map taxi path
     // we need process only (1)
+
+    //movement anticheat code
+
+	//ReadMovementInfo(recv_data,&movementInfo);
+
+	//GetPlayer()->m_anti_last_hspeed = movementInfo.j_xyspeed;
+	GetPlayer()->m_anti_last_vspeed = movementInfo.GetJumpInfo().velocity < 3.2f ? movementInfo.GetJumpInfo().velocity - 1.0f : 3.2f;
+   //<<< end movement anticheat
+
     uint32 curDest = GetPlayer()->m_taxi.GetTaxiDestination();
     if(!curDest)
+    {
+		if (GetPlayer()->GetMover()->GetTypeId()==TYPEID_PLAYER)
+		{
+        //movement anticheat code
+        GetPlayer()->m_movementInfo = movementInfo;
+		GetPlayer()->SetPosition(movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z, movementInfo.GetPos()->o);
+
+        int32 timedelta = 0;
+        if (GetPlayer()->m_anti_lastmovetime !=0){
+            timedelta = movementInfo.time - GetPlayer()->m_anti_lastmovetime;
+            GetPlayer()->m_anti_deltamovetime += timedelta;
+            GetPlayer()->m_anti_lastmovetime = movementInfo.time;
+        } else {
+            GetPlayer()->m_anti_lastmovetime = movementInfo.time;
+        }
+
+        uint32 CurTime = WorldTimer::getMSTime();
+        uint32 CurTimeDelta = 0;
+        if (GetPlayer()->m_anti_lastMStime != 0){
+            CurTimeDelta = CurTime - GetPlayer()->m_anti_lastMStime;
+            GetPlayer()->m_anti_deltaMStime += CurTimeDelta;
+            GetPlayer()->m_anti_lastMStime = CurTime;
+        } else {
+            GetPlayer()->m_anti_lastMStime = CurTime;
+        }
+
+        //sLog.outBasic("dtime: %d, stime: %d || dMS: %d - dMV: %d || dt: %d", timedelta, CurTime, GetPlayer()->m_anti_deltaMStime,  GetPlayer()->m_anti_deltamovetime);
+
+        GetPlayer()->m_anti_justteleported = 1;
+        //<<< end movement anticheat
         return;
+		}
+		else
+		{
+	        if(GetPlayer()->GetMover()->IsInWorld())
+				GetPlayer()->GetMover()->GetMap()->CreatureRelocation(((Creature*)GetPlayer()->GetMover()), movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z, movementInfo.GetPos()->o);
+			return;
+		}
+    }
 
     TaxiNodesEntry const* curDestNode = sTaxiNodesStore.LookupEntry(curDest);
+
+    if(curDestNode && curDestNode->map_id == GetPlayer()->GetMapId())
+    {
+        while(GetPlayer()->GetMotionMaster()->GetCurrentMovementGeneratorType()==FLIGHT_MOTION_TYPE)
+            GetPlayer()->GetMotionMaster()->MovementExpired(false);
+    }
+
+    //movement anticheat code
+    GetPlayer()->m_movementInfo = movementInfo;
+    GetPlayer()->SetPosition(movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z, movementInfo.GetPos()->o);
+    int32 timedelta = 0;
+    if (GetPlayer()->m_anti_lastmovetime !=0){
+        timedelta = movementInfo.time - GetPlayer()->m_anti_lastmovetime;
+        GetPlayer()->m_anti_deltamovetime += timedelta;
+        GetPlayer()->m_anti_lastmovetime = movementInfo.time;
+    } else {
+        GetPlayer()->m_anti_lastmovetime = movementInfo.time;
+    }
+
+    uint32 CurTime = WorldTimer::getMSTime();
+    uint32 CurTimeDelta = 0;
+    if (GetPlayer()->m_anti_lastMStime != 0){
+        CurTimeDelta = CurTime - GetPlayer()->m_anti_lastMStime;
+        GetPlayer()->m_anti_deltaMStime += CurTimeDelta;
+        GetPlayer()->m_anti_lastMStime = CurTime;
+    } else {
+        GetPlayer()->m_anti_lastMStime = CurTime;
+    }
+    //<<< end movement anticheat
 
     // far teleport case
     if(curDestNode && curDestNode->map_id != GetPlayer()->GetMapId())

@@ -461,9 +461,9 @@ void WorldSession::HandleAcceptTradeOpcode(WorldPacket& recvPacket)
         }
 
         // update money
-        _player->ModifyMoney( -int32(my_trade->GetMoney()) );
+        _player->ModifyMoney( -int32(my_trade->GetMoney()), "trade");
         _player->ModifyMoney(his_trade->GetMoney());
-        trader->ModifyMoney( -int32(his_trade->GetMoney()) );
+        trader->ModifyMoney( -int32(his_trade->GetMoney()), "trader");
         trader->ModifyMoney(my_trade->GetMoney());
 
         if (my_spell)

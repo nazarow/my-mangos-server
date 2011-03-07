@@ -20,6 +20,7 @@
 #define SC_DEFINES_H
 
 #include "../ScriptMgr.h"
+#include "Log.h"
 
 // Skill defines
 

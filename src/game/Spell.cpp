@@ -850,7 +850,7 @@ void Spell::AddItemTarget(Item* pitem, SpellEffectIndex effIndex)
 
 void Spell::DoAllEffectOnTarget(TargetInfo *target)
 {
-    if (target->processed)                                  // Check target
+    if (!target || target->processed)                                  // Check target
         return;
     target->processed = true;                               // Target checked in apply effects procedure
 
@@ -890,6 +890,9 @@ void Spell::DoAllEffectOnTarget(TargetInfo *target)
         m_damage += target->damage;
     }
 
+	if (m_spellInfo->Id == 26013)							// kia cast deserter always
+		DoSpellHitOnUnit(unit, mask);
+	else
     if (missInfo==SPELL_MISS_NONE)                          // In case spell hit target, do all effect on that target
         DoSpellHitOnUnit(unit, mask);
     else if (missInfo == SPELL_MISS_REFLECT)                // In case spell reflect from target, do all effect on caster (if hit)
@@ -1028,13 +1031,16 @@ void Spell::DoAllEffectOnTarget(TargetInfo *target)
 
 void Spell::DoSpellHitOnUnit(Unit *unit, const uint32 effectMask)
 {
+    if (m_caster->hasUnitState(UNIT_STAT_DIED)) 
+        return;
+
     if (!unit || !effectMask)
         return;
 
     Unit* realCaster = GetAffectiveCaster();
-
+	
     // Recheck immune (only for delayed spells)
-    if (m_spellInfo->speed && (
+    if (m_spellInfo->Id != 39948 && m_spellInfo->speed && (				//kia tmp fix Najentus spine
         unit->IsImmunedToDamage(GetSpellSchoolMask(m_spellInfo)) ||
         unit->IsImmuneToSpell(m_spellInfo)))
     {
@@ -1443,7 +1449,63 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
         case TARGET_TOTEM_WATER:
         case TARGET_TOTEM_AIR:
         case TARGET_TOTEM_FIRE:
-        case TARGET_SELF:
+        {
+            float x, y, z, angle, dist;
+
+            if (m_spellInfo->EffectRadiusIndex[effIndex])
+                dist = GetSpellRadius(sSpellRadiusStore.LookupEntry(m_spellInfo->EffectRadiusIndex[effIndex]));
+            else
+                dist = 3.0f;
+            dist -= m_caster->GetObjectBoundingRadius(); // Size is calculated in GetNearPoint(), but we do not need it 
+
+            switch(targetMode)
+            {
+                case TARGET_TOTEM_EARTH:
+                    angle = float(-M_PI/4);
+                    break;
+                case TARGET_TOTEM_WATER:
+                    angle = float(-3*M_PI/4);
+                    break;
+                case TARGET_TOTEM_AIR:
+                    angle = float(3*M_PI/4);
+                    break;
+                case TARGET_TOTEM_FIRE:
+                    angle = float(M_PI/4);
+                    break;
+                default:
+                    angle = float(rand_norm()*2*M_PI);
+                    break;
+            }
+
+            m_caster->GetClosePoint(x, y, z, 0, dist, angle);
+            m_targets.setDestination(x, y, z);
+            if (m_targets.getUnitTarget())
+                targetUnitMap.push_back(m_targets.getUnitTarget());
+            else
+                targetUnitMap.push_back(m_caster); 
+        }break;
+        case TARGET_LOCATION_RANDOM_IN_AREA:
+        {
+            float x, y, z, dist, px, py, pz;
+            dist = GetSpellRadius(sSpellRadiusStore.LookupEntry(m_spellInfo->EffectRadiusIndex[effIndex]));
+            if (m_targets.m_targetMask & TARGET_FLAG_DEST_LOCATION)
+            {
+                x = m_targets.m_destX;
+                y = m_targets.m_destY;
+                z = m_targets.m_destZ;
+            }
+            else if (m_targets.getUnitTarget()) // Do not know if possible
+                m_targets.getUnitTarget()->GetPosition(x, y, z);
+            else
+                m_caster->GetPosition(x, y, z);
+
+            m_caster->GetRandomPoint(x, y, z, dist, px, py, pz);
+            m_targets.setDestination(px, py, pz);
+            if (m_targets.getUnitTarget())
+                targetUnitMap.push_back(m_targets.getUnitTarget());
+            else
+                targetUnitMap.push_back(m_caster);
+        }break;
         case TARGET_SELF2:
             targetUnitMap.push_back(m_caster);
             break;
@@ -1994,11 +2056,11 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                     // IsHostileTo check duel and controlled by enemy
                     if(Target && Target->GetSubGroup() == subgroup && !m_caster->IsHostileTo(Target))
                     {
-                        if( pTarget->IsWithinDistInMap(Target, radius) )
+                        if(Target->getLevel()+10 >= m_spellInfo->spellLevel && pTarget->IsWithinDistInMap(Target, radius))
                             targetUnitMap.push_back(Target);
 
                         if(Pet* pet = Target->GetPet())
-                            if( pTarget->IsWithinDistInMap(pet, radius) )
+                            if(pet->getLevel()+10 >= m_spellInfo->spellLevel && pTarget->IsWithinDistInMap(pet, radius) )
                                 targetUnitMap.push_back(pet);
                     }
                 }
@@ -2013,7 +2075,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                 targetUnitMap.push_back(pTarget);
 
                 if(Pet* pet = pTarget->GetPet())
-                    if( m_caster->IsWithinDistInMap(pet, radius) )
+                    if(pet->getLevel()+10 >= m_spellInfo->spellLevel && m_caster->IsWithinDistInMap(pet, radius) )
                         targetUnitMap.push_back(pet);
             }
             break;
@@ -2115,9 +2177,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                     Player* Target = itr->getSource();
 
                     // IsHostileTo check duel and controlled by enemy
-                    if( Target && targetPlayer->IsWithinDistInMap(Target, radius) &&
-                        targetPlayer->getClass() == Target->getClass() &&
-                        !m_caster->IsHostileTo(Target) )
+                    if( Target && Target->getLevel()+10 >= m_spellInfo->spellLevel && targetPlayer->getClass() == Target->getClass() && !m_caster->IsHostileTo(Target) && targetPlayer->IsWithinDistInMap(Target, radius) )
                     {
                         targetUnitMap.push_back(Target);
                     }
@@ -2137,8 +2197,8 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                     break;
                 if (st->target_mapId == m_caster->GetMapId())
                     m_targets.setDestination(st->target_X, st->target_Y, st->target_Z);
-                else
-                    sLog.outError( "SPELL: wrong map (%u instead %u) target coordinates for spell ID %u", st->target_mapId, m_caster->GetMapId(), m_spellInfo->Id );
+                //--else
+                //--    sLog.outError( "SPELL: wrong map (%u instead %u) target coordinates for spell ID %u", st->target_mapId, m_caster->GetMapId(), m_spellInfo->Id );
             }
             else
                 sLog.outError( "SPELL: unknown target coordinates for spell ID %u", m_spellInfo->Id );
@@ -2565,6 +2625,7 @@ void Spell::cancel()
     finish(false);
     m_caster->RemoveDynObject(m_spellInfo->Id);
     m_caster->RemoveGameObject(m_spellInfo->Id, true);
+	m_caster->RemoveCreature(m_spellInfo->Id);
 }
 
 void Spell::cast(bool skipCheck)
@@ -3003,6 +3064,9 @@ void Spell::finish(bool ok)
 
     m_spellState = SPELL_STATE_FINISHED;
 
+    if(!m_caster->IsNonMeleeSpellCasted(false, false, true))
+        m_caster->clearUnitState(UNIT_STAT_CASTING);		//kia
+
     // other code related only to successfully finished spells
     if(!ok)
         return;
@@ -3068,7 +3132,14 @@ void Spell::finish(bool ok)
             }
         }
         if (needDrop)
+		{
+            Unit* cptarget = NULL;
+            if(((Player*)m_caster)->GetComboPointsDelayed() > 0)
+                cptarget = ObjectAccessor::GetUnit(*m_caster,((Player*)m_caster)->GetComboTargetGuid());
             ((Player*)m_caster)->ClearComboPoints();
+            if(cptarget)
+                ((Player*)m_caster)->AddComboPoints(cptarget,0,true);
+		}
     }
 
     // call triggered spell only at successful cast (after clear combo points -> for add some if need)
@@ -3127,7 +3198,16 @@ void Spell::SendCastResult(Player* caster, SpellEntry const* spellInfo, uint8 ca
                     data << uint32(4075);
                     break;
                 default:                                    // default case
-                    data << uint32(spellInfo->AreaId);
+					if(spellInfo->AreaId) 
+						data << uint32(spellInfo->AreaId);
+					else
+					{
+					    SpellAreaMapBounds saBounds = sSpellMgr.GetSpellAreaMapBounds(spellInfo->Id);
+						if(saBounds.first != saBounds.second)
+							data << uint32(saBounds.first->second.areaId);
+						else
+							data <<uint32(0);			
+					}
                     break;
             }
             break;
@@ -4513,6 +4593,26 @@ SpellCastResult Spell::CheckCast(bool strict)
 
                 break;
             }
+            case SPELL_EFFECT_41:
+            {
+                // fire bomb trigger, can only be used in halaa opvp when flying on a path from a wyvern roost
+                // yeah, hacky, I know, but neither item flags, nor spell attributes contained any useable data (or I was unable to find it)
+                if(m_spellInfo->EffectMiscValue[i] == 18225 && m_caster->GetTypeId() == TYPEID_PLAYER)
+                {
+                    // if not in halaa or not in flight, cannot be used
+                    if(m_caster->GetAreaId() != 3628 || !m_caster->IsTaxiFlying())
+                        return SPELL_FAILED_NOT_HERE;
+
+                    // if not on one of the specific taxi paths, then cannot be used
+                    uint32 src_node = ((Player*)m_caster)->m_taxi.GetTaxiSource();
+                    if( src_node != 103 &&
+                        src_node != 105 &&
+                        src_node != 107 &&
+                        src_node != 109 )
+                        return SPELL_FAILED_NOT_HERE;
+                }
+                break;
+            }
             case SPELL_EFFECT_SUMMON_PET:
             {
                 if (!m_caster->GetPetGuid().IsEmpty())      //let warlock do a replacement summon
@@ -4791,22 +4891,23 @@ SpellCastResult Spell::CheckPetCast(Unit* target)
             if (!_target->isTargetableForAttack())
                 return SPELL_FAILED_BAD_TARGETS;            // guessed error
 
-            if(IsPositiveSpell(m_spellInfo->Id))
+            bool duelvsplayertar = false;
+            for(int j=0;j<3;j++)
             {
-                if(m_caster->IsHostileTo(_target))
-                    return SPELL_FAILED_BAD_TARGETS;
+                                                //TARGET_DUELVSPLAYER is positive AND negative
+                duelvsplayertar |= (m_spellInfo->EffectImplicitTargetA[j] == TARGET_DUELVSPLAYER);
             }
-            else
+            if (!duelvsplayertar)
             {
-                bool duelvsplayertar = false;
-                for(int j = 0; j < MAX_EFFECT_INDEX; ++j)
+                if(IsPositiveSpell(m_spellInfo->Id))
                 {
-                                                            //TARGET_DUELVSPLAYER is positive AND negative
-                    duelvsplayertar |= (m_spellInfo->EffectImplicitTargetA[j] == TARGET_DUELVSPLAYER);
+                    if(m_caster->IsHostileTo(_target))
+                        return SPELL_FAILED_BAD_TARGETS;
                 }
-                if(m_caster->IsFriendlyTo(target) && !duelvsplayertar)
+                else
                 {
-                    return SPELL_FAILED_BAD_TARGETS;
+                    if(m_caster->IsFriendlyTo(target))
+                        return SPELL_FAILED_BAD_TARGETS;
                 }
             }
         }
@@ -4822,10 +4923,12 @@ SpellCastResult Spell::CheckCasterAuras() const
 {
     // Flag drop spells totally immuned to caster auras
     // FIXME: find more nice check for all totally immuned spells
+
     // AttributesEx3 & 0x10000000?
     if (m_spellInfo->Id == 23336 ||                         // Alliance Flag Drop
         m_spellInfo->Id == 23334 ||                         // Horde Flag Drop
-        m_spellInfo->Id == 34991)                           // Summon Netherstorm Flag
+        m_spellInfo->Id == 34991 ||                         // Summon Netherstorm Flag
+		m_spellInfo->Id == 22812)                           // Barkskin
         return SPELL_CAST_OK;
 
     uint8 school_immune = 0;

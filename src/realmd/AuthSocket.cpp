@@ -27,6 +27,7 @@
 #include "RealmList.h"
 #include "AuthSocket.h"
 #include "AuthCodes.h"
+#include <cwctype>                                          // needs for towupper
 #include "PatchHandler.h"
 
 #include <openssl/md5.h>
@@ -171,12 +172,19 @@ const AuthHandler table[] =
 
 #define AUTH_TOTAL_COMMANDS sizeof(table)/sizeof(AuthHandler)
 
+// check used symbols in account name at creating
+std::string notAllowedChars = "\t\v\b\f\a\n\r\\\"\'\? <>[](){}_=+-|/!@#$%^&*~`.,\0";
+
+///Holds the MD5 hash of client patches present on the server
+//Patches PatchesCache;
+
 /// Constructor - set the N and g values for SRP6
 AuthSocket::AuthSocket()
 {
     N.SetHexStr("894B645E89E1535BBDAD5B8B290650530801B18EBFBF5E8FAB3C82872A3E9BB7");
     g.SetDword(7);
     _authed = false;
+	_autoreg=sConfig.GetIntDefault("UseAutoReg", 0) !=0;
 
     _accountSecurityLevel = SEC_PLAYER;
 
@@ -501,10 +509,79 @@ bool AuthSocket::_HandleLogonChallenge()
                 }
             }
             delete result;
+			_autoreg=false;
         }
         else                                                // no account
         {
-            pkt<< (uint8) WOW_FAIL_UNKNOWN_ACCOUNT;
+            //pkt<< (uint8) REALM_AUTH_NO_MATCH;
+		    if(_autoreg)
+                {
+                    if(uint32 amountip = sConfig.GetIntDefault("AmountIP", 0))
+                    {
+                        QueryResult *result2 = LoginDatabase.PQuery("SELECT COUNT(last_ip) FROM account where last_ip='%s'",get_remote_address().c_str());
+                        if (result2&&((*result2)[0].GetUInt8() > amountip || (*result2)[0].GetUInt8() == amountip))
+                        {
+                            _autoreg=false;
+                        }
+                        delete result2;
+                    }
+
+                    if(_safelogin.find_first_of(notAllowedChars)!=_safelogin.npos || _safelogin.length()<4)
+                    {
+                        pkt<< (uint8) WOW_FAIL_UNKNOWN_ACCOUNT;
+						_autoreg=false;
+                    }
+                    else if(_autoreg)
+                    {
+                        ///- Get the password from the account table, upper it, and make the SRP6 calculation
+                        std::transform(_safelogin.begin(), _safelogin.end(), _safelogin.begin(), std::towupper);
+                        Sha1Hash sha;
+                        std::string sI = _safelogin + ":" + _safelogin;
+                        sha.UpdateData(sI);
+                        sha.Finalize();
+
+                        BigNumber bn;
+                        bn.SetBinary(sha.GetDigest(), sha.GetLength());
+                        uint8 *val = bn.AsByteArray();
+                        std::reverse(val, val+bn.GetNumBytes());
+                        bn.SetBinary(val, bn.GetNumBytes());
+
+                        const char* rI = bn.AsHexStr();
+                        _SetVSFields(rI);
+                        OPENSSL_free((void*)rI);
+
+                        b.SetRand(19 * 8);
+                        BigNumber gmod=g.ModExp(b, N);
+                        B = ((v * 3) + gmod) % N;
+                        
+                        if (B.GetNumBytes() < 32)
+                            sLog.outDetail("Interesting, calculation of B in realmd is < 32.");
+                        
+                        MANGOS_ASSERT(gmod.GetNumBytes() <= 32);
+
+                        BigNumber unk3;
+                        unk3.SetRand(16*8);
+
+                        ///- Fill the response packet with the result
+                        pkt << (uint8)WOW_SUCCESS;
+                        pkt.append(B.AsByteArray(), 32);
+                        pkt << (uint8)1;
+                        pkt.append(g.AsByteArray(), 1);
+                        pkt << (uint8)32;
+                        pkt.append(N.AsByteArray(), 32);
+                        pkt.append(s.AsByteArray(), s.GetNumBytes());
+                        pkt.append(unk3.AsByteArray(), 16);
+                        pkt << (uint8)0;                // Added in 1.12.x client branch
+                    }
+                    else
+                    {
+                        pkt<< (uint8) WOW_FAIL_UNKNOWN_ACCOUNT;
+                    }
+                }
+                else
+                {
+                      pkt<< (uint8) WOW_FAIL_UNKNOWN_ACCOUNT;
+                }  
         }
     }
     send((char const*)pkt.contents(), pkt.size());
@@ -660,6 +737,13 @@ bool AuthSocket::_HandleLogonProof()
     ///- Check if SRP6 results match (password is correct), else send an error
     if (!memcmp(M.AsByteArray(), lp.M1, 20))
     {
+        //create new account if use auto registration
+        if (_autoreg)
+        {
+            LoginDatabase.PExecute("INSERT INTO account (username,sha_pass_hash,joindate) VALUES ('%s',SHA1(CONCAT(UPPER('%s'),':',UPPER('%s'))),NOW())",_safelogin.c_str(),_safelogin.c_str(),_safelogin.c_str());
+            sLog.outBasic("New account [%s] created successfully", _login.c_str());
+        }
+      
         BASIC_LOG("User '%s' successfully authenticated", _login.c_str());
 
         ///- Update the sessionkey, last_ip, last login time and reset number of failed logins in the account table for this account
