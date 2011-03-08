@@ -1506,6 +1506,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
             else
                 targetUnitMap.push_back(m_caster);
         }break;
+		case TARGET_SELF:
         case TARGET_SELF2:
             targetUnitMap.push_back(m_caster);
             break;
