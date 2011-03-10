@@ -456,11 +456,15 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
         //    if (plMover->m_anti_lastspeed_changetime == 0 )
         //        plMover->m_anti_lastspeed_changetime = movementInfo.time + (uint32)floor(((plMover->m_anti_last_hspeed / current_speed) * 1000)) + 100; //100ms above for random fluctuating =)))
         //}	else 
-		allowed_delta = current_speed;
-		if (plMover->m_movementInfo.GetJumpInfo().xyspeed)
-			allowed_delta = allowed_delta+plMover->m_movementInfo.GetJumpInfo().xyspeed;
-        allowed_delta = allowed_delta * time_delta;
-        allowed_delta = allowed_delta * allowed_delta + 2;
+		float dx, dy;
+        dx = plMover->m_movementInfo.GetJumpInfo().xyspeed*plMover->m_movementInfo.GetJumpInfo().cosAngle*time_delta;
+        dx = dx*dx;
+        dy = plMover->m_movementInfo.GetJumpInfo().xyspeed*plMover->m_movementInfo.GetJumpInfo().sinAngle*time_delta;
+        dy = dy*dy;
+		allowed_delta = dx+dy;
+		if (!allowed_delta)
+			allowed_delta = current_speed*current_speed*time_delta*time_delta;
+        allowed_delta = allowed_delta + 2;
 
 		if (sWorld.TargetGuid==plMover->GetGUIDLow())
 		{
