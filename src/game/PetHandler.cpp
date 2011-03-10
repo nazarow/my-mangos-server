@@ -310,8 +310,6 @@ void WorldSession::HandlePetNameQueryOpcode( WorldPacket & recv_data )
     recv_data >> petnumber;
     recv_data >> petguid;
 
-	sLog.outMy("HPNQ::%s %u for %s", petguid.GetString().c_str(), petnumber, _player?_player->GetName():"xxx");
-
     SendPetNameQuery(petguid,petnumber);
 }
 

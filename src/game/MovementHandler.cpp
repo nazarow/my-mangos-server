@@ -555,12 +555,13 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
 			check_passed = false;
         }
 
-        if ((movementInfo.HasMovementFlag(MOVEFLAG_FLYING) || plMover->m_movementInfo.HasMovementFlag(MOVEFLAG_FLYING2)) && !plMover->canFLY && !plMover->isGameMaster())// && !(plMover->HasAuraType(SPELL_AURA_FLY) || plMover->HasAuraType(SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED)))
+        if ((movementInfo.HasMovementFlag(MOVEFLAG_FLYING) || plMover->m_movementInfo.HasMovementFlag(MOVEFLAG_FLYING2)) && !plMover->canFLY && !plMover->isGameMaster() && (opcode!=201))// && !(plMover->HasAuraType(SPELL_AURA_FLY) || plMover->HasAuraType(SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED)))
         {
             sLog.outCheat("Movement anticheat: %s is fly cheater (%f %f %f %d)[%X][%s]. {SPELL_AURA_FLY=[%X]}",
                plMover->GetName(), movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z, plMover->GetMapId(), movementInfo.GetMovementFlags(), LookupOpcodeName(opcode), plMover->HasAuraType(SPELL_AURA_FLY));
             check_passed = false;
         }
+
 		if (movementInfo.HasMovementFlag(MOVEFLAG_WATERWALKING) && !plMover->isGameMaster() && !plMover->canWWALK)//(plMover->HasAuraType(SPELL_AURA_WATER_WALK) | plMover->HasAuraType(SPELL_AURA_GHOST)))
         {
 			sLog.outCheat("Movement anticheat: %s is water-walk exception (%f %f %f %d)->(%f %f %f)[%s]. [%X]{SPELL_AURA_WATER_WALK=[%X]}", plMover->GetName(),plMover->GetPositionX(),plMover->GetPositionY(),plMover->GetPositionZ(),plMover->GetMapId(),movementInfo.GetPos()->x,movementInfo.GetPos()->y,movementInfo.GetPos()->z, LookupOpcodeName(opcode),movementInfo.GetMovementFlags(), plMover->HasAuraType(SPELL_AURA_WATER_WALK));
@@ -649,6 +650,7 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
     } else 
 	if (plMover)
 	{
+		recv_data.hexlikemy();
         plMover->m_anti_alarmcount++;
 		if (plMover->m_anti_mistiming_count+plMover->m_anti_alarmcount > sWorld.GetMistimingAlarms())
 		{

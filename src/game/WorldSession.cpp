@@ -452,16 +452,12 @@ void WorldSession::LogoutPlayer(bool Save)
         _player->CleanupChannels();
 
         ///- If the player is in a group (or invited), remove him. If the group if then only 1 person, disband the group.
-		sLog.outMy("WorldSession: Logout for %s, start UninviteFromGroup",_player->GetName());
         _player->UninviteFromGroup();
-		sLog.outMy("WorldSession: Logout for %s, end UninviteFromGroup",_player->GetName());
 
         // remove player from the group if he is:
         // a) in group; b) not in raid group; c) logging out normally (not being kicked or disconnected)
-		sLog.outMy("WorldSession: Logout for %s, start RemoveFromGroup",_player->GetName());
         if(_player->GetGroup() && !_player->GetGroup()->isRaidGroup() && m_Socket)
             _player->RemoveFromGroup();
-		sLog.outMy("WorldSession: Logout for %s, end RemoveFromGroup",_player->GetName());
 
         ///- Send update to group
         if(_player->GetGroup())
