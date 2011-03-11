@@ -1803,7 +1803,7 @@ void Unit::DealMeleeDamage(CalcDamageInfo *damageInfo, bool durabilityLoss)
 
                pVictim->DealDamageMods(this,damage,NULL);
 
-               WorldPacket data(SMSG_SPELLDAMAGESHIELD,(8+8+4+4));
+               WorldPacket data(SMSG_SPELLDAMAGESHIELD,(8+8+4+4+4));
                data << pVictim->GetObjectGuid();
                data << GetObjectGuid();
                data << uint32(i_spellProto->Id);

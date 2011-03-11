@@ -23,7 +23,7 @@ DROP TABLE IF EXISTS `db_version`;
 CREATE TABLE `db_version` (
   `version` varchar(120) default NULL,
   `creature_ai_version` varchar(120) default NULL,
-  `required_s0915_11217_01_mangos_creature_addon` bit(1) default NULL
+  `required_s0924_11234_01_mangos_command` bit(1) default NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Used DB version notes';
 
 --
@@ -492,7 +492,7 @@ INSERT INTO `command` VALUES
 ('debug play sound',1,'Syntax: .debug play sound #soundid\r\n\r\nPlay sound with #soundid.\r\nSound will be play only for you. Other players do not hear this.\r\nWarning: client may have more 5000 sounds...'),
 ('debug setitemvalue',3,'Syntax: .debug setitemvalue #guid #field [int|hex|bit|float] #value\r\n\r\nSet the field #field of the item #itemguid in your inventroy to value #value.\r\n\r\nUse type arg for set input format: int (decimal number), hex (hex value), bit (bitstring), float. By default expect integer input format.'),
 ('debug setvalue',3,'Syntax: .debug setvalue #field [int|hex|bit|float] #value\r\n\r\nSet the field #field of the selected target to value #value. If no target is selected, set the content of your field.\r\n\r\nUse type arg for set input format: int (decimal number), hex (hex value), bit (bitstring), float. By default expect integer input format.'),
-('debug spellcoefs',3,'Syntax: .debug spellcoefs #pellid\r\n\r\nShow default calculated and DB stored coefficients for direct/dot heal/damage.'),
+('debug spellcoefs',3,'Syntax: .debug spellcoefs #spellid\r\n\r\nShow default calculated and DB stored coefficients for direct/dot heal/damage.'),
 ('debug spellmods',3,'Syntax: .debug spellmods (flat|pct) #spellMaskBitIndex #spellModOp #value\r\n\r\nSet at client side spellmod affect for spell that have bit set with index #spellMaskBitIndex in spell family mask for values dependent from spellmod #spellModOp to #value.'),
 ('delticket',2,'Syntax: .delticket all\r\n        .delticket #num\r\n        .delticket $character_name\r\n\rall to dalete all tickets at server, $character_name to delete ticket of this character, #num to delete ticket #num.'),
 ('demorph',2,'Syntax: .demorph\r\n\r\nDemorph the selected player.'),
@@ -11775,6 +11775,7 @@ INSERT INTO `spell_affect` VALUES
 (11124,0,0x0000000008C20017),
 (11151,0,0x00000000000202E0),
 (11160,0,0x00000001020203E0),
+(11170,0,0x0000000828FE9AF7),
 (11175,1,0x0000000000100000),
 (11207,0,0x00000000000202E0),
 (11222,0,0x0000000020001800),
@@ -11853,6 +11854,10 @@ INSERT INTO `spell_affect` VALUES
 (12953,0,0x00000000000202E0),
 (12954,0,0x00000000000202E0),
 (12957,0,0x00000000000202E0),
+(12982,0,0x0000000828FE9AF7),
+(12983,0,0x0000000828FE9AF7),
+(12984,0,0x0000000828FE9AF7),
+(12985,0,0x0000000828FE9AF7),
 (13733,0,0x0000000000000004),
 (13733,1,0x0000000400000000),
 (13742,0,0x0000000000000060),
@@ -12593,6 +12598,8 @@ INSERT INTO `spell_affect` VALUES
 (31660,0,0x0000000000000001),
 (31670,0,0x0000000500000200),
 (31672,0,0x0000000500000200),
+(31679,0,0x0000000828FE9AF7),
+(31680,0,0x0000000828FE9AF7),
 (31682,0,0x0000000000000020),
 (31682,1,0x0000000000000020),
 (31683,0,0x0000000000000020),
