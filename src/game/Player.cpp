@@ -18774,6 +18774,13 @@ bool Player::IsVisibleInGridForPlayer( Player* pl ) const
     return false;
 }
 
+WorldLocation Player::GetStartPosition() const
+{
+    PlayerInfo const* info = sObjectMgr.GetPlayerInfo(getRace(), getClass());
+    uint32 mapId = info->mapId;
+    return WorldLocation(mapId, info->positionX, info->positionY, info->positionZ, 0);
+}
+
 bool Player::IsVisibleGloballyFor( Player* u ) const
 {
     if(!u)

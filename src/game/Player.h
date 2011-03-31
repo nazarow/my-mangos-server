@@ -2071,6 +2071,8 @@ class MANGOS_DLL_SPEC Player : public Unit
         uint64 m_chatSpyGuid;
         Object* GetObjectByTypeMask(ObjectGuid guid, TypeMask typemask);
 
+  	WorldLocation GetStartPosition() const;
+
         // currently visible objects at player client
         ObjectGuidSet m_clientGUIDs;
 

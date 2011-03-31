@@ -177,14 +177,6 @@ bool WorldSession::Update(uint32 diff)
     WorldPacket* packet;
     while (m_Socket && !m_Socket->IsClosed() && _recvQueue.next(packet))
     {
-		SYSTEMTIME systemTimeh,systemTimee; //kia
-		GetSystemTime(&systemTimeh);
-		sLog.outCmd("[S]0x%.4X %u",packet->GetOpcode(),GetAccountId());
-		if (GetPlayer() && sWorld.TargetGuid==GetPlayer()->GetGUIDLow())
-		{
-			sLog.outBasic("[S]0x%.4X %s",packet->GetOpcode(),LookupOpcodeName(packet->GetOpcode()));
-		}
-
         /*#if 1
         sLog.outError( "MOEP: %s (0x%.4X)",
                         LookupOpcodeName(packet->GetOpcode()),
@@ -277,19 +269,7 @@ bool WorldSession::Update(uint32 diff)
                 KickPlayer();
             }
         }
-	    GetSystemTime(&systemTimee);//kia
-		uint32 tt1,tt2;
-		tt2=systemTimee.wSecond*1000+systemTimee.wMilliseconds;
-		tt1=systemTimeh.wSecond*1000+systemTimeh.wMilliseconds;
-		if (tt2!=tt1) 
-		    sLog.outCmd("[E]%u",(tt2>=tt1)?(tt2-tt1):(60000+tt2-tt1));
-		else sLog.outCmd("[E]");//kia
-		if (tt2-tt1>1000)
-		{
- 		    sLog.outMy("WorldSession::Update wery long time (opcode: %u) from client %s, accountid=%i.",
-              packet->GetOpcode(), GetRemoteAddress().c_str(), GetAccountId());
-			packet->hexlikemy();
-		}
+
         delete packet;
     }
 

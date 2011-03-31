@@ -8392,6 +8392,11 @@ void ObjectMgr::LoadGossipMenuItems()
 
     delete result;
 
+    for(uint32 i = 1;  i < sCreatureStorage.MaxEntry; ++i)		// kia clean used in creatures menu
+        if (CreatureInfo const* cInfo = sCreatureStorage.LookupEntry<CreatureInfo>(i))
+            if (cInfo->GossipMenuId)
+                menu_ids.erase(cInfo->GossipMenuId);
+
     for(std::set<uint32>::const_iterator itr = gossipScriptSet.begin(); itr != gossipScriptSet.end(); ++itr)
         sLog.outErrorDb("Table `gossip_scripts` contain unused script, id %u.", *itr);
 

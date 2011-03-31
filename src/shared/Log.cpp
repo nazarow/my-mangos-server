@@ -358,37 +358,6 @@ std::string Log::GetTimestampStr()
     return std::string(buf);
 }
 
-void Log::outTimestampMs(FILE* file)
-{
-	SYSTEMTIME systemTime;
-	GetSystemTime(&systemTime);
-	fprintf(file,"%04d%02d%02d-%02d:%02d:%02d.%03d ",
-	systemTime.wYear, systemTime.wMonth, systemTime.wDay,
-	systemTime.wHour, systemTime.wMinute, systemTime.wSecond,
-	systemTime.wMilliseconds);
-}
-
-void Log::outTimestampMss(FILE* file)
-{
-	SYSTEMTIME systemTime;
-	GetSystemTime(&systemTime);
-	fprintf(file,"%02d:%02d:%02d.%03d",
-	systemTime.wHour, systemTime.wMinute, systemTime.wSecond,
-	systemTime.wMilliseconds);
-}
-
-std::string Log::GetTimestampStrMs()
-{
-	SYSTEMTIME systemTime;
-	GetSystemTime(&systemTime);
-    char buf[21];
-	sprintf(buf,"%04d%02d%02d-%02d:%02d:%02d.%03d",
-	systemTime.wYear, systemTime.wMonth, systemTime.wDay,
-	systemTime.wHour, systemTime.wMinute, systemTime.wSecond,
-	systemTime.wMilliseconds);
-    return std::string(buf);
-}
-
 void Log::outTitle( const char * str)
 {
     if (!str)
@@ -876,7 +845,7 @@ void Log::outCmd( const char * str, ... )
     va_list ap;
     if(cmdLogfile)
     {
-        outTimestampMss(cmdLogfile);
+        outTimestamp(cmdLogfile);
         va_start(ap, str);
         vfprintf(cmdLogfile, str, ap);
         fprintf(cmdLogfile, "\n" );
@@ -913,7 +882,7 @@ void Log::outMy( const char * str, ... )
     va_list ap;
     if (myLogfile)
     {
-        outTimestampMs(myLogfile);
+        outTimestamp(myLogfile);
         va_start(ap, str);
         vfprintf(myLogfile, str, ap);
         fprintf(myLogfile, "\n" );
@@ -941,7 +910,7 @@ void Log::outMoney( const char * str, ... )
     va_list ap;
     if (moneyLogfile)
     {
-        outTimestampMs(moneyLogfile);
+        outTimestamp(moneyLogfile);
         va_start(ap, str);
         vfprintf(moneyLogfile, str, ap);
         fprintf(moneyLogfile, "\n" );
@@ -957,7 +926,7 @@ void Log::outItems( const char * str, ... )
     va_list ap;
     if (itemsLogfile)
     {
-        outTimestampMs(itemsLogfile);
+        outTimestamp(itemsLogfile);
         va_start(ap, str);
         vfprintf(itemsLogfile, str, ap);
         fprintf(itemsLogfile, "\n");
@@ -994,7 +963,7 @@ void Log::outCheat( const char * str, ... )
     va_list ap;
     if (cheatLogfile)
     {
-        outTimestampMs(cheatLogfile);
+        outTimestamp(cheatLogfile);
         va_start(ap, str);
         vfprintf(cheatLogfile, str, ap);
         fprintf(cheatLogfile, "\n" );
@@ -1031,7 +1000,7 @@ void Log::outInstance( const char * str, ... )
     va_list ap;
     if (instanceLogfile)
     {
-        outTimestampMs(instanceLogfile);
+        outTimestamp(instanceLogfile);
         va_start(ap, str);
         vfprintf(instanceLogfile, str, ap);
         fprintf(instanceLogfile, "\n" );

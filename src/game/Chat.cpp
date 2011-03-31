@@ -248,6 +248,8 @@ ChatCommand * ChatHandler::getCommandTable()
         { "near",           SEC_GAMEMASTER,     false, &ChatHandler::HandleGameObjectNearCommand,      "", NULL },
         { "target",         SEC_GAMEMASTER,     false, &ChatHandler::HandleGameObjectTargetCommand,    "", NULL },
         { "turn",           SEC_GAMEMASTER,     false, &ChatHandler::HandleGameObjectTurnCommand,      "", NULL },
+        { "state",          SEC_GAMEMASTER,     false, &ChatHandler::HandleGameObjectStateCommand,     "", NULL },
+        { "artkit",         SEC_GAMEMASTER,     false, &ChatHandler::HandleGameObjectArtkitCommand,    "", NULL },
         { NULL,             0,                  false, NULL,                                           "", NULL }
     };
 

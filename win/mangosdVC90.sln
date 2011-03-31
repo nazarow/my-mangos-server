@@ -46,6 +46,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tbbmalloc", "VC90\tbbmalloc
 		{F62787DD-1327-448B-9818-030062BCFAA5} = {F62787DD-1327-448B-9818-030062BCFAA5}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ScriptDev2", "..\src\bindings\ScriptDev2\VC90\90ScriptDev2.vcproj", "{4295C8A9-79B7-4354-8064-F05FB9CA0C96}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug_NoPCH|Win32 = Debug_NoPCH|Win32
@@ -188,6 +190,15 @@ Global
 		{B15F131E-328A-4D42-ADC2-9FF4CA6306D8}.Release|Win32.Build.0 = Release|Win32
 		{B15F131E-328A-4D42-ADC2-9FF4CA6306D8}.Release|x64.ActiveCfg = Release|x64
 		{B15F131E-328A-4D42-ADC2-9FF4CA6306D8}.Release|x64.Build.0 = Release|x64
+		{4295C8A9-79B7-4354-8064-F05FB9CA0C96}.Debug_NoPCH|Win32.ActiveCfg = Debug|Win32
+		{4295C8A9-79B7-4354-8064-F05FB9CA0C96}.Debug_NoPCH|Win32.Build.0 = Debug|Win32
+		{4295C8A9-79B7-4354-8064-F05FB9CA0C96}.Debug_NoPCH|x64.ActiveCfg = Debug|Win32
+		{4295C8A9-79B7-4354-8064-F05FB9CA0C96}.Debug|Win32.ActiveCfg = Debug|Win32
+		{4295C8A9-79B7-4354-8064-F05FB9CA0C96}.Debug|Win32.Build.0 = Debug|Win32
+		{4295C8A9-79B7-4354-8064-F05FB9CA0C96}.Debug|x64.ActiveCfg = Debug|Win32
+		{4295C8A9-79B7-4354-8064-F05FB9CA0C96}.Release|Win32.ActiveCfg = Release|Win32
+		{4295C8A9-79B7-4354-8064-F05FB9CA0C96}.Release|Win32.Build.0 = Release|Win32
+		{4295C8A9-79B7-4354-8064-F05FB9CA0C96}.Release|x64.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
