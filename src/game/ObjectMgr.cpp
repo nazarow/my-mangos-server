@@ -681,9 +681,9 @@ void ObjectMgr::LoadCreatureTemplates()
 
         if(cInfo->equipmentId > 0)                          // 0 no equipment
         {
-            if(!GetEquipmentInfo(cInfo->equipmentId))
+            if(!GetEquipmentInfo(cInfo->equipmentId) && !GetEquipmentInfoRaw(cInfo->equipmentId))
             {
-                sLog.outErrorDb("Table `creature_template` have creature (Entry: %u) with equipment_id %u not found in table `creature_equip_template`, set to no equipment.", cInfo->Entry, cInfo->equipmentId);
+                sLog.outErrorDb("Table `creature_template` have creature (Entry: %u) with equipment_id %u not found in table `creature_equip_template` or `creature_equip_template_raw`, set to no equipment.", cInfo->Entry, cInfo->equipmentId);
                 const_cast<CreatureInfo*>(cInfo)->equipmentId = 0;
             }
         }
@@ -823,11 +823,62 @@ EquipmentInfo const* ObjectMgr::GetEquipmentInfo(uint32 entry)
     return sEquipmentStorage.LookupEntry<EquipmentInfo>(entry);
 }
 
+EquipmentInfoRaw const* ObjectMgr::GetEquipmentInfoRaw(uint32 entry)
+{
+    return sEquipmentStorageRaw.LookupEntry<EquipmentInfoRaw>(entry);
+}
+
 void ObjectMgr::LoadEquipmentTemplates()
 {
-    sEquipmentStorage.Load();
+    sEquipmentStorage.Load(true);
+
+    for(uint32 i=0; i < sEquipmentStorage.MaxEntry; ++i)
+    {
+        EquipmentInfo const* eqInfo = sEquipmentStorage.LookupEntry<EquipmentInfo>(i);
+
+        if (!eqInfo)
+            continue;
+
+        for(uint8 j = 0; j < 3; ++j)
+        {
+            if (!eqInfo->equipentry[j])
+                continue;
+
+            ItemPrototype const *itemProto = GetItemPrototype(eqInfo->equipentry[j]);
+            if (!itemProto)
+            {
+                sLog.outErrorDb("Unknown item (entry=%u) in creature_equip_template.equipentry%u for entry = %u, forced to 0.", eqInfo->equipentry[j], j+1, i);
+                const_cast<EquipmentInfo*>(eqInfo)->equipentry[j] = 0;
+                continue;
+            }
+
+            if (itemProto->InventoryType != INVTYPE_WEAPON &&
+                itemProto->InventoryType != INVTYPE_SHIELD &&
+                itemProto->InventoryType != INVTYPE_RANGED &&
+                itemProto->InventoryType != INVTYPE_2HWEAPON &&
+                itemProto->InventoryType != INVTYPE_WEAPONMAINHAND &&
+                itemProto->InventoryType != INVTYPE_WEAPONOFFHAND &&
+                itemProto->InventoryType != INVTYPE_HOLDABLE &&
+                itemProto->InventoryType != INVTYPE_THROWN &&
+                itemProto->InventoryType != INVTYPE_RANGEDRIGHT &&
+                itemProto->InventoryType != INVTYPE_RELIC)
+            {
+                sLog.outErrorDb("Item (entry=%u) in creature_equip_template.equipentry%u for entry = %u is not equipable in a hand, forced to 0.", eqInfo->equipentry[j], j+1, i);
+                const_cast<EquipmentInfo*>(eqInfo)->equipentry[j] = 0;
+            }
+        }
+    }
 
     sLog.outString( ">> Loaded %u equipment template", sEquipmentStorage.RecordCount );
+    sLog.outString();
+
+    sEquipmentStorageRaw.Load(false);
+    for(uint32 i = 1; i < sEquipmentStorageRaw.MaxEntry; ++i)
+        if(sEquipmentStorageRaw.LookupEntry<EquipmentInfoRaw>(i))
+            if(sEquipmentStorage.LookupEntry<EquipmentInfo>(i))
+                sLog.outErrorDb("Table 'creature_equip_template_raw` have redundant data for ID %u ('creature_equip_template` already have data)", i);
+
+    sLog.outString( ">> Loaded %u equipment template (deprecated format)", sEquipmentStorageRaw.RecordCount );
     sLog.outString();
 }
 
@@ -1227,9 +1278,9 @@ void ObjectMgr::LoadCreatures()
 
         if(data.equipmentId > 0)                            // -1 no equipment, 0 use default
         {
-            if(!GetEquipmentInfo(data.equipmentId))
+            if(!GetEquipmentInfo(data.equipmentId) && !GetEquipmentInfoRaw(data.equipmentId))
             {
-                sLog.outErrorDb("Table `creature` have creature (Entry: %u) with equipment_id %u not found in table `creature_equip_template`, set to no equipment.", data.id, data.equipmentId);
+                sLog.outErrorDb("Table `creature` have creature (Entry: %u) with equipment_id %u not found in table `creature_equip_template` or `creature_equip_template_raw`, set to no equipment.", data.id, data.equipmentId);
                 data.equipmentId = -1;
             }
         }
@@ -3758,7 +3809,8 @@ void ObjectMgr::LoadQuests()
             }
         }
 
-        for(int j = 0; j < QUEST_REWARD_CHOICES_COUNT; ++j )
+        bool choice_found = false;
+        for(int j = QUEST_REWARD_CHOICES_COUNT-1; j >=0; --j )
         {
             if (uint32 id = qinfo->RewChoiceItemId[j])
             {
@@ -3768,6 +3820,8 @@ void ObjectMgr::LoadQuests()
                         qinfo->GetQuestId(),j+1,id,id);
                     qinfo->RewChoiceItemId[j] = 0;          // no changes, quest will not reward this
                 }
+                else
+                    choice_found = true;
 
                 if (!qinfo->RewChoiceItemCount[j])
                 {
@@ -3775,6 +3829,14 @@ void ObjectMgr::LoadQuests()
                         qinfo->GetQuestId(),j+1,id,j+1);
                     // no changes, quest can't be done
                 }
+            }
+            else if (choice_found)                          // client crash if have gap in item reward choices
+            {
+                sLog.outErrorDb("Quest %u has `RewChoiceItemId%d` = 0 but `RewChoiceItemId%d` = %u, client can crash at like data.",
+                    qinfo->GetQuestId(),j+1,j+2,qinfo->RewChoiceItemId[j+1]);
+                // fill gap by clone later filled choice
+                qinfo->RewChoiceItemId[j] = qinfo->RewChoiceItemId[j+1];
+                qinfo->RewChoiceItemCount[j] = qinfo->RewChoiceItemCount[j+1];
             }
             else if (qinfo->RewChoiceItemCount[j]>0)
             {
@@ -5363,7 +5425,7 @@ void ObjectMgr::LoadAreaTriggerTeleports()
             QuestMap::iterator qReqItr = mQuestTemplates.find(at.requiredQuestHeroic);
             if (qReqItr == mQuestTemplates.end())
             {
-                sLog.outErrorDb("Table `areatrigger_teleport` has not existed required heroic quest %u for trigger %u, remove quest done requirement.",at.requiredQuestHeroic,Trigger_ID);
+                sLog.outErrorDb("Table `areatrigger_teleport` has nonexistent required heroic quest %u for trigger %u, remove quest done requirement.",at.requiredQuestHeroic,Trigger_ID);
                 at.requiredQuestHeroic = 0;
             }
         }
@@ -7287,8 +7349,8 @@ bool PlayerCondition::Meets(Player const * player) const
         }
         case CONDITION_AD_COMMISSION_AURA:
         {
-            Unit::AuraMap const& auras = player->GetAuras();
-            for(Unit::AuraMap::const_iterator itr = auras.begin(); itr != auras.end(); ++itr)
+            Unit::SpellAuraHolderMap const& auras = player->GetSpellAuraHolderMap();
+            for (Unit::SpellAuraHolderMap::const_iterator itr = auras.begin(); itr != auras.end(); ++itr)
                 if ((itr->second->GetSpellProto()->Attributes & 0x1000010) && itr->second->GetSpellProto()->SpellVisual==3580)
                     return true;
             return false;

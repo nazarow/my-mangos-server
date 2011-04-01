@@ -726,7 +726,7 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
     if (LexicsCutterNoActionOnGM && player->GetSession()->GetSecurity()) return;
 
     // special action
-    const SpellEntry* sl;
+    SpellEntry const* sl;
 
     switch (LexicsCutterAction)
     {
@@ -736,13 +736,14 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
             sl = sSpellStore.LookupEntry(118);
             if (sl)
             {
+				SpellAuraHolder *holder = CreateSpellAuraHolder(sl, player, player);
                 for (int i = 0; i < 3; i++)
                 {
-                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, player);
+                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
                         Aur->SetAuraDuration(LexicsCutterActionDuration);
-                        player->AddAura(Aur);
+                        holder->AddAura(Aur, SpellEffectIndex(i));
                     }
                 }
             }
@@ -755,13 +756,14 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
             sl = sSpellStore.LookupEntry(13005);
             if (sl)
             {
+				SpellAuraHolder *holder = CreateSpellAuraHolder(sl, player, player);
                 for (int i = 0; i < 3; i++)
                 {
-                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, player);
+                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
                         Aur->SetAuraDuration(LexicsCutterActionDuration);
-                        player->AddAura(Aur);
+                        holder->AddAura(Aur, SpellEffectIndex(i));
                     }
                 }
             }
@@ -797,13 +799,14 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
             sl = sSpellStore.LookupEntry(23312);
             if (sl)
             {
+				SpellAuraHolder *holder = CreateSpellAuraHolder(sl, player, player);
                 for (int i = 0; i < 3; i++)
                 {
-                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, player);
+                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
                         Aur->SetAuraDuration(LexicsCutterActionDuration);
-                        player->AddAura(Aur);
+                        holder->AddAura(Aur, SpellEffectIndex(i));
                     }
                 }
             }
@@ -816,13 +819,14 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
             sl = sSpellStore.LookupEntry(15007);
             if (sl)
             {
+				SpellAuraHolder *holder = CreateSpellAuraHolder(sl, player, player);
                 for (int i = 0; i < 3; i++)
                 {
-                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, player);
+                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
                         Aur->SetAuraDuration(LexicsCutterActionDuration);
-                        player->AddAura(Aur);
+                        holder->AddAura(Aur, SpellEffectIndex(i));
                     }
                 }
             }
@@ -835,13 +839,14 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
             sl = sSpellStore.LookupEntry(41032);
             if (sl)
             {
+				SpellAuraHolder *holder = CreateSpellAuraHolder(sl, player, player);
                 for (int i = 0; i < 3; i++)
                 {
-                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, player);
+                    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
                         Aur->SetAuraDuration(LexicsCutterActionDuration);
-                        player->AddAura(Aur);
+                        holder->AddAura(Aur, SpellEffectIndex(i));
                     }
                 }
             }

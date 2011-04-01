@@ -455,6 +455,7 @@ class ObjectMgr
         uint32 GetCreatureModelAlternativeModel(uint32 modelId);
 
         EquipmentInfo const *GetEquipmentInfo( uint32 entry );
+        EquipmentInfoRaw const *GetEquipmentInfoRaw( uint32 entry );
         static CreatureDataAddon const *GetCreatureAddon( uint32 lowguid )
         {
             return sCreatureDataAddonStorage.LookupEntry<CreatureDataAddon>(lowguid);
@@ -732,9 +733,6 @@ class ObjectMgr
             else
                 return "There is no info for this item";
         }
-
-        typedef std::multimap<int32, uint32> ExclusiveQuestGroups;
-        ExclusiveQuestGroups mExclusiveQuestGroups;
 
         MailLevelReward const* GetMailLevelReward(uint32 level,uint32 raceMask)
         {

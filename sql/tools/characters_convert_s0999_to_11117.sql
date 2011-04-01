@@ -1,5 +1,5 @@
 -- Query let convert characters DB from format
--- MaNGOS One characters DB `required_s0863_xxxxx_01_characters_characters` to
+-- MaNGOS One characters DB `required_s0999_10568_01_characters_character_tutorial` to
 -- MaNGOS Master characters DB required_11117_02_characters_world.
 
 -- Expected that in case Mangos One characters DB changes it will updated for more up-to-date versions.
@@ -8,7 +8,7 @@
 
 -- Note: ALWAYS DO BACKUP before use it. You will CAN NOT easy restore original DB state after tool use.
 
-ALTER TABLE character_db_version CHANGE COLUMN required_s0863_xxxxx_01_characters_characters `required_11117_02_characters_world` bit;
+ALTER TABLE character_db_version CHANGE COLUMN required_s0999_10568_01_characters_character_tutorial required_11117_02_characters_world bit;
 
 
 -- MODIFID TABLES
@@ -393,42 +393,9 @@ DELETE FROM `character_action` WHERE `action` IN (31892, 53720) AND `type`=0;
 
 -- REPLACED TABLES with non critical info drop
 DELETE FROM `character_spell_cooldown`;
-
-
-DROP TABLE IF EXISTS `character_aura`;
-CREATE TABLE `character_aura` (
-  `guid` int(11) unsigned NOT NULL default '0' COMMENT 'Global Unique Identifier',
-  `caster_guid` bigint(20) unsigned NOT NULL default '0' COMMENT 'Full Global Unique Identifier',
-  `item_guid` int(11) unsigned NOT NULL default '0',
-  `spell` int(11) unsigned NOT NULL default '0',
-  `stackcount` int(11) NOT NULL default '1',
-  `remaincharges` int(11) NOT NULL default '0',
-  `basepoints0` INT(11) NOT NULL DEFAULT '0',
-  `basepoints1` INT(11) NOT NULL DEFAULT '0',
-  `basepoints2` INT(11) NOT NULL DEFAULT '0',
-  `maxduration0` INT(11) NOT NULL DEFAULT '0',
-  `maxduration1` INT(11) NOT NULL DEFAULT '0',
-  `maxduration2` INT(11) NOT NULL DEFAULT '0',
-  `remaintime0` INT(11) NOT NULL DEFAULT '0',
-  `remaintime1` INT(11) NOT NULL DEFAULT '0',
-  `remaintime2` INT(11) NOT NULL DEFAULT '0',
-  `effIndexMask` INT(11) NOT NULL DEFAULT '0',
-  PRIMARY KEY (`guid`,`caster_guid`,`item_guid`,`spell`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='Player System';
-
-DROP TABLE IF EXISTS `character_tutorial`;
-CREATE TABLE `character_tutorial` (
-  `account` bigint(20) unsigned NOT NULL auto_increment COMMENT 'Account Identifier',
-  `tut0` int(11) unsigned NOT NULL default '0',
-  `tut1` int(11) unsigned NOT NULL default '0',
-  `tut2` int(11) unsigned NOT NULL default '0',
-  `tut3` int(11) unsigned NOT NULL default '0',
-  `tut4` int(11) unsigned NOT NULL default '0',
-  `tut5` int(11) unsigned NOT NULL default '0',
-  `tut6` int(11) unsigned NOT NULL default '0',
-  `tut7` int(11) unsigned NOT NULL default '0',
-  PRIMARY KEY  (`account`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='Player System';
+DELETE FROM `character_aura`;
+DELETE FROM `pet_aura`;
+DELETE FROM `character_tutorial`;
 
 DROP TABLE IF EXISTS `corpse`;
 CREATE TABLE `corpse` (
@@ -457,27 +424,6 @@ CREATE TABLE `instance_reset` (
   `resettime` bigint(40) NOT NULL default '0',
   PRIMARY KEY  (`mapid`,`difficulty`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-
-DROP TABLE IF EXISTS `pet_aura`;
-CREATE TABLE `pet_aura` (
-  `guid` int(11) unsigned NOT NULL default '0' COMMENT 'Global Unique Identifier',
-  `caster_guid` bigint(20) unsigned NOT NULL default '0' COMMENT 'Full Global Unique Identifier',
-  `item_guid` int(11) unsigned NOT NULL default '0',
-  `spell` int(11) unsigned NOT NULL default '0',
-  `stackcount` int(11) NOT NULL default '1',
-  `remaincharges` int(11) NOT NULL default '0',
-  `basepoints0` INT(11) NOT NULL DEFAULT '0',
-  `basepoints1` INT(11) NOT NULL DEFAULT '0',
-  `basepoints2` INT(11) NOT NULL DEFAULT '0',
-  `maxduration0` INT(11) NOT NULL DEFAULT '0',
-  `maxduration1` INT(11) NOT NULL DEFAULT '0',
-  `maxduration2` INT(11) NOT NULL DEFAULT '0',
-  `remaintime0` INT(11) NOT NULL DEFAULT '0',
-  `remaintime1` INT(11) NOT NULL DEFAULT '0',
-  `remaintime2` INT(11) NOT NULL DEFAULT '0',
-  `effIndexMask` INT(11) NOT NULL DEFAULT '0',
-  PRIMARY KEY (`guid`,`caster_guid`,`item_guid`,`spell`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='Pet System';
 
 -- NEW TABLES with non critical info drop
 

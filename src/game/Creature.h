@@ -157,6 +157,13 @@ struct CreatureInfo
 struct EquipmentInfo
 {
     uint32  entry;
+    uint32  equipentry[3];
+};
+
+// depricated old way
+struct EquipmentInfoRaw
+{
+    uint32  entry;
     uint32  equipmodel[3];
     uint32  equipinfo[3];
     uint32  equipslot[3];
@@ -362,6 +369,50 @@ typedef std::map<uint32,time_t> CreatureSpellCooldowns;
 
 #define MAX_VENDOR_ITEMS 255                                // Limitation in item count field size in SMSG_LIST_INVENTORY
 
+enum VirtualItemSlot
+{
+    VIRTUAL_ITEM_SLOT_0 = 0,
+    VIRTUAL_ITEM_SLOT_1 = 1,
+    VIRTUAL_ITEM_SLOT_2 = 2,
+};
+
+#define MAX_VIRTUAL_ITEM_SLOT 3
+
+enum VirtualItemInfoByteOffset
+{
+    VIRTUAL_ITEM_INFO_0_OFFSET_CLASS         = 0,
+    VIRTUAL_ITEM_INFO_0_OFFSET_SUBCLASS      = 1,
+    VIRTUAL_ITEM_INFO_0_OFFSET_UNK0          = 2,
+    VIRTUAL_ITEM_INFO_0_OFFSET_MATERIAL      = 3,
+
+    VIRTUAL_ITEM_INFO_1_OFFSET_INVENTORYTYPE = 0,
+    VIRTUAL_ITEM_INFO_1_OFFSET_SHEATH        = 1,
+};
+
+struct CreatureCreatePos
+{
+    public:
+        // exactly coordinates used
+        CreatureCreatePos(Map* map, float x, float y, float z, float o)
+            : m_map(map), m_closeObject(NULL), m_angle(0.0f), m_dist(0.0f) { m_pos.x = x; m_pos.y = y; m_pos.z = z; m_pos.o = o; }
+        // if dist == 0.0f -> exactly object coordinates used, in other case close point to object (CONTACT_DIST can be used as minimal distances)
+        CreatureCreatePos(WorldObject* closeObject, float ori, float dist = 0.0f, float angle = 0.0f)
+            : m_map(closeObject->GetMap()),
+            m_closeObject(closeObject), m_angle(angle), m_dist(dist) { m_pos.o = ori; }
+    public:
+        Map* GetMap() const { return m_map; }
+        void SelectFinalPoint(Creature* cr);
+        bool Relocate(Creature* cr) const;
+
+        // read only after SelectFinalPoint
+        Position m_pos;
+    private:
+        Map* m_map;
+        WorldObject* m_closeObject;
+        float m_angle;
+        float m_dist;
+};
+
 enum CreatureSubtype
 {
     CREATURE_SUBTYPE_GENERIC,                               // new Creature
@@ -382,7 +433,7 @@ class MANGOS_DLL_SPEC Creature : public Unit
         void AddToWorld();
         void RemoveFromWorld();
 
-        bool Create(uint32 guidlow, Map *map, uint32 Entry, Team team = TEAM_NONE, const CreatureData *data = NULL, GameEventCreatureData const* eventData = NULL);
+        bool Create(uint32 guidlow, CreatureCreatePos& cPos, uint32 Entry, Team team = TEAM_NONE, const CreatureData *data = NULL, GameEventCreatureData const* eventData = NULL);
         bool LoadCreatureAddon(bool reload = false);
         void SelectLevel(const CreatureInfo *cinfo, float percentHealth = 100.0f, float percentMana = 100.0f);
         void LoadEquipment(uint32 equip_entry, bool force=false);
@@ -623,7 +674,7 @@ class MANGOS_DLL_SPEC Creature : public Unit
         void SetCombatStartPosition(float x, float y, float z) { CombatStartX = x; CombatStartY = y; CombatStartZ = z; }
         void GetCombatStartPosition(float &x, float &y, float &z) { x = CombatStartX; y = CombatStartY; z = CombatStartZ; }
 
-        void SetSummonPoint(float fX, float fY, float fZ, float fOrient) { m_summonXpoint = fX; m_summonYpoint = fY; m_summonZpoint = fZ; m_summonOrientation = fOrient; }
+        void SetSummonPoint(CreatureCreatePos const& pos) { m_summonXpoint = pos.m_pos.x; m_summonYpoint = pos.m_pos.y; m_summonZpoint = pos.m_pos.z; m_summonOrientation = pos.m_pos.o; }
         void GetSummonPoint(float &fX, float &fY, float &fZ, float &fOrient) const { fX = m_summonXpoint; fY = m_summonYpoint; fZ = m_summonZpoint; fOrient = m_summonOrientation; }
 
         void SetDeadByDefault (bool death_state) { m_isDeadByDefault = death_state; }
@@ -639,6 +690,8 @@ class MANGOS_DLL_SPEC Creature : public Unit
         void SetSpellId(uint32 id) { m_spellId = id; }
         uint32 GetSpellId() const { return m_spellId;}
 
+        void SetVirtualItem(VirtualItemSlot slot, uint32 item_id);
+        void SetVirtualItemRaw(VirtualItemSlot slot, uint32 display_id, uint32 info0, uint32 info1);
     protected:
         uint32 m_spellId;
         bool CreateFromProto(uint32 guidlow, uint32 Entry, Team team, const CreatureData *data = NULL, GameEventCreatureData const* eventData = NULL);
