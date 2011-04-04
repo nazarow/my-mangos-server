@@ -63,7 +63,7 @@ void WorldSession::HandleRepopRequestOpcode( WorldPacket & recv_data )
     }
 
     //this is spirit release confirm?
-    GetPlayer()->RemovePet(NULL,PET_SAVE_NOT_IN_SLOT, true);
+    GetPlayer()->RemovePet(PET_SAVE_REAGENTS);
     GetPlayer()->BuildPlayerRepop();
     GetPlayer()->RepopAtGraveyard();
 }
@@ -801,7 +801,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket & recv_data)
         }
 
         uint32 missingQuest = 0;
-        if (!isRegularTargetMap)
+        if (!isRegularTargetMap && mapEntry->IsDungeon())
         {
             if (at->requiredQuestHeroic && !GetPlayer()->GetQuestRewardStatus(at->requiredQuestHeroic))
                 missingQuest = at->requiredQuestHeroic;
@@ -1312,11 +1312,11 @@ void WorldSession::HandleFarSightOpcode( WorldPacket & recv_data )
     switch(op)
     {
         case 0:
-            DEBUG_LOG("Removed FarSight from %s", _player->GetObjectGuid().GetString().c_str());
+            DEBUG_LOG("Removed FarSight from %s", _player->GetGuidStr().c_str());
             _player->GetCamera().ResetView(false);
             break;
         case 1:
-            DEBUG_LOG("Added FarSight %s to %s", _player->GetFarSightGuid().GetString().c_str(), _player->GetObjectGuid().GetString().c_str());
+            DEBUG_LOG("Added FarSight %s to %s", _player->GetFarSightGuid().GetString().c_str(), _player->GetGuidStr().c_str());
             _player->GetCamera().SetView(obj, false);
             break;
     }

@@ -192,7 +192,7 @@ uint32 GetSpellCastTimeForBonus( SpellEntry const *spellProto, DamageEffectType 
     for(int j = 0; j < MAX_EFFECT_INDEX; ++j)
     {
         if (spellProto->Effect[j] == SPELL_EFFECT_HEALTH_LEECH ||
-            spellProto->Effect[j] == SPELL_EFFECT_APPLY_AURA && spellProto->EffectApplyAuraName[j] == SPELL_AURA_PERIODIC_LEECH)
+            (spellProto->Effect[j] == SPELL_EFFECT_APPLY_AURA && spellProto->EffectApplyAuraName[j] == SPELL_AURA_PERIODIC_LEECH))
         {
             CastingTime /= 2;
             break;
@@ -489,7 +489,6 @@ SpellSpecific GetSpellSpecific(uint32 spellId)
 
     return SPELL_NORMAL;
 }
-
 
 // target not allow have more one spell specific from same caster
 bool IsSingleFromSpellSpecificPerTargetPerCaster(SpellSpecific spellSpec1,SpellSpecific spellSpec2)
@@ -834,7 +833,7 @@ bool IsPositiveSpell(uint32 spellId)
     if (!spellproto)
         return false;
 
-    // spells with atleast one negative effect are considered negative
+    // spells with at least one negative effect are considered negative
     // some self-applied spells have negative effects but in self casting case negative check ignored.
     for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
         if (spellproto->Effect[i] && !IsPositiveEffect(spellproto, SpellEffectIndex(i)))
@@ -946,7 +945,6 @@ void SpellMgr::LoadSpellTargetPositions()
     QueryResult *result = WorldDatabase.Query("SELECT id, target_map, target_position_x, target_position_y, target_position_z, target_orientation FROM spell_target_position");
     if (!result)
     {
-
         barGoLink bar( 1 );
 
         bar.step();
@@ -1338,7 +1336,7 @@ void SpellMgr::LoadSpellBonuses()
     mSpellBonusMap.clear();                             // need for reload case
     uint32 count = 0;
     //                                                0      1             2          3
-    QueryResult *result = WorldDatabase.Query("SELECT entry, direct_bonus, dot_bonus, ap_bonus FROM spell_bonus_data");
+    QueryResult *result = WorldDatabase.Query("SELECT entry, direct_bonus, dot_bonus, ap_bonus, ap_dot_bonus FROM spell_bonus_data");
     if( !result )
     {
         barGoLink bar( 1 );
@@ -1376,6 +1374,7 @@ void SpellMgr::LoadSpellBonuses()
         sbe.direct_damage = fields[1].GetFloat();
         sbe.dot_damage    = fields[2].GetFloat();
         sbe.ap_bonus      = fields[3].GetFloat();
+        sbe.ap_dot_bonus   = fields[4].GetFloat();
 
         bool need_dot = false;
         bool need_direct = false;
@@ -1429,23 +1428,28 @@ void SpellMgr::LoadSpellBonuses()
             dot_diff = std::abs(sbe.dot_damage - dot_calc);
         }
 
-        if (direct_diff < 0.02f && !need_dot && !sbe.ap_bonus)
+        if (direct_diff < 0.02f && !need_dot && !sbe.ap_bonus && !sbe.ap_dot_bonus)
             sLog.outErrorDb("`spell_bonus_data` entry for spell %u `direct_bonus` not needed (data from table: %f, calculated %f, difference of %f) and `dot_bonus` also not used",
                 entry, sbe.direct_damage, direct_calc, direct_diff);
-        else if (direct_diff < 0.02f && dot_diff < 0.02f && !sbe.ap_bonus)
+        else if (direct_diff < 0.02f && dot_diff < 0.02f && !sbe.ap_bonus && !sbe.ap_dot_bonus)
         {
             sLog.outErrorDb("`spell_bonus_data` entry for spell %u `direct_bonus` not needed (data from table: %f, calculated %f, difference of %f) and ",
                 entry, sbe.direct_damage, direct_calc, direct_diff);
             sLog.outErrorDb("                                  ... `dot_bonus` not needed (data from table: %f, calculated %f, difference of %f)",
                 sbe.dot_damage, dot_calc, dot_diff);
         }
-        else if (!need_direct && dot_diff < 0.02f && !sbe.ap_bonus)
+        else if (!need_direct && dot_diff < 0.02f && !sbe.ap_bonus && !sbe.ap_dot_bonus)
             sLog.outErrorDb("`spell_bonus_data` entry for spell %u `dot_bonus` not needed (data from table: %f, calculated %f, difference of %f) and direct also not used",
             entry, sbe.dot_damage, dot_calc, dot_diff);
         else if (!need_direct && sbe.direct_damage)
             sLog.outErrorDb("`spell_bonus_data` entry for spell %u `direct_bonus` not used (spell not have non-periodic affects)", entry);
         else if (!need_dot && sbe.dot_damage)
             sLog.outErrorDb("`spell_bonus_data` entry for spell %u `dot_bonus` not used (spell not have periodic affects)", entry);
+
+        if (!need_direct && sbe.ap_bonus)
+            sLog.outErrorDb("`spell_bonus_data` entry for spell %u `ap_bonus` not used (spell not have non-periodic affects)", entry);
+        else if (!need_dot && sbe.ap_dot_bonus)
+            sLog.outErrorDb("`spell_bonus_data` entry for spell %u `ap_dot_bonus` not used (spell not have periodic affects)", entry);
 
         mSpellBonusMap[entry] = sbe;
 
@@ -1975,8 +1979,8 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
                     return false;
 
                 // Fireball & Pyroblast (Dots)
-                if( (spellInfo_1->SpellFamilyFlags & UI64LIT(0x1)) && (spellInfo_2->SpellFamilyFlags & UI64LIT(0x400000)) ||
-                    (spellInfo_2->SpellFamilyFlags & UI64LIT(0x1)) && (spellInfo_1->SpellFamilyFlags & UI64LIT(0x400000)) )
+                if (((spellInfo_1->SpellFamilyFlags & UI64LIT(0x1)) && (spellInfo_2->SpellFamilyFlags & UI64LIT(0x400000))) ||
+                    ((spellInfo_2->SpellFamilyFlags & UI64LIT(0x1)) && (spellInfo_1->SpellFamilyFlags & UI64LIT(0x400000))))
                     return false;
             }
             // Detect Invisibility and Mana Shield (multi-family check)
@@ -2945,7 +2949,7 @@ void SpellMgr::LoadSpellLearnSpells()
                 dbc_node.spell       = entry->EffectTriggerSpell[i];
                 dbc_node.active      = true;                // all dbc based learned spells is active (show in spell book or hide by client itself)
 
-                // ignore learning nonexistent spells (broken/outdated/or generic learnig spell 483
+                // ignore learning nonexistent spells (broken/outdated/or generic learning spell 483
                 if (!sSpellStore.LookupEntry(dbc_node.spell))
                     continue;
 
@@ -3845,7 +3849,7 @@ void SpellMgr::CheckUsedSpells(char const* table)
                     if (effectType >=0 && spellEntry->Effect[effectIdx] != uint32(effectType))
                         continue;
 
-                    if (auraType >=0 && spellEntry->EffectApplyAuraName[effectIdx] !=uint32(auraType))
+                    if (auraType >=0 && spellEntry->EffectApplyAuraName[effectIdx] != uint32(auraType))
                         continue;
                 }
                 else

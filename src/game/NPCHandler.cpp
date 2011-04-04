@@ -248,11 +248,14 @@ void WorldSession::HandleTrainerBuySpellOpcode( WorldPacket & recv_data )
     if (!cSpells && !tSpells)
         return;
 
-    // not found, cheat?
-    TrainerSpell const* trainer_spell = cSpells->Find(spellId);
+    // Try find spell in npc_trainer
+    TrainerSpell const* trainer_spell = cSpells ? cSpells->Find(spellId) : NULL;
+
+    // Not found, try find in npc_trainer_template
     if (!trainer_spell && tSpells)
         trainer_spell = tSpells->Find(spellId);
 
+    // Not found anywhere, cheating?
     if (!trainer_spell)
         return;
 
@@ -636,7 +639,7 @@ void WorldSession::HandleStablePet( WorldPacket & recv_data )
 
     if( free_slot > 0 && free_slot <= GetPlayer()->m_stableSlots)
     {
-        _player->RemovePet(pet,PetSaveMode(free_slot));
+        pet->Unsummon(PetSaveMode(free_slot), _player);
         SendStableResult(STABLE_SUCCESS_STABLE);
     }
     else
@@ -696,7 +699,7 @@ void WorldSession::HandleUnstablePet( WorldPacket & recv_data )
 
     // delete dead pet
     if(pet)
-        _player->RemovePet(pet,PET_SAVE_AS_DELETED);
+        pet->Unsummon(PET_SAVE_AS_DELETED, _player);
 
     Pet *newpet = new Pet(HUNTER_PET);
     if(!newpet->LoadPetFromDB(_player,creature_id,petnumber))
@@ -804,7 +807,7 @@ void WorldSession::HandleStableSwapPet( WorldPacket & recv_data )
     }
 
     // move alive pet to slot or delete dead pet
-    _player->RemovePet(pet,pet->isAlive() ? PetSaveMode(slot) : PET_SAVE_AS_DELETED);
+    pet->Unsummon(pet->isAlive() ? PetSaveMode(slot) : PET_SAVE_AS_DELETED, _player);
 
     // summon unstabled pet
     Pet *newpet = new Pet;

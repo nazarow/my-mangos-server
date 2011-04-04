@@ -1032,6 +1032,14 @@ void WorldObject::Relocate(float x, float y, float z)
         ((Player*)this)->m_movementInfo.ChangePosition(x, y, z, GetOrientation());
 }
 
+void WorldObject::SetOrientation(float orientation)
+{
+    m_orientation = orientation;
+
+    if(GetTypeId() == TYPEID_PLAYER)                        //FIXME: to Unit at move moveinfor to Unit
+        ((Player*)this)->m_movementInfo.ChangeOrientation(orientation);
+}
+
 uint32 WorldObject::GetZoneId() const
 {
 	if (!GetTerrain()) return 0;	//kia tmp fix
@@ -1986,7 +1994,7 @@ bool WorldObject::IsControlledByPlayer() const
     switch (GetTypeId())
     {
         case TYPEID_GAMEOBJECT:
-            return IS_PLAYER_GUID(((GameObject*)this)->GetOwnerGUID());
+            return ((GameObject*)this)->GetOwnerGuid().IsPlayer();
         case TYPEID_UNIT:
         case TYPEID_PLAYER:
             return ((Unit*)this)->IsCharmerOrOwnerPlayerOrPlayerItself();

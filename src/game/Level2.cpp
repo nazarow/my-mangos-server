@@ -36,8 +36,6 @@
 #include "AccountMgr.h"
 #include "GMTicketMgr.h"
 #include "WaypointManager.h"
-#include "WaypointMovementGenerator.h"
-#include "math.h"
 #include "DBCStores.h"
 #include "Util.h"
 #include <cctype>
@@ -904,13 +902,13 @@ bool ChatHandler::HandleGameObjectDeleteCommand(char* args)
         return false;
     }
 
-    uint64 owner_guid = obj->GetOwnerGUID();
-    if (owner_guid)
+    ObjectGuid ownerGuid = obj->GetOwnerGuid();
+    if (!ownerGuid.IsEmpty())
     {
-        Unit* owner = ObjectAccessor::GetUnit(*m_session->GetPlayer(),owner_guid);
-        if (!owner || !IS_PLAYER_GUID(owner_guid))
+        Unit* owner = ObjectAccessor::GetUnit(*m_session->GetPlayer(), ownerGuid);
+        if (!owner || !ownerGuid.IsPlayer())
         {
-            PSendSysMessage(LANG_COMMAND_DELOBJREFERCREATURE, GUID_LOPART(owner_guid), obj->GetGUIDLow());
+            PSendSysMessage(LANG_COMMAND_DELOBJREFERCREATURE, obj->GetGUIDLow(), ownerGuid.GetString().c_str());
             SetSentErrorMessage(true);
             return false;
         }
@@ -1633,7 +1631,7 @@ bool ChatHandler::HandleNpcChangeLevelCommand(char* args)
         pCreature->SetLevel(lvl);
 
         if (pCreature->HasStaticDBSpawnData())
-        pCreature->SaveToDB();
+            pCreature->SaveToDB();
     }
 
     return true;
@@ -1884,7 +1882,7 @@ bool ChatHandler::HandleNpcSetModelCommand(char* args)
     pCreature->SetNativeDisplayId(displayId);
 
     if (pCreature->HasStaticDBSpawnData())
-    pCreature->SaveToDB();
+        pCreature->SaveToDB();
 
     return true;
 }

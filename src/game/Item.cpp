@@ -243,13 +243,13 @@ Item::Item( )
 
 bool Item::Create( uint32 guidlow, uint32 itemid, Player const* owner)
 {
-    Object::_Create( guidlow, 0, HIGHGUID_ITEM );
+    Object::_Create(guidlow, 0, HIGHGUID_ITEM);
 
     SetEntry(itemid);
     SetObjectScale(DEFAULT_OBJECT_SCALE);
 
-    SetUInt64Value(ITEM_FIELD_OWNER, owner ? owner->GetGUID() : 0);
-    SetUInt64Value(ITEM_FIELD_CONTAINED, owner ? owner->GetGUID() : 0);
+    SetGuidValue(ITEM_FIELD_OWNER, owner ? owner->GetObjectGuid() : ObjectGuid());
+    SetGuidValue(ITEM_FIELD_CONTAINED, owner ? owner->GetObjectGuid() : ObjectGuid());
 
     ItemPrototype const *itemProto = ObjectMgr::GetItemPrototype(itemid);
     if(!itemProto)
@@ -287,14 +287,14 @@ void Item::UpdateDuration(Player* owner, uint32 diff)
 void Item::SaveToDB()
 {
     uint32 guid = GetGUIDLow();
-	sLog.outItems("Item::Save %u owner %u",guid,GUID_LOPART(GetOwnerGUID()));
+	sLog.outItems("Item::Save %u owner %u", guid, GUID_LOPART(GetOwnerGuid().GetRawValue()));
     switch (uState)
     {
         case ITEM_NEW:
         {
             CharacterDatabase.PExecute( "DELETE FROM item_instance WHERE guid = '%u'", guid );
             std::ostringstream ss;
-            ss << "INSERT INTO item_instance (guid,owner_guid,data) VALUES (" << guid << "," << GUID_LOPART(GetOwnerGUID()) << ",'";
+            ss << "INSERT INTO item_instance (guid,owner_guid,data) VALUES (" << guid << "," << GetOwnerGuid().GetCounter() << ",'";
             for(uint16 i = 0; i < m_valuesCount; ++i )
                 ss << GetUInt32Value(i) << " ";
             ss << "' )";
@@ -306,12 +306,12 @@ void Item::SaveToDB()
             ss << "UPDATE item_instance SET data = '";
             for(uint16 i = 0; i < m_valuesCount; ++i )
                 ss << GetUInt32Value(i) << " ";
-            ss << "', owner_guid = '" << GUID_LOPART(GetOwnerGUID()) << "' WHERE guid = '" << guid << "'";
+            ss << "', owner_guid = '" << GetOwnerGuid().GetCounter() << "' WHERE guid = '" << guid << "'";
 
             CharacterDatabase.Execute( ss.str().c_str() );
 
             if (HasFlag(ITEM_FIELD_FLAGS, ITEM_DYNFLAG_WRAPPED))
-                CharacterDatabase.PExecute("UPDATE character_gifts SET guid = '%u' WHERE item_guid = '%u'", GUID_LOPART(GetOwnerGUID()),GetGUIDLow());
+                CharacterDatabase.PExecute("UPDATE character_gifts SET guid = '%u' WHERE item_guid = '%u'", GetOwnerGuid().GetCounter(), GetGUIDLow());
         } break;
         case ITEM_REMOVED:
         {
@@ -371,7 +371,7 @@ void Item::SaveToDB()
     SetState(ITEM_UNCHANGED);
 }
 
-bool Item::LoadFromDB(uint32 guidLow, uint64 owner_guid, Field *fields)
+bool Item::LoadFromDB(uint32 guidLow, Field *fields, ObjectGuid ownerGuid)
 {
     // create item before any checks for store correct guid
     // and allow use "FSetState(ITEM_REMOVED); SaveToDB();" for deleting item from DB
@@ -429,9 +429,9 @@ bool Item::LoadFromDB(uint32 guidLow, uint64 owner_guid, Field *fields)
     }
 
     // set correct owner
-    if (owner_guid != 0 && GetOwnerGUID() != owner_guid)
+    if (!ownerGuid.IsEmpty() && GetOwnerGuid() != ownerGuid)
     {
-        SetOwnerGUID(owner_guid);
+        SetOwnerGuid(ownerGuid);
         need_save = true;
     }
 
@@ -455,7 +455,7 @@ bool Item::LoadFromDB(uint32 guidLow, uint64 owner_guid, Field *fields)
         ss << "UPDATE item_instance SET data = '";
         for(uint16 i = 0; i < m_valuesCount; ++i )
             ss << GetUInt32Value(i) << " ";
-        ss << "', owner_guid = '" << GUID_LOPART(GetOwnerGUID()) << "' WHERE guid = '" << guidLow << "'";
+        ss << "', owner_guid = '" << GetOwnerGuid().GetCounter() << "' WHERE guid = '" << guidLow << "'";
 
         CharacterDatabase.Execute( ss.str().c_str() );
     }
@@ -484,7 +484,7 @@ void Item::LoadLootFromDB(Field *fields)
     if(!proto)
     {
         CharacterDatabase.PExecute("DELETE FROM item_loot WHERE guid = '%u' AND itemid = '%u'", GetGUIDLow(), item_id);
-        sLog.outError("Item::LoadLootFromDB: %s has an unknown item (id: #%u) in item_loot, deleted.", ObjectGuid(GetOwnerGUID()).GetString().c_str(), item_id);
+        sLog.outError("Item::LoadLootFromDB: %s has an unknown item (id: #%u) in item_loot, deleted.", GetOwnerGuid().GetString().c_str(), item_id);
         return;
     }
 
@@ -496,13 +496,13 @@ void Item::LoadLootFromDB(Field *fields)
 
 void Item::DeleteFromDB()
 {
-	sLog.outItems("Item::Del %u:%u owner %u",GetGUIDLow(),GetEntry(),GUID_LOPART(GetOwnerGUID()));
+	sLog.outItems("Item::Del %u:%u owner %u",GetGUIDLow(), GetEntry(), GUID_LOPART(GetOwnerGuid().GetRawValue()));
     CharacterDatabase.PExecute("DELETE FROM item_instance WHERE guid = '%u'",GetGUIDLow());
 }
 
 void Item::DeleteFromInventoryDB()
 {
-	sLog.outItems("Item::DelInv %u:%u owner %u",GetGUIDLow(),GetEntry(),GUID_LOPART(GetOwnerGUID()));
+	sLog.outItems("Item::DelInv %u:%u owner %u",GetGUIDLow(),GetEntry(),GUID_LOPART(GetOwnerGuid().GetRawValue()));
     CharacterDatabase.PExecute("DELETE FROM character_inventory WHERE item = '%u'",GetGUIDLow());
 }
 
@@ -513,7 +513,7 @@ ItemPrototype const *Item::GetProto() const
 
 Player* Item::GetOwner()const
 {
-    return sObjectMgr.GetPlayer(GetOwnerGUID());
+    return sObjectMgr.GetPlayer(GetOwnerGuid());
 }
 
 uint32 Item::GetSkill()
@@ -713,25 +713,29 @@ void Item::SetState(ItemUpdateState state, Player *forplayer)
 
 void Item::AddToUpdateQueueOf(Player *player)
 {
-    if (IsInUpdateQueue()) return;
+    if (IsInUpdateQueue())
+        return;
 
     if (!player)
     {
         player = GetOwner();
         if (!player)
         {
-            sLog.outError("Item::AddToUpdateQueueOf - GetPlayer didn't find a player matching owner's guid (%u)!", GUID_LOPART(GetOwnerGUID()));
+            sLog.outError("Item::AddToUpdateQueueOf - %s current owner (%s) not in world!",
+                GetGuidStr().c_str(), GetOwnerGuid().GetString().c_str());
             return;
         }
     }
 
-    if (player->GetGUID() != GetOwnerGUID())
+    if (player->GetObjectGuid() != GetOwnerGuid())
     {
-        sLog.outError("Item::AddToUpdateQueueOf - Owner's guid (%u) and player's guid (%u) don't match!", GUID_LOPART(GetOwnerGUID()), player->GetGUIDLow());
+        sLog.outError("Item::AddToUpdateQueueOf - %s current owner (%s) and inventory owner (%s) don't match!",
+            GetGuidStr().c_str(), GetOwnerGuid().GetString().c_str(), player->GetGuidStr().c_str());
         return;
     }
 
-    if (player->m_itemUpdateQueueBlocked) return;
+    if (player->m_itemUpdateQueueBlocked)
+        return;
 
     player->m_itemUpdateQueue.push_back(this);
     uQueuePos = player->m_itemUpdateQueue.size()-1;
@@ -739,25 +743,29 @@ void Item::AddToUpdateQueueOf(Player *player)
 
 void Item::RemoveFromUpdateQueueOf(Player *player)
 {
-    if (!IsInUpdateQueue()) return;
+    if (!IsInUpdateQueue())
+        return;
 
     if (!player)
     {
         player = GetOwner();
         if (!player)
         {
-            sLog.outError("Item::RemoveFromUpdateQueueOf - GetPlayer didn't find a player matching owner's guid (%u)!", GUID_LOPART(GetOwnerGUID()));
+            sLog.outError("Item::RemoveFromUpdateQueueOf - %s current owner (%s) not in world!",
+                GetGuidStr().c_str(), GetOwnerGuid().GetString().c_str());
             return;
         }
     }
 
-    if (player->GetGUID() != GetOwnerGUID())
+    if (player->GetObjectGuid() != GetOwnerGuid())
     {
-        sLog.outError("Item::RemoveFromUpdateQueueOf - Owner's guid (%u) and player's guid (%u) don't match!", GUID_LOPART(GetOwnerGUID()), player->GetGUIDLow());
+        sLog.outError("Item::RemoveFromUpdateQueueOf - %s current owner (%s) and inventory owner (%s) don't match!",
+            GetGuidStr().c_str(), GetOwnerGuid().GetString().c_str(), player->GetGuidStr().c_str());
         return;
     }
 
-    if (player->m_itemUpdateQueueBlocked) return;
+    if (player->m_itemUpdateQueueBlocked)
+        return;
 
     player->m_itemUpdateQueue[uQueuePos] = NULL;
     uQueuePos = -1;
@@ -971,12 +979,13 @@ bool Item::IsLimitedToAnotherMapOrZone( uint32 cur_mapId, uint32 cur_zoneId) con
 // time.
 void Item::SendTimeUpdate(Player* owner)
 {
-    if (!GetUInt32Value(ITEM_FIELD_DURATION))
+    uint32 duration = GetUInt32Value(ITEM_FIELD_DURATION);
+    if (!duration)
         return;
 
     WorldPacket data(SMSG_ITEM_TIME_UPDATE, (8+4));
-    data << (uint64)GetGUID();
-    data << (uint32)GetUInt32Value(ITEM_FIELD_DURATION);
+    data << uint64(GetGUID());
+    data << uint32(duration);
     owner->GetSession()->SendPacket(&data);
 }
 
@@ -1022,7 +1031,7 @@ Item* Item::CloneItem( uint32 count, Player const* player ) const
 bool Item::IsBindedNotWith( Player const* player ) const
 {
     // own item
-    if(GetOwnerGUID()== player->GetGUID())
+    if (GetOwnerGuid() == player->GetObjectGuid())
         return false;
 
     // has loot with diff owner

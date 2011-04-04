@@ -789,6 +789,9 @@ void ObjectMgr::LoadCreatureAddons(SQLStorage& creatureaddons, char const* entry
             }
         }
 
+        if (addon->sheath_state > SHEATH_STATE_RANGED)
+            sLog.outErrorDb("Creature (%s %u) has unknown sheath state (%u) defined in `%s`.", entryName, addon->guidOrEntry, addon->sheath_state, creatureaddons.GetTableName());
+
         if (!sEmotesStore.LookupEntry(addon->emote))
         {
             sLog.outErrorDb("Creature (%s %u) have invalid emote (%u) defined in `%s`.", entryName, addon->guidOrEntry, addon->emote, creatureaddons.GetTableName());
@@ -6422,7 +6425,7 @@ void ObjectMgr::LoadReputationSpilloverTemplate()
         bar.step();
 
         sLog.outString();
-        sLog.outErrorDb(">> Loaded `reputation_spillover_template`, table is empty!");
+        sLog.outString(">> Loaded `reputation_spillover_template`, table is empty.");
         return;
     }
 

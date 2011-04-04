@@ -42,7 +42,7 @@
 /// WorldSession constructor
 WorldSession::WorldSession(uint32 id, WorldSocket *sock, AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale, uint32 nwflags) :
 LookingForGroup_auto_join(false), LookingForGroup_auto_add(false), m_muteTime(mute_time),
-_player(NULL), m_Socket(sock),_security(sec), _accountId(id), m_expansion(expansion),m_nwflags(nwflags),m_kickTime(300000),
+_player(NULL), m_Socket(sock),_security(sec), _accountId(id), m_expansion(expansion), _logoutTime(0), m_nwflags(nwflags), m_kickTime(300000),
 m_inQueue(false), m_playerLoading(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false),
 m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)), m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)),
 m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED)
@@ -196,9 +196,7 @@ bool WorldSession::Update(uint32 diff)
                             LogUnexpectedOpcode(packet, "the player has not logged in yet");
                     }
                     else //if (_player->IsInWorld())  //kia ??? for anticheat
-                             ExecuteOpcode(opHandle, packet);
-					     //else
-						 //	 LogUnexpectedOpcode(packet, "the player has not in world");
+                        ExecuteOpcode(opHandle, packet);
 
                     // lag can cause STATUS_LOGGEDIN opcodes to arrive after the player started a transfer
                     break;
@@ -389,7 +387,7 @@ void WorldSession::LogoutPlayer(bool Save)
             if(BattleGroundQueueTypeId bgQueueTypeId = _player->GetBattleGroundQueueTypeId(i))
             {
                 _player->RemoveBattleGroundQueueId(bgQueueTypeId);
-                sBattleGroundMgr.m_BattleGroundQueues[ bgQueueTypeId ].RemovePlayer(_player->GetGUID(), true);
+                sBattleGroundMgr.m_BattleGroundQueues[ bgQueueTypeId ].RemovePlayer(_player->GetObjectGuid(), true);
             }
         }
 
@@ -411,7 +409,7 @@ void WorldSession::LogoutPlayer(bool Save)
         }
 
         ///- Remove pet
-        _player->RemovePet(NULL, PET_SAVE_AS_CURRENT, true);
+        _player->RemovePet(PET_SAVE_AS_CURRENT);
 
         ///- empty buyback items and save the player in the database
         // some save parts only correctly work in case player present in map/player_lists (pets, etc)
@@ -639,6 +637,8 @@ void WorldSession::SaveTutorialsData()
             CharacterDatabase.PExecute("INSERT INTO character_tutorial (account,tut0,tut1,tut2,tut3,tut4,tut5,tut6,tut7) VALUES ('%u', '%u', '%u', '%u', '%u', '%u', '%u', '%u', '%u')",
                 GetAccountId(), m_Tutorials[0], m_Tutorials[1], m_Tutorials[2], m_Tutorials[3], m_Tutorials[4], m_Tutorials[5], m_Tutorials[6], m_Tutorials[7]);
             break;
+        case TUTORIALDATA_UNCHANGED:
+            break;
     }
 
     m_tutorialState = TUTORIALDATA_UNCHANGED;
@@ -648,12 +648,12 @@ void WorldSession::ExecuteOpcode( OpcodeHandler const& opHandle, WorldPacket* pa
 {
     // need prevent do internal far teleports in handlers because some handlers do lot steps
     // or call code that can do far teleports in some conditions unexpectedly for generic way work code
-	if (_player)
+    if (_player)
         _player->SetCanDelayTeleport(true);
 
     (this->*opHandle.handler)(*packet);
 
-	if (_player)
+    if (_player)
     {
         // can be not set in fact for login opcode, but this not create porblems.
         _player->SetCanDelayTeleport(false);

@@ -78,7 +78,7 @@ void GameObject::RemoveFromWorld()
     if(IsInWorld())
     {
         // Remove GO from owner
-        ObjectGuid owner_guid = GetOwnerGUID();
+        ObjectGuid owner_guid = GetOwnerGuid();
         if (!owner_guid.IsEmpty())
         {
             if (Unit* owner = ObjectAccessor::GetUnit(*this,owner_guid))
@@ -86,7 +86,7 @@ void GameObject::RemoveFromWorld()
             else
             {
                 sLog.outError("Delete %s with SpellId %u LinkedGO %u that lost references to owner %s GO list. Crash possible later.",
-                    GetObjectGuid().GetString().c_str(), m_spellId, GetGOInfo()->GetLinkedGameObjectEntry(), owner_guid.GetString().c_str());
+                    GetGuidStr().c_str(), m_spellId, GetGOInfo()->GetLinkedGameObjectEntry(), owner_guid.GetString().c_str());
             }
         }
 
@@ -395,7 +395,7 @@ void GameObject::Update(uint32 update_diff, uint32 /*p_time*/)
                 //any return here in case battleground traps
             }
 
-            if (GetOwnerGUID())
+            if (!GetOwnerGuid().IsEmpty())
             {
                 if (Unit* owner = GetOwner())
                     owner->RemoveGameObject(this, false);
@@ -685,7 +685,7 @@ bool GameObject::IsTransport() const
 
 Unit* GameObject::GetOwner() const
 {
-    return ObjectAccessor::GetUnit(*this, GetOwnerGUID());
+    return ObjectAccessor::GetUnit(*this, GetOwnerGuid());
 }
 
 void GameObject::SaveRespawnTime()
@@ -836,9 +836,9 @@ void GameObject::SummonLinkedTrapIfAny()
     linkedGO->SetRespawnTime(GetRespawnDelay());
     linkedGO->SetSpellId(GetSpellId());
 
-    if (GetOwnerGUID())
+    if (!GetOwnerGuid().IsEmpty())
     {
-        linkedGO->SetOwnerGUID(GetOwnerGUID());
+        linkedGO->SetOwnerGuid(GetOwnerGuid());
         linkedGO->SetUInt32Value(GAMEOBJECT_LEVEL, GetUInt32Value(GAMEOBJECT_LEVEL));
     }
 
@@ -1185,7 +1185,7 @@ void GameObject::Use(Unit* user)
 
             Player* player = (Player*)user;
 
-            if (player->GetGUID() != GetOwnerGUID())
+            if (player->GetObjectGuid() != GetOwnerGuid())
                 return;
 
             switch(getLootState())
@@ -1241,7 +1241,7 @@ void GameObject::Use(Unit* user)
                     {
                         // prevent removing GO at spell cancel
                         player->RemoveGameObject(this,false);
-                        SetOwnerGUID(player->GetGUID());
+                        SetOwnerGuid(player->GetObjectGuid());
 
                         if (fishingHole)                    // will set at success only
                         {
@@ -1334,7 +1334,7 @@ void GameObject::Use(Unit* user)
                 return;
 
             // owner is first user for non-wild GO objects, if it offline value already set to current user
-            if (!GetOwnerGUID())
+            if (GetOwnerGuid().IsEmpty())
                 if (Player* firstUser = GetMap()->GetPlayer(m_firstUser))
                     spellCaster = firstUser;
 

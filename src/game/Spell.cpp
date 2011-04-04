@@ -990,6 +990,11 @@ void Spell::DoAllEffectOnTarget(TargetInfo *target)
         if (m_canTrigger && missInfo != SPELL_MISS_REFLECT)
             caster->ProcDamageAndSpell(unitTarget, real_caster ? procAttacker : PROC_FLAG_NONE, procVictim, procEx, damageInfo.damage, m_attackType, m_spellInfo);
 
+        // trigger weapon enchants for weapon based spells; exclude spells that stop attack, because may break CC
+        if (m_caster->GetTypeId() == TYPEID_PLAYER && m_spellInfo->EquippedItemClass == ITEM_CLASS_WEAPON &&
+            !(m_spellInfo->Attributes & SPELL_ATTR_STOP_ATTACK_TARGET))
+            ((Player*)m_caster)->CastItemCombatSpell(unitTarget, m_attackType);
+
         caster->DealSpellDamage(&damageInfo, true);
 
         // Judgement of Blood
@@ -1821,7 +1826,15 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
 
                         if ((*iter)->GetEntry() == i_spellST->second.targetEntry)
                         {
-                            targetUnitMap.push_back((*iter));
+                            if (i_spellST->second.type == SPELL_TARGET_TYPE_DEAD && ((Creature*)(*iter))->IsCorpse())
+                            {
+                                targetUnitMap.push_back((*iter));
+                            }
+                            else if (i_spellST->second.type == SPELL_TARGET_TYPE_CREATURE && (*iter)->isAlive())
+                            {
+                                targetUnitMap.push_back((*iter));
+                            }
+
                             break;
                         }
                     }
@@ -3672,7 +3685,7 @@ void Spell::TakeCastItem()
     {
         // This code is to avoid a crash
         // I'm not sure, if this is really an error, but I guess every item needs a prototype
-        sLog.outError("Cast item (%s) has no item prototype", m_CastItem->GetObjectGuid().GetString().c_str());
+        sLog.outError("Cast item (%s) has no item prototype", m_CastItem->GetGuidStr().c_str());
         return;
     }
 
@@ -3899,7 +3912,8 @@ SpellCastResult Spell::CheckCast(bool strict)
             if(bg->GetStatus() == STATUS_WAIT_LEAVE)
                 return SPELL_FAILED_DONT_REPORT;
 
-    if (m_caster->isInCombat() && IsNonCombatSpell(m_spellInfo) && !m_IsTriggeredSpell)
+    if (!m_IsTriggeredSpell && IsNonCombatSpell(m_spellInfo) &&
+        m_caster->isInCombat())
         return SPELL_FAILED_AFFECTING_COMBAT;
 
     if (m_caster->GetTypeId() == TYPEID_PLAYER && !((Player*)m_caster)->isGameMaster() &&
@@ -3965,7 +3979,7 @@ SpellCastResult Spell::CheckCast(bool strict)
         if(non_caster_target)
         {
             // target state requirements (apply to non-self only), to allow cast affects to self like Dirty Deeds
-            if(m_spellInfo->TargetAuraState && !target->HasAuraStateForCaster(AuraState(m_spellInfo->TargetAuraState),m_caster->GetGUID()))
+            if (m_spellInfo->TargetAuraState && !target->HasAuraStateForCaster(AuraState(m_spellInfo->TargetAuraState), m_caster->GetGUID()))
                 return SPELL_FAILED_TARGET_AURASTATE;
 
             // Not allow casting on flying player
@@ -3986,7 +4000,7 @@ SpellCastResult Spell::CheckCast(bool strict)
         }
         else if (m_caster == target)
         {
-            if (m_caster->GetTypeId() == TYPEID_PLAYER && m_caster->IsInWorld())     
+            if (m_caster->GetTypeId() == TYPEID_PLAYER && m_caster->IsInWorld())
             {
                 // Additional check for some spells
                 // If 0 spell effect empty - client not send target data (need use selection)
@@ -4368,7 +4382,7 @@ SpellCastResult Spell::CheckCast(bool strict)
         {
             case SPELL_EFFECT_DUMMY:
             {
-                if(m_spellInfo->SpellIconID == 1648)        // Execute
+                if (m_spellInfo->SpellIconID == 1648)       // Execute
                 {
                     if(!m_targets.getUnitTarget() || m_targets.getUnitTarget()->GetHealth() > m_targets.getUnitTarget()->GetMaxHealth()*0.2)
                         return SPELL_FAILED_BAD_TARGETS;
@@ -5308,7 +5322,7 @@ bool Spell::IgnoreItemRequirements() const
     {
         /// Not own traded item (in trader trade slot) req. reagents including triggered spell case
         if (Item* targetItem = m_targets.getItemTarget())
-            if (targetItem->GetOwnerGUID() != m_caster->GetGUID())
+            if (targetItem->GetOwnerGuid() != m_caster->GetObjectGuid())
                 return false;
 
         /// Some triggered spells have same reagents that have master spell
@@ -5400,23 +5414,26 @@ SpellCastResult Spell::CheckItems()
         }
     }
 
-    // check target item
+    // check target item (for triggered case not report error)
     if(m_targets.getItemTargetGUID())
     {
         if(m_caster->GetTypeId() != TYPEID_PLAYER)
-            return SPELL_FAILED_BAD_TARGETS;
+            return m_IsTriggeredSpell && !(m_targets.m_targetMask & TARGET_FLAG_TRADE_ITEM)
+                ? SPELL_FAILED_DONT_REPORT : SPELL_FAILED_BAD_TARGETS;
 
         if(!m_targets.getItemTarget())
-            return SPELL_FAILED_ITEM_GONE;
+            return m_IsTriggeredSpell  && !(m_targets.m_targetMask & TARGET_FLAG_TRADE_ITEM)
+                ? SPELL_FAILED_DONT_REPORT : SPELL_FAILED_ITEM_GONE;
 
         if(!m_targets.getItemTarget()->IsFitToSpellRequirements(m_spellInfo))
-            return SPELL_FAILED_EQUIPPED_ITEM_CLASS;
+            return m_IsTriggeredSpell  && !(m_targets.m_targetMask & TARGET_FLAG_TRADE_ITEM)
+                ? SPELL_FAILED_DONT_REPORT : SPELL_FAILED_EQUIPPED_ITEM_CLASS;
     }
-    // if not item target then required item must be equipped
+    // if not item target then required item must be equipped (for triggered case not report error)
     else
     {
         if(m_caster->GetTypeId() == TYPEID_PLAYER && !((Player*)m_caster)->HasItemFitToSpellReqirements(m_spellInfo))
-            return SPELL_FAILED_EQUIPPED_ITEM_CLASS;
+            return m_IsTriggeredSpell ? SPELL_FAILED_DONT_REPORT : SPELL_FAILED_EQUIPPED_ITEM_CLASS;
     }
 
     // check spell focus object
@@ -5572,7 +5589,7 @@ SpellCastResult Spell::CheckItems()
                     return SPELL_FAILED_CANT_BE_DISENCHANTED;
 
                 // prevent disenchanting in trade slot
-                if( m_targets.getItemTarget()->GetOwnerGUID() != m_caster->GetGUID() )
+                if( m_targets.getItemTarget()->GetOwnerGuid() != m_caster->GetObjectGuid() )
                     return SPELL_FAILED_CANT_BE_DISENCHANTED;
 
                 ItemPrototype const* itemProto = m_targets.getItemTarget()->GetProto();
@@ -5597,7 +5614,7 @@ SpellCastResult Spell::CheckItems()
                 if (!(m_targets.getItemTarget()->GetProto()->Flags & ITEM_FLAG_PROSPECTABLE))
                     return SPELL_FAILED_CANT_BE_PROSPECTED;
                 // prevent prospecting in trade slot
-                if (m_targets.getItemTarget()->GetOwnerGUID() != m_caster->GetGUID())
+                if (m_targets.getItemTarget()->GetOwnerGuid() != m_caster->GetObjectGuid())
                     return SPELL_FAILED_CANT_BE_PROSPECTED;
                 // Check for enough skill in jewelcrafting
                 uint32 item_prospectingskilllevel = m_targets.getItemTarget()->GetProto()->RequiredSkillRank;
@@ -5914,7 +5931,6 @@ bool Spell::IsNeedSendToClient() const
         m_spellInfo->speed > 0.0f || (!m_triggeredByAuraSpell && !m_IsTriggeredSpell);
 }
 
-
 bool Spell::IsTriggeredSpellWithRedundentData() const
 {
     return m_triggeredByAuraSpell || m_triggeredBySpellInfo ||
@@ -6227,7 +6243,7 @@ void Spell::TriggerGlobalCooldown()
     // global cooldown can't leave range 1..1.5 secs (if it it)
     // exist some spells (mostly not player directly casted) that have < 1 sec and > 1.5 sec global cooldowns
     // but its as test show not affected any spell mods.
-    if (m_spellInfo->StartRecoveryTime >= 1000 && m_spellInfo->StartRecoveryTime <= 1500)
+    if (gcd >= 1000 && gcd <= 1500)
     {
         // apply haste rating
         gcd = int32(float(gcd) * m_caster->GetFloatValue(UNIT_MOD_CAST_SPEED));

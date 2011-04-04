@@ -307,7 +307,7 @@ class Spell
         void EffectEnergisePct(SpellEffectIndex eff_idx);
         void EffectTriggerSpellWithValue(SpellEffectIndex eff_idx);
         void EffectTriggerRitualOfSummoning(SpellEffectIndex eff_idx);
-        void EffectKillCredit(SpellEffectIndex eff_idx);
+        void EffectKillCreditGroup(SpellEffectIndex eff_idx);
         void EffectQuestFail(SpellEffectIndex eff_idx);
         void EffectPlayMusic(SpellEffectIndex eff_idx);
 
@@ -426,7 +426,7 @@ class Spell
         // caster types:
         // formal spell caster, in game source of spell affects cast
         Unit* GetCaster() const { return m_caster; }
-        // real source of cast affects, explcit caster, or DoT/HoT applier, or GO owner, or wild GO itself. Can be NULL
+        // real source of cast affects, explicit caster, or DoT/HoT applier, or GO owner, or wild GO itself. Can be NULL
         WorldObject* GetAffectiveCasterObject() const;
         // limited version returning NULL in cases not Unit* caster object, need for Aura (auras currently not support non-Unit caster)
         Unit* GetAffectiveCaster() const { return !m_originalCasterGUID.IsEmpty() ? m_originalCaster : m_caster; }
@@ -641,7 +641,7 @@ namespace MaNGOS
         float i_radius;
         SpellTargets i_TargetType;
         WorldObject* i_originalCaster;
-        bool i_playerControled;
+        bool i_playerControlled;
 
         SpellNotifierCreatureAndPlayer(Spell &spell, std::list<Unit*> &data, float radius, SpellNotifyPushType type,
             SpellTargets TargetType = SPELL_TARGETS_NOT_FRIENDLY, WorldObject* originalCaster = NULL)
@@ -650,7 +650,7 @@ namespace MaNGOS
         {
             if (!i_originalCaster)
                 i_originalCaster = i_spell.GetAffectiveCasterObject();
-            i_playerControled = i_originalCaster  ? i_originalCaster->IsControlledByPlayer() : false;
+            i_playerControlled = i_originalCaster  ? i_originalCaster->IsControlledByPlayer() : false;
         }
 
         template<class T> inline void Visit(GridRefManager<T>  &m)
@@ -689,10 +689,10 @@ namespace MaNGOS
                         break;
                     case SPELL_TARGETS_AOE_DAMAGE:
                     {
-                        if(itr->getSource()->GetTypeId()==TYPEID_UNIT && ((Creature*)itr->getSource())->IsTotem())
+                        if (itr->getSource()->GetTypeId()==TYPEID_UNIT && ((Creature*)itr->getSource())->IsTotem())
                             continue;
 
-                        if (i_playerControled)
+                        if (i_playerControlled)
                         {
                             if (i_originalCaster->IsFriendlyTo( itr->getSource() ))
                                 continue;

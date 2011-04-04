@@ -723,7 +723,7 @@ void Creature::DoFleeToGetAssistance()
         UpdateSpeed(MOVE_RUN, false);
 
         if(!pCreature)
-            SetFeared(true, getVictim()->GetGUID(), 0 ,sWorld.getConfig(CONFIG_UINT32_CREATURE_FAMILY_FLEE_DELAY));
+            SetFeared(true, getVictim()->GetObjectGuid(), 0 ,sWorld.getConfig(CONFIG_UINT32_CREATURE_FAMILY_FLEE_DELAY));
         else
             GetMotionMaster()->MoveSeekAssistance(pCreature->GetPositionX(), pCreature->GetPositionY(), pCreature->GetPositionZ());
     }
@@ -1493,7 +1493,7 @@ void Creature::SetDeathState(DeathState s)
             UpdateSpeed(MOVE_RUN, false);
         }
 
-        // return, since we promote to DEAD_FALLING. DEAD_FALLING is promoted to CORPSE at next update.
+        // return, since we promote to CORPSE_FALLING. CORPSE_FALLING is promoted to CORPSE at next update.
         if (CanFly() && FallGround())
             return;
 
@@ -1520,7 +1520,7 @@ void Creature::SetDeathState(DeathState s)
 
 bool Creature::FallGround()
 {
-    // Only if state is JUST_DIED. DEAD_FALLING is set below and promoted to CORPSE later
+    // Only if state is JUST_DIED. CORPSE_FALLING is set below and promoted to CORPSE later
     if (getDeathState() != JUST_DIED)
         return false;
 
@@ -1948,18 +1948,19 @@ bool Creature::LoadCreatureAddon(bool reload)
         SetByteValue(UNIT_FIELD_BYTES_1, 3, uint8((cainfo->bytes1 >> 24) & 0xFF));
     }
 
-    if (cainfo->bytes2 != 0)
-    {
-        // 0 SheathState
-        // 1 Bytes2Flags
-        // 2 UnitRename         Pet only, so always 0 for default creature
-        // 3 ShapeshiftForm     Must be determined/set by shapeshift spell/aura
+    // UNIT_FIELD_BYTES_2
+    // 0 SheathState
+    // 1 Bytes2Flags, in 3.x used UnitPVPStateFlags, that have different meaning
+    // 2 UnitRename         Pet only, so always 0 for default creature
+    // 3 ShapeshiftForm     Must be determined/set by shapeshift spell/aura
+    if (cainfo->sheath_state != 0)
+        SetByteValue(UNIT_FIELD_BYTES_2, 0, cainfo->sheath_state);
 
-        SetByteValue(UNIT_FIELD_BYTES_2, 0, uint8(cainfo->bytes2 & 0xFF));
-        SetByteValue(UNIT_FIELD_BYTES_2, 1, uint8((cainfo->bytes2 >> 8) & 0xFF));
-        //SetByteValue(UNIT_FIELD_BYTES_2, 2, 0);
-        //SetByteValue(UNIT_FIELD_BYTES_2, 3, 0);
-    }
+    if (cainfo->flags != 0)
+        SetByteValue(UNIT_FIELD_BYTES_2, 1, cainfo->flags);
+
+    //SetByteValue(UNIT_FIELD_BYTES_2, 2, 0);
+    //SetByteValue(UNIT_FIELD_BYTES_2, 3, 0);
 
     if (cainfo->emote != 0)
         SetUInt32Value(UNIT_NPC_EMOTESTATE, cainfo->emote);
