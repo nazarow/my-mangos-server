@@ -468,11 +468,12 @@ enum PlayerFieldByteFlags
     PLAYER_FIELD_BYTE_NO_RELEASE_WINDOW = 0x10              // Display no "release spirit" window at all
 };
 
-// used in PLAYER_FIELD_BYTES2 values
+// used in byte (PLAYER_FIELD_BYTES2,1) values
 enum PlayerFieldByte2Flags
 {
-    PLAYER_FIELD_BYTE2_NONE              = 0x0000,
-    PLAYER_FIELD_BYTE2_INVISIBILITY_GLOW = 0x4000
+    PLAYER_FIELD_BYTE2_NONE              = 0x00,
+    PLAYER_FIELD_BYTE2_STEALTH           = 0x20,
+    PLAYER_FIELD_BYTE2_INVISIBILITY_GLOW = 0x40
 };
 
 enum ActivateTaxiReplies
@@ -1060,9 +1061,9 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         void SetVirtualItemSlot( uint8 i, Item* item);
         void SetSheath( SheathState sheathed );             // overwrite Unit version
-        uint8 FindEquipSlot( ItemPrototype const* proto, uint32 slot, bool swap ) const;
-        uint32 GetItemCount( uint32 item, bool inBankAlso = false, Item* skipItem = NULL ) const;
-        Item* GetItemByGuid(ObjectGuid uint64) const;
+        uint8 FindEquipSlot(ItemPrototype const* proto, uint32 slot, bool swap) const;
+        uint32 GetItemCount(uint32 item, bool inBankAlso = false, Item* skipItem = NULL) const;
+        Item* GetItemByGuid(ObjectGuid guid) const;
         Item* GetItemByPos( uint16 pos ) const;
         Item* GetItemByPos( uint8 bag, uint8 slot ) const;
         Item* GetWeaponForAttack(WeaponAttackType attackType) const { return GetWeaponForAttack(attackType,false,false); }
@@ -1172,7 +1173,7 @@ class MANGOS_DLL_SPEC Player : public Unit
             return mainItem && mainItem->GetProto()->InventoryType == INVTYPE_2HWEAPON;
         }
         void SendNewItem( Item *item, uint32 count, bool received, bool created, bool broadcast = false );
-        bool BuyItemFromVendor(uint64 vendorguid, uint32 item, uint8 count, uint8 bag, uint8 slot);
+        bool BuyItemFromVendor(ObjectGuid vendorGuid, uint32 item, uint8 count, uint8 bag, uint8 slot);
 
         float GetReputationPriceDiscount( Creature const* pCreature ) const;
 
@@ -1258,8 +1259,8 @@ class MANGOS_DLL_SPEC Player : public Unit
         void ResetDailyQuestStatus();
 
         uint16 FindQuestSlot( uint32 quest_id ) const;
-        uint32 GetQuestSlotQuestId(uint16 slot) const { return GetUInt32Value(PLAYER_QUEST_LOG_1_1 + slot*MAX_QUEST_OFFSET + QUEST_ID_OFFSET); }
-        void SetQuestSlot(uint16 slot,uint32 quest_id, uint32 timer = 0)
+        uint32 GetQuestSlotQuestId(uint16 slot) const { return GetUInt32Value(PLAYER_QUEST_LOG_1_1 + slot * MAX_QUEST_OFFSET + QUEST_ID_OFFSET); }
+        void SetQuestSlot(uint16 slot, uint32 quest_id, uint32 timer = 0)
         {
             SetUInt32Value(PLAYER_QUEST_LOG_1_1 + slot*MAX_QUEST_OFFSET + QUEST_ID_OFFSET,quest_id);
             SetUInt32Value(PLAYER_QUEST_LOG_1_1 + slot*MAX_QUEST_OFFSET + QUEST_STATE_OFFSET,0);
@@ -1321,7 +1322,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         /***                   LOAD SYSTEM                     ***/
         /*********************************************************/
 
-        bool LoadFromDB(uint32 guid, SqlQueryHolder *holder);
+        bool LoadFromDB(ObjectGuid guid, SqlQueryHolder *holder);
 
         static uint32 GetZoneIdFromDB(ObjectGuid guid);
         static uint32 GetLevelFromDB(ObjectGuid guid);
@@ -1585,7 +1586,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         uint32 GetGuildId() { return GetUInt32Value(PLAYER_GUILDID);  }
         static uint32 GetGuildIdFromDB(ObjectGuid guid);
         uint32 GetRank(){ return GetUInt32Value(PLAYER_GUILDRANK); }
-        static uint32 GetRankFromDB(uint64 guid);
+        static uint32 GetRankFromDB(ObjectGuid guid);
         int GetGuildIdInvited() { return m_GuildIdInvited; }
         static void RemovePetitionsAndSigns(ObjectGuid guid, uint32 type);
 

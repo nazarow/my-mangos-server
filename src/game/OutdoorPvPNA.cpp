@@ -71,7 +71,7 @@ uint32 OutdoorPvPObjectiveNA::GetAliveGuardsCount()
                     if(cr->isAlive())
                         ++cnt;
                 }
-                else if (CreatureData const * cd = sObjectMgr.GetCreatureData(GUID_LOPART(itr->second)))
+                else if (CreatureData const * cd = sObjectMgr.GetCreatureData(ObjectGuid(itr->second).GetCounter()))
                 {
                     if(!cd->is_dead)
                         ++cnt;

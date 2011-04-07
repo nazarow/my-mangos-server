@@ -348,7 +348,7 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
             if(obj)
                 plMover->m_anti_transportGUID = obj->GetGUIDLow();
             else
-                plMover->m_anti_transportGUID = GUID_LOPART(movementInfo.t_guid.GetRawValue());
+                plMover->m_anti_transportGUID = movementInfo.t_guid.GetCounter();
         }
     }
     else if (plMover && (plMover->m_anti_transportGUID != 0))

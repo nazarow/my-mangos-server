@@ -5644,29 +5644,49 @@ int32 Unit::DealHeal(Unit *pVictim, uint32 addhealth, SpellEntry const *spellPro
     return gain;
 }
 
-Unit* Unit::SelectMagnetTarget(Unit *victim, SpellEntry const *spellInfo)
+Unit* Unit::SelectMagnetTarget(Unit *victim, Spell* spell, SpellEffectIndex eff)
 {
     if(!victim)
         return NULL;
 
     // Magic case
-    if(spellInfo && (spellInfo->DmgClass == SPELL_DAMAGE_CLASS_NONE || spellInfo->DmgClass == SPELL_DAMAGE_CLASS_MAGIC))
+    if (spell && (spell->m_spellInfo->DmgClass == SPELL_DAMAGE_CLASS_NONE || spell->m_spellInfo->DmgClass == SPELL_DAMAGE_CLASS_MAGIC))
     {
         Unit::AuraList const& magnetAuras = victim->GetAurasByType(SPELL_AURA_SPELL_MAGNET);
         for(Unit::AuraList::const_iterator itr = magnetAuras.begin(); itr != magnetAuras.end(); ++itr)
-            if(Unit* magnet = (*itr)->GetCaster())
-                if(magnet->IsWithinLOSInMap(this) && magnet->isAlive())
+        {
+            if (Unit* magnet = (*itr)->GetCaster())
+            {
+                if (magnet->isAlive() && magnet->IsWithinLOSInMap(this) && spell->CheckTarget(magnet, eff))
+                {
+                    if (SpellAuraHolder *holder = (*itr)->GetHolder())
+                        if (holder->DropAuraCharge())
+                            victim->RemoveSpellAuraHolder(holder);
                     return magnet;
+                }
+            }
+        }
     }
     // Melee && ranged case
     else
     {
         AuraList const& hitTriggerAuras = victim->GetAurasByType(SPELL_AURA_ADD_CASTER_HIT_TRIGGER);
         for(AuraList::const_iterator i = hitTriggerAuras.begin(); i != hitTriggerAuras.end(); ++i)
-            if(Unit* magnet = (*i)->GetCaster())
-                if(magnet->isAlive() && magnet->IsWithinLOSInMap(this))
-                    if(roll_chance_i((*i)->GetModifier()->m_amount))
+        {
+            if (Unit* magnet = (*i)->GetCaster())
+            {
+                if (magnet->isAlive() && magnet->IsWithinLOSInMap(this) && (!spell || spell->CheckTarget(magnet, eff)))
+                {
+                    if (roll_chance_i((*i)->GetModifier()->m_amount))
+                    {
+                        if (SpellAuraHolder *holder = (*i)->GetHolder())
+                            if (holder->DropAuraCharge())
+                                victim->RemoveSpellAuraHolder(holder);
                         return magnet;
+                    }
+                }
+            }
+        }
     }
 
     return victim;
@@ -8950,11 +8970,11 @@ void Unit::ProcDamageAndSpellFor( bool isVictim, Unit * pTarget, uint32 procFlag
                         if ((spellProcEvent->spellFamilyMask[i] & procSpell->SpellFamilyFlags) == 0)
                             continue;
                     }
-                    // don't check FamilyFlags if schoolMask exists
-                    else if (!spellProcEvent->schoolMask && !triggeredByAura->CanProcFrom(procSpell, spellProcEvent->procEx, procExtra, damage != 0))
+                    // don't check dbc FamilyFlags if schoolMask exists
+                    else if (!triggeredByAura->CanProcFrom(procSpell, spellProcEvent->procEx, procExtra, damage != 0, !spellProcEvent->schoolMask))
                         continue;
                 }
-                else if (!triggeredByAura->CanProcFrom(procSpell, PROC_EX_NONE, procExtra, damage != 0))
+                else if (!triggeredByAura->CanProcFrom(procSpell, PROC_EX_NONE, procExtra, damage != 0, true))
                     continue;
             }
 

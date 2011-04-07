@@ -1728,7 +1728,7 @@ bool ChatHandler::HandleJailCommand(char *args)
     Player *chr = sObjectMgr.GetPlayer(GUID);
     if (!chr)
     {
-        uint32 jail_guid = GUID_LOPART(GUID);
+        uint32 jail_guid = ObjectGuid(GUID).GetCounter();
         std::string jail_char = cname;
         bool jail_isjailed = true;
         uint32 jail_release = localtime + (jailtime * 60 * 60);
@@ -1778,7 +1778,7 @@ bool ChatHandler::HandleJailCommand(char *args)
         if ((sObjectMgr.m_jailconf_max_jails == jail_times) && !sObjectMgr.m_jailconf_ban)
         {
             CharacterDatabase.BeginTransaction();
-            QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM `characters` WHERE `guid`='%u' LIMIT 1", GUID_LOPART(GUID));
+            QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM `characters` WHERE `guid`='%u' LIMIT 1", ObjectGuid(GUID).GetCounter());
             CharacterDatabase.CommitTransaction();
 
             if (!result)
@@ -1796,7 +1796,7 @@ bool ChatHandler::HandleJailCommand(char *args)
         else if ((sObjectMgr.m_jailconf_max_jails == jail_times) && sObjectMgr.m_jailconf_ban)
         {
             CharacterDatabase.BeginTransaction();
-            QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM `characters` WHERE `guid`='%u' LIMIT 1", GUID_LOPART(GUID));
+            QueryResult *result = CharacterDatabase.PQuery("SELECT * FROM `characters` WHERE `guid`='%u' LIMIT 1", ObjectGuid(GUID).GetCounter());
             CharacterDatabase.CommitTransaction();
 
             if (!result)
@@ -1946,7 +1946,7 @@ bool ChatHandler::HandleUnJailCommand(char *args)
     else
     {
         CharacterDatabase.BeginTransaction();
-        QueryResult *jresult = CharacterDatabase.PQuery("SELECT * FROM `jail` WHERE `guid`='%u' LIMIT 1", GUID_LOPART(GUID));
+        QueryResult *jresult = CharacterDatabase.PQuery("SELECT * FROM `jail` WHERE `guid`='%u' LIMIT 1", ObjectGuid(GUID).GetCounter());
         CharacterDatabase.CommitTransaction();
 
         if (!jresult)

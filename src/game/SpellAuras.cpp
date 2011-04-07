@@ -189,7 +189,7 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
     &Aura::HandleModHealingDone,                            //135 SPELL_AURA_MOD_HEALING_DONE
     &Aura::HandleNoImmediateEffect,                         //136 SPELL_AURA_MOD_HEALING_DONE_PERCENT   implemented in Unit::SpellHealingBonusDone
     &Aura::HandleModTotalPercentStat,                       //137 SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
-    &Aura::HandleHaste,                                     //138 SPELL_AURA_MOD_HASTE
+    &Aura::HandleModMeleeSpeedPct,                          //138 SPELL_AURA_MOD_MELEE_HASTE
     &Aura::HandleForceReaction,                             //139 SPELL_AURA_FORCE_REACTION
     &Aura::HandleAuraModRangedHaste,                        //140 SPELL_AURA_MOD_RANGED_HASTE
     &Aura::HandleRangedAmmoHaste,                           //141 SPELL_AURA_MOD_RANGED_AMMO_HASTE
@@ -243,7 +243,7 @@ pAuraHandler AuraHandler[TOTAL_AURAS]=
     &Aura::HandleModRating,                                 //189 SPELL_AURA_MOD_RATING
     &Aura::HandleNoImmediateEffect,                         //190 SPELL_AURA_MOD_FACTION_REPUTATION_GAIN     implemented in Player::CalculateReputationGain
     &Aura::HandleAuraModUseNormalSpeed,                     //191 SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED
-    &Aura::HandleModMeleeRangedSpeedPct,                    //192 SPELL_AURA_HASTE_MELEE
+    &Aura::HandleModMeleeRangedSpeedPct,                    //192 SPELL_AURA_MOD_MELEE_RANGED_HASTE
     &Aura::HandleModCombatSpeedPct,                         //193 SPELL_AURA_HASTE_ALL (in fact combat (any type attack) speed pct)
     &Aura::HandleUnused,                                    //194 SPELL_AURA_MOD_DEPRICATED_1 not used now (old SPELL_AURA_MOD_SPELL_DAMAGE_OF_INTELLECT)
     &Aura::HandleUnused,                                    //195 SPELL_AURA_MOD_DEPRICATED_2 not used now (old SPELL_AURA_MOD_SPELL_HEALING_OF_INTELLECT)
@@ -789,13 +789,13 @@ bool Aura::isAffectedOnSpell(SpellEntry const *spell) const
     return (mask & spell->SpellFamilyFlags);
 }
 
-bool Aura::CanProcFrom(SpellEntry const *spell, uint32 EventProcEx, uint32 procEx, bool active) const
+bool Aura::CanProcFrom(SpellEntry const *spell, uint32 EventProcEx, uint32 procEx, bool active, bool useClassMask) const
 {
-    // Check EffectClassMask
+    // Check EffectClassMask (in pre-3.x stored in spell_affect in fact)
     uint64 flags = sSpellMgr.GetSpellAffectMask(GetId(), GetEffIndex());
 
-    // if no class mask defined - allow proc
-    if (!flags)
+    // if no class mask defined, or spell_proc_event has SpellFamilyName=0 - allow proc
+    if (!useClassMask || !flags)
     {
         if (!(EventProcEx & PROC_EX_EX_TRIGGER_ALWAYS))
         {
@@ -3667,8 +3667,8 @@ void Aura::HandleModStealth(bool apply, bool Real)
         {
             target->SetStandFlags(UNIT_STAND_FLAGS_CREEP);
 
-            if(target->GetTypeId()==TYPEID_PLAYER)
-                target->SetFlag(PLAYER_FIELD_BYTES2, 0x2000);
+            if (target->GetTypeId()==TYPEID_PLAYER)
+                target->SetByteFlag(PLAYER_FIELD_BYTES2, 1, PLAYER_FIELD_BYTE2_STEALTH);
 
             // apply only if not in GM invisibility (and overwrite invisibility state)
             if (target->GetVisibility()!=VISIBILITY_OFF)
@@ -3713,8 +3713,8 @@ void Aura::HandleModStealth(bool apply, bool Real)
             {
                 target->RemoveStandFlags(UNIT_STAND_FLAGS_CREEP);
 
-                if(target->GetTypeId()==TYPEID_PLAYER)
-                    target->RemoveFlag(PLAYER_FIELD_BYTES2, 0x2000);
+                if (target->GetTypeId()==TYPEID_PLAYER)
+                    target->RemoveByteFlag(PLAYER_FIELD_BYTES2, 1, PLAYER_FIELD_BYTE2_STEALTH);
 
                 // restore invisibility if any
                 if (target->HasAuraType(SPELL_AURA_MOD_INVISIBILITY))
@@ -3766,7 +3766,7 @@ void Aura::HandleInvisibility(bool apply, bool Real)
         if (Real && target->GetTypeId()==TYPEID_PLAYER)
         {
             // apply glow vision
-            target->SetFlag(PLAYER_FIELD_BYTES2,PLAYER_FIELD_BYTE2_INVISIBILITY_GLOW);
+            target->SetByteFlag(PLAYER_FIELD_BYTES2, 1, PLAYER_FIELD_BYTE2_INVISIBILITY_GLOW);
             // remove player from the objective's active player count at invisibility
             if (OutdoorPvP * pvp = ((Player*)target)->GetOutdoorPvP())
                 pvp->HandlePlayerActivityChanged((Player*)target);
@@ -3789,14 +3789,14 @@ void Aura::HandleInvisibility(bool apply, bool Real)
             target->m_invisibilityMask |= (1 << (*itr)->GetModifier()->m_miscvalue);
 
         // only at real aura remove and if not have different invisibility auras.
-        if(Real && target->m_invisibilityMask == 0)
+        if (Real && target->m_invisibilityMask == 0)
         {
             // remove glow vision
-            if(target->GetTypeId() == TYPEID_PLAYER)
-                target->RemoveFlag(PLAYER_FIELD_BYTES2,PLAYER_FIELD_BYTE2_INVISIBILITY_GLOW);
+            if (target->GetTypeId() == TYPEID_PLAYER)
+                target->RemoveByteFlag(PLAYER_FIELD_BYTES2, 1, PLAYER_FIELD_BYTE2_INVISIBILITY_GLOW);
 
             // apply only if not in GM invisibility & not stealthed while invisible
-            if(target->GetVisibility() != VISIBILITY_OFF)
+            if (target->GetVisibility() != VISIBILITY_OFF)
             {
                 // if have stealth aura then already have stealth visibility
                 if (!target->HasAuraType(SPELL_AURA_MOD_STEALTH))
@@ -5233,12 +5233,11 @@ void Aura::HandleModAttackSpeed(bool apply, bool /*Real*/)
     GetTarget()->ApplyAttackTimePercentMod(BASE_ATTACK,float(m_modifier.m_amount),apply);
 }
 
-void Aura::HandleHaste(bool apply, bool /*Real*/)
+void Aura::HandleModMeleeSpeedPct(bool apply, bool /*Real*/)
 {
     Unit *target = GetTarget();
     target->ApplyAttackTimePercentMod(BASE_ATTACK, float(m_modifier.m_amount), apply);
     target->ApplyAttackTimePercentMod(OFF_ATTACK, float(m_modifier.m_amount), apply);
-    target->ApplyAttackTimePercentMod(RANGED_ATTACK, float(m_modifier.m_amount), apply);
 }
 
 void Aura::HandleAuraModRangedHaste(bool apply, bool /*Real*/)

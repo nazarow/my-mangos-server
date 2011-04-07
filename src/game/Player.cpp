@@ -6533,10 +6533,10 @@ uint32 Player::GetGuildIdFromDB(ObjectGuid guid)
     return id;
 }
 
-uint32 Player::GetRankFromDB(uint64 guid)
+uint32 Player::GetRankFromDB(ObjectGuid guid)
 {
-    QueryResult *result = CharacterDatabase.PQuery( "SELECT rank FROM guild_member WHERE guid='%u'", GUID_LOPART(guid) );
-    if( result )
+    QueryResult *result = CharacterDatabase.PQuery("SELECT rank FROM guild_member WHERE guid='%u'", guid.GetCounter());
+    if (result)
     {
         uint32 v = result->Fetch()[0].GetUInt32();
         delete result;
@@ -14596,7 +14596,7 @@ void Player::_LoadIntoDataField(const char* data, uint32 startOffset, uint32 cou
     }
 }
 
-bool Player::LoadFromDB( uint32 guid, SqlQueryHolder *holder )
+bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder *holder )
 {
     //       0     1        2     3     4      5       6      7   8      9            10            11
     //SELECT guid, account, name, race, class, gender, level, xp, money, playerBytes, playerBytes2, playerFlags,"
@@ -14612,7 +14612,7 @@ bool Player::LoadFromDB( uint32 guid, SqlQueryHolder *holder )
 
     if(!result)
     {
-        sLog.outError("Player (GUID: %u) not found in table `characters`, can't load. ",guid);
+        sLog.outError("%s not found in table `characters`, can't load. ", guid.GetString().c_str());
         return false;
     }
 
@@ -14624,12 +14624,13 @@ bool Player::LoadFromDB( uint32 guid, SqlQueryHolder *holder )
     // player should be able to load/delete character only with correct account!
     if( dbAccountId != GetSession()->GetAccountId() )
     {
-        sLog.outError("Player (GUID: %u) loading from wrong account (is: %u, should be: %u)",guid,GetSession()->GetAccountId(),dbAccountId);
+        sLog.outError("%s loading from wrong account (is: %u, should be: %u)",
+            guid.GetString().c_str(), GetSession()->GetAccountId(), dbAccountId);
         delete result;
         return false;
     }
 
-    Object::_Create( guid, 0, HIGHGUID_PLAYER );
+    Object::_Create(guid.GetCounter(), 0, HIGHGUID_PLAYER );
 
     m_name = fields[2].GetCppString();
 
@@ -14638,12 +14639,13 @@ bool Player::LoadFromDB( uint32 guid, SqlQueryHolder *holder )
         (GetSession()->GetSecurity() == SEC_PLAYER && sObjectMgr.IsReservedName(m_name)))
     {
         delete result;
-        CharacterDatabase.PExecute("UPDATE characters SET at_login = at_login | '%u' WHERE guid ='%u'", uint32(AT_LOGIN_RENAME),guid);
+        CharacterDatabase.PExecute("UPDATE characters SET at_login = at_login | '%u' WHERE guid ='%u'",
+            uint32(AT_LOGIN_RENAME), guid.GetCounter());
         return false;
     }
 
     // overwrite possible wrong/corrupted guid
-    SetGuidValue(OBJECT_FIELD_GUID, ObjectGuid(HIGHGUID_PLAYER, guid));
+    SetGuidValue(OBJECT_FIELD_GUID, guid);
 
     // overwrite some data fields
     SetByteValue(UNIT_FIELD_BYTES_0,0,fields[3].GetUInt8());// race
@@ -14755,7 +14757,8 @@ bool Player::LoadFromDB( uint32 guid, SqlQueryHolder *holder )
 
     if(!IsPositionValid())
     {
-        sLog.outError("Player (guidlow %d) have invalid coordinates (X: %f Y: %f Z: %f O: %f). Teleport to default race/class locations.",guid,GetPositionX(),GetPositionY(),GetPositionZ(),GetOrientation());
+        sLog.outError("%s have invalid coordinates (X: %f Y: %f Z: %f O: %f). Teleport to default race/class locations.",
+            guid.GetString().c_str(), GetPositionX(), GetPositionY(), GetPositionZ(), GetOrientation());
         RelocateToHomebind();
 
         transGUID = 0;
@@ -14829,8 +14832,8 @@ bool Player::LoadFromDB( uint32 guid, SqlQueryHolder *holder )
             // transport size limited
             m_movementInfo.GetTransportPos()->x > 50 || m_movementInfo.GetTransportPos()->y > 50 || m_movementInfo.GetTransportPos()->z > 50 )
         {
-            sLog.outError("Player (guidlow %d) have invalid transport coordinates (X: %f Y: %f Z: %f O: %f). Teleport to default race/class locations.",
-                guid, GetPositionX() + m_movementInfo.GetTransportPos()->x, GetPositionY() + m_movementInfo.GetTransportPos()->y,
+            sLog.outError("%s have invalid transport coordinates (X: %f Y: %f Z: %f O: %f). Teleport to default race/class locations.",
+                guid.GetString().c_str(), GetPositionX() + m_movementInfo.GetTransportPos()->x, GetPositionY() + m_movementInfo.GetTransportPos()->y,
                 GetPositionZ() + m_movementInfo.GetTransportPos()->z, GetOrientation() + m_movementInfo.GetTransportPos()->o);
 
             RelocateToHomebind();
@@ -14864,8 +14867,8 @@ bool Player::LoadFromDB( uint32 guid, SqlQueryHolder *holder )
 
         if(!m_transport)
         {
-            sLog.outError("Player (guidlow %d) have problems with transport guid (%u). Teleport to default race/class locations.",
-                guid,transGUID);
+            sLog.outError("%s have problems with transport guid (%u). Teleport to default race/class locations.",
+                guid.GetString().c_str(), transGUID);
 
             RelocateToHomebind();
 
@@ -18100,7 +18103,7 @@ void Player::TakeExtendedCost(uint32 extendedCostId, uint32 count)
 }
 
 // Return true is the bought item has a max count to force refresh of window by caller
-bool Player::BuyItemFromVendor(uint64 vendorguid, uint32 item, uint8 count, uint8 bag, uint8 slot)
+bool Player::BuyItemFromVendor(ObjectGuid vendorGuid, uint32 item, uint8 count, uint8 bag, uint8 slot)
 {
     // cheating attempt
     if (count < 1) count = 1;
@@ -18115,11 +18118,11 @@ bool Player::BuyItemFromVendor(uint64 vendorguid, uint32 item, uint8 count, uint
         return false;
     }
 
-    Creature *pCreature = GetNPCIfCanInteractWith(vendorguid,UNIT_NPC_FLAG_VENDOR);
+    Creature *pCreature = GetNPCIfCanInteractWith(vendorGuid, UNIT_NPC_FLAG_VENDOR);
     if (!pCreature)
     {
-        DEBUG_LOG( "WORLD: BuyItemFromVendor - Unit (GUID: %u) not found or you can't interact with him.", uint32(GUID_LOPART(vendorguid)) );
-        SendBuyError( BUY_ERR_DISTANCE_TOO_FAR, NULL, item, 0);
+        DEBUG_LOG("WORLD: BuyItemFromVendor - %s not found or you can't interact with him.", vendorGuid.GetString().c_str());
+        SendBuyError(BUY_ERR_DISTANCE_TOO_FAR, NULL, item, 0);
         return false;
     }
 
