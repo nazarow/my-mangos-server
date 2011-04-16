@@ -250,8 +250,7 @@ bool OutdoorPvPObjectiveHP::Update(uint32 diff)
 
 			Map* map = sMapMgr.FindMap(530);
 
-            GameObject* flag = HashMapHolder<GameObject>::Find(ObjectGuid(m_CapturePoint));
-				//map?map->GetGameObject(ObjectGuid(m_CapturePoint)):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
+            GameObject* flag = map?map->GetGameObject(ObjectGuid(m_CapturePoint)):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
             GameObject* flag2 = map?map->GetGameObject(ObjectGuid(m_Objects[m_TowerType])):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[m_TowerType]));
             if(flag)
             {

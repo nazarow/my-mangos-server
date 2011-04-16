@@ -742,7 +742,7 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
                     Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
-                        Aur->SetAuraDuration(LexicsCutterActionDuration);
+						holder->SetAuraDuration(LexicsCutterActionDuration);
                         holder->AddAura(Aur, SpellEffectIndex(i));
                     }
                 }
@@ -762,7 +762,7 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
                     Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
-                        Aur->SetAuraDuration(LexicsCutterActionDuration);
+                        holder->SetAuraDuration(LexicsCutterActionDuration);
                         holder->AddAura(Aur, SpellEffectIndex(i));
                     }
                 }
@@ -805,7 +805,7 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
                     Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
-                        Aur->SetAuraDuration(LexicsCutterActionDuration);
+                        holder->SetAuraDuration(LexicsCutterActionDuration);
                         holder->AddAura(Aur, SpellEffectIndex(i));
                     }
                 }
@@ -825,7 +825,7 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
                     Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
-                        Aur->SetAuraDuration(LexicsCutterActionDuration);
+                        holder->SetAuraDuration(LexicsCutterActionDuration);
                         holder->AddAura(Aur, SpellEffectIndex(i));
                     }
                 }
@@ -845,7 +845,7 @@ void ChatLog::ChatBadLexicsAction(Player* player, std::string& msg)
                     Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, player);
                     if (Aur)
                     {
-                        Aur->SetAuraDuration(LexicsCutterActionDuration);
+                        holder->SetAuraDuration(LexicsCutterActionDuration);
                         holder->AddAura(Aur, SpellEffectIndex(i));
                     }
                 }

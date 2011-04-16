@@ -71,6 +71,12 @@ class TerrainInfo;
 
 typedef UNORDERED_MAP<Player*, UpdateData> UpdateDataMapType;
 
+struct Position
+{
+    Position() : x(0.0f), y(0.0f), z(0.0f), o(0.0f) {}
+    float x, y, z, o;
+};
+
 struct WorldLocation
 {
     uint32 mapid;
@@ -86,7 +92,7 @@ struct WorldLocation
 
 
 //use this class to measure time between world update ticks
-//essential for units updating their spells after cells become active 
+//essential for units updating their spells after cells become active
 class WorldUpdateCounter
 {
     public:
@@ -409,7 +415,7 @@ class MANGOS_DLL_SPEC WorldObject : public Object
                 ~UpdateHelper() { }
 
                 void Update( uint32 time_diff )
-                { 
+                {
                     m_obj->Update( m_obj->m_updateTracker.timeElapsed(), time_diff);
                     m_obj->m_updateTracker.Reset();
                 }
@@ -432,14 +438,14 @@ class MANGOS_DLL_SPEC WorldObject : public Object
 
         void SetOrientation(float orientation);
 
-        float GetPositionX( ) const { return m_positionX; }
-        float GetPositionY( ) const { return m_positionY; }
-        float GetPositionZ( ) const { return m_positionZ; }
+        float GetPositionX( ) const { return m_position.x; }
+        float GetPositionY( ) const { return m_position.y; }
+        float GetPositionZ( ) const { return m_position.z; }
         void GetPosition( float &x, float &y, float &z ) const
-            { x = m_positionX; y = m_positionY; z = m_positionZ; }
+            { x = m_position.x; y = m_position.y; z = m_position.z; }
         void GetPosition( WorldLocation &loc ) const
             { loc.mapid = m_mapId; GetPosition(loc.coord_x, loc.coord_y, loc.coord_z); loc.orientation = GetOrientation(); }
-        float GetOrientation( ) const { return m_orientation; }
+        float GetOrientation( ) const { return m_position.o; }
         void GetNearPoint2D( float &x, float &y, float distance, float absAngle) const;
         void GetNearPoint(WorldObject const* searcher, float &x, float &y, float &z, float searcher_bounding_radius, float distance2d, float absAngle) const;
         void GetClosePoint(float &x, float &y, float &z, float bounding_radius, float distance2d = 0, float angle = 0, const WorldObject* obj = NULL ) const
@@ -544,6 +550,7 @@ class MANGOS_DLL_SPEC WorldObject : public Object
         void AddObjectToRemoveList();
 
         void UpdateObjectVisibility();
+        virtual void UpdateVisibilityAndView();             // update visibility for object and object for all around
 
         // main visibility check function in normal case (ignore grey zone distance check)
         bool isVisibleFor(Player const* u, WorldObject const* viewPoint) const { return isVisibleForInState(u,viewPoint,false); }
@@ -569,6 +576,9 @@ class MANGOS_DLL_SPEC WorldObject : public Object
         bool isActiveObject() const { return m_isActiveObject || m_viewPoint.hasViewers(); }
 
         ViewPoint& GetViewPoint() { return m_viewPoint; }
+
+        // ASSERT print helper
+        bool PrintCoordinatesError(float x, float y, float z, char const* descr) const;
     protected:
         explicit WorldObject();
 
@@ -587,10 +597,7 @@ class MANGOS_DLL_SPEC WorldObject : public Object
         uint32 m_mapId;                                     // object at map with map_id
         uint32 m_InstanceId;                                // in map copy with instance id
 
-        float m_positionX;
-        float m_positionY;
-        float m_positionZ;
-        float m_orientation;
+        Position m_position;
 
         ViewPoint m_viewPoint;
 

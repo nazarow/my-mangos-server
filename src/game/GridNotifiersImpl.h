@@ -48,11 +48,8 @@ inline void MaNGOS::ObjectUpdater::Visit(CreatureMapType &m)
     }
 }
 
-inline void PlayerCreatureRelocationWorker(Player* pl, WorldObject const* viewPoint, Creature* c)
+inline void PlayerCreatureRelocationWorker(Player* pl, Creature* c)
 {
-    // update creature visibility at player/creature move
-    pl->UpdateVisibilityOf(viewPoint,c);
-
     // Creature AI reaction
     if (!c->hasUnitState(UNIT_STAT_LOST_CONTROL))
     {
@@ -81,11 +78,12 @@ inline void MaNGOS::PlayerRelocationNotifier::Visit(CreatureMapType &m)
     if (!i_player.isAlive() || i_player.IsTaxiFlying())
         return;
 
-    WorldObject const* viewPoint = i_player.GetCamera().GetBody();
-
     for(CreatureMapType::iterator iter = m.begin(); iter != m.end(); ++iter)
-        if (iter->getSource()->isAlive())
-            PlayerCreatureRelocationWorker(&i_player, viewPoint, iter->getSource());
+    {
+        Creature* c = iter->getSource();
+        if (c->isAlive())
+            PlayerCreatureRelocationWorker(&i_player, c);
+    }
 }
 
 template<>
@@ -95,9 +93,11 @@ inline void MaNGOS::CreatureRelocationNotifier::Visit(PlayerMapType &m)
         return;
 
     for(PlayerMapType::iterator iter=m.begin(); iter != m.end(); ++iter)
-        if (Player* player = iter->getSource())
-            if (player->isAlive() && !player->IsTaxiFlying())
-                PlayerCreatureRelocationWorker(player, player->GetCamera().GetBody(), &i_creature);
+    {
+        Player* player = iter->getSource();
+        if (player->isAlive() && !player->IsTaxiFlying())
+            PlayerCreatureRelocationWorker(player, &i_creature);
+    }
 }
 
 template<>
@@ -161,20 +161,11 @@ inline void MaNGOS::DynamicObjectUpdater::VisitHelper(Unit* target)
 
     // Apply PersistentAreaAura on target
     // in case 2 dynobject overlap areas for same spell, same holder is selected, so dynobjects share holder
-    SpellAuraHolder *holder = target->GetSpellAuraHolder(spellInfo->Id, i_dynobject.GetCaster()->GetGUID());
+    SpellAuraHolder *holder = target->GetSpellAuraHolder(spellInfo->Id, i_dynobject.GetCasterGuid().GetRawValue());
 
     if (holder)
     {
-        if (Aura* aura = holder->GetAuraByEffectIndex(eff_index))
-        {
-            // already exists, refresh duration
-            if (aura->GetAuraDuration() >=0 && uint32(aura->GetAuraDuration()) < i_dynobject.GetDuration())
-            {
-                aura->SetAuraDuration(i_dynobject.GetDuration());
-                holder->UpdateAuraDuration();
-            }
-        }
-        else
+        if (!holder->GetAuraByEffectIndex(eff_index))
         {
             PersistentAreaAura* Aur = new PersistentAreaAura(spellInfo, eff_index, NULL, holder, target, i_dynobject.GetCaster());
             holder->AddAura(Aur, eff_index);
@@ -182,6 +173,11 @@ inline void MaNGOS::DynamicObjectUpdater::VisitHelper(Unit* target)
             holder->SetInUse(true);
             Aur->ApplyModifier(true,true);
             holder->SetInUse(false);
+        }
+        else if (holder->GetAuraDuration() >= 0 && uint32(holder->GetAuraDuration()) < i_dynobject.GetDuration())
+        {
+            holder->SetAuraDuration(i_dynobject.GetDuration());
+            holder->UpdateAuraDuration();
         }
     }
     else

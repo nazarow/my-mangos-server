@@ -122,8 +122,8 @@ template uint32 IdGenerator<uint32>::Generate();
 template uint64 IdGenerator<uint64>::Generate();
 
 ObjectMgr::ObjectMgr() :
-    m_CreatureFirstGuid(1),
-    m_GameObjectFirstGuid(1),
+    m_FirstTemporaryCreatureGuid(1),
+    m_FirstTemporaryGameObjectGuid(1),
 
     m_ArenaTeamIds("Arena team ids"),
     m_AuctionIds("Auction ids"),
@@ -737,24 +737,24 @@ void ObjectMgr::ConvertCreatureAddonAuras(CreatureDataAddon* addon, char const* 
     }
 
     // replace by new structures array
-    const_cast<CreatureDataAddonAura*&>(addon->auras) = new CreatureDataAddonAura[val.size()+1];
+    const_cast<uint32*&>(addon->auras) = new uint32[val.size()+1];
 
     uint32 i = 0;
     for(uint32 j = 0; j < val.size(); ++j)
     {
-        CreatureDataAddonAura& cAura = const_cast<CreatureDataAddonAura&>(addon->auras[i]);
-        cAura.spell_id = uint32(val[j]);
+        uint32& cAura = const_cast<uint32&>(addon->auras[i]);
+        cAura = uint32(val[j]);
 
-        SpellEntry const *AdditionalSpellInfo = sSpellStore.LookupEntry(cAura.spell_id);
+        SpellEntry const *AdditionalSpellInfo = sSpellStore.LookupEntry(cAura);
         if (!AdditionalSpellInfo)
         {
-            sLog.outErrorDb("Creature (%s: %u) has wrong spell %u defined in `auras` field in `%s`.",guidEntryStr,addon->guidOrEntry,cAura.spell_id,table);
+            sLog.outErrorDb("Creature (%s: %u) has wrong spell %u defined in `auras` field in `%s`.", guidEntryStr, addon->guidOrEntry, cAura,table);
             continue;
         }
 
-        if (!IsSpellAppliesAura(AdditionalSpellInfo))
+        if (std::find(&addon->auras[0], &addon->auras[i], cAura) != &addon->auras[i])
         {
-            sLog.outErrorDb("Creature (%s: %u) has spell %u defined in `auras` field in `%s` but spell doesn't apply any auras.", guidEntryStr, addon->guidOrEntry, cAura.spell_id, table);
+            sLog.outErrorDb("Creature (%s: %u) has duplicate spell %u defined in `auras` field in `%s`.", guidEntryStr, addon->guidOrEntry, cAura, table);
             continue;
         }
 
@@ -762,8 +762,7 @@ void ObjectMgr::ConvertCreatureAddonAuras(CreatureDataAddon* addon, char const* 
     }
 
     // fill terminator element (after last added)
-    CreatureDataAddonAura& endAura = const_cast<CreatureDataAddonAura&>(addon->auras[i]);
-    endAura.spell_id = 0;
+    const_cast<uint32&>(addon->auras[i]) = 0;
 }
 
 void ObjectMgr::LoadCreatureAddons(SQLStorage& creatureaddons, char const* entryName, char const* comment)
@@ -4813,18 +4812,24 @@ void ObjectMgr::ReturnOrDeleteOldMails(bool serverUp)
 
                 delete resultItems;
             }
-            //if it is mail from AH, it shouldn't be returned, but deleted
-            if (m->messageType != MAIL_NORMAL || m->messageType == MAIL_AUCTION || (m->checked & (MAIL_CHECK_MASK_COD_PAYMENT | MAIL_CHECK_MASK_RETURNED)))
+            // if it is mail from non-player, or if it's already return mail, it shouldn't be returned, but deleted
+            if (m->messageType != MAIL_NORMAL || (m->checked & (MAIL_CHECK_MASK_COD_PAYMENT | MAIL_CHECK_MASK_RETURNED)))
             {
                 // mail open and then not returned
-                for(std::vector<MailItemInfo>::iterator itr2 = m->items.begin(); itr2 != m->items.end(); ++itr2)
+                for(MailItemInfoVec::iterator itr2 = m->items.begin(); itr2 != m->items.end(); ++itr2)
                     CharacterDatabase.PExecute("DELETE FROM item_instance WHERE guid = '%u'", itr2->item_guid);
             }
             else
             {
-                //mail will be returned:
+                // mail will be returned:
                 CharacterDatabase.PExecute("UPDATE mail SET sender = '%u', receiver = '%u', expire_time = '" UI64FMTD "', deliver_time = '" UI64FMTD "',cod = '0', checked = '%u' WHERE id = '%u'",
                     m->receiverGuid.GetCounter(), m->sender, (uint64)(basetime + 30*DAY), (uint64)basetime, MAIL_CHECK_MASK_RETURNED, m->messageID);
+                for (MailItemInfoVec::iterator itr2 = m->items.begin(); itr2 != m->items.end(); ++itr2)
+                {
+                    // update receiver in mail items for its proper delivery, and in instance_item for avoid lost item at sender delete
+                    CharacterDatabase.PExecute("UPDATE mail_items SET receiver = %u WHERE item_guid = '%u'", m->sender, itr2->item_guid);
+                    CharacterDatabase.PExecute("UPDATE item_instance SET owner_guid = %u WHERE guid = '%u'", m->sender, itr2->item_guid);
+                }
                 delete m;
                 continue;
             }
@@ -4833,8 +4838,8 @@ void ObjectMgr::ReturnOrDeleteOldMails(bool serverUp)
         if (m->itemTextId)
             CharacterDatabase.PExecute("DELETE FROM item_text WHERE id = '%u'", m->itemTextId);
 
-        //deletemail = true;
-        //delmails << m->messageID << ", ";
+        // deletemail = true;
+        // delmails << m->messageID << ", ";
         CharacterDatabase.PExecute("DELETE FROM mail WHERE id = '%u'", m->messageID);
         delete m;
         ++count;
@@ -5566,7 +5571,7 @@ void ObjectMgr::SetHighestGuids()
     result = WorldDatabase.Query("SELECT MAX(guid) FROM creature");
     if( result )
     {
-        m_CreatureFirstGuid = (*result)[0].GetUInt32()+1;
+        m_FirstTemporaryCreatureGuid = (*result)[0].GetUInt32()+1;
         delete result;
     }
 
@@ -5588,7 +5593,7 @@ void ObjectMgr::SetHighestGuids()
     result = WorldDatabase.Query("SELECT MAX(guid) FROM gameobject" );
     if( result )
     {
-        m_GameObjectFirstGuid = (*result)[0].GetUInt32()+1;
+        m_FirstTemporaryGameObjectGuid = (*result)[0].GetUInt32()+1;
         delete result;
     }
 
@@ -5640,6 +5645,13 @@ void ObjectMgr::SetHighestGuids()
         m_GroupIds.Set((*result)[0].GetUInt32()+1);
         delete result;
     }
+
+    // setup reserved ranges for static guids spawn
+    m_StaticCreatureGuids.Set(m_FirstTemporaryCreatureGuid);
+    m_FirstTemporaryCreatureGuid += sWorld.getConfig(CONFIG_UINT32_GUID_RESERVE_SIZE_CREATURE);
+
+    m_StaticGameObjectGuids.Set(m_FirstTemporaryGameObjectGuid);
+    m_FirstTemporaryGameObjectGuid += sWorld.getConfig(CONFIG_UINT32_GUID_RESERVE_SIZE_GAMEOBJECT);
 }
 
 uint32 ObjectMgr::CreateItemText(std::string text)
@@ -8035,7 +8047,7 @@ void ObjectMgr::LoadTrainerTemplates()
         {
             if (cInfo->trainerId)
             {
-                if (trainer_ids.count(cInfo->trainerId) > 0)
+                if (m_mCacheTrainerTemplateSpellMap.find(cInfo->trainerId) != m_mCacheTrainerTemplateSpellMap.end())
                     trainer_ids.erase(cInfo->trainerId);
                 else
                     sLog.outErrorDb("Creature (Entry: %u) has trainer_id = %u for nonexistent trainer template", cInfo->Entry, cInfo->trainerId);

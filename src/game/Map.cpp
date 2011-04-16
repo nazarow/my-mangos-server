@@ -29,7 +29,6 @@
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include "World.h"
-#include "ScriptMgr.h"
 #include "Group.h"
 #include "MapRefManager.h"
 #include "DBCEnums.h"
@@ -38,14 +37,6 @@
 #include "BattleGroundMgr.h"
 
 #define MAX_GRID_LOAD_TIME      50
-
-struct ScriptAction
-{
-    ObjectGuid sourceGuid;
-    ObjectGuid targetGuid;
-    ObjectGuid ownerGuid;                                   // owner of source if source is item
-    ScriptInfo const* script;                               // pointer to static script data
-};
 
 Map::~Map()
 {
@@ -86,8 +77,8 @@ Map::Map(uint32 id, time_t expiry, uint32 InstanceId, uint8 SpawnMode)
   i_gridExpiry(expiry), m_TerrainData(sTerrainMgr.LoadTerrain(id)),
   i_data(NULL), i_script_id(0)
 {
-    m_CreatureGuids.Set(sObjectMgr.GetFirstCreatureLowGuid());
-    m_GameObjectGuids.Set(sObjectMgr.GetFirstGameObjectLowGuid());
+    m_CreatureGuids.Set(sObjectMgr.GetFirstTemporaryCreatureLowGuid());
+    m_GameObjectGuids.Set(sObjectMgr.GetFirstTemporaryGameObjectLowGuid());
 
     for(unsigned int j=0; j < MAX_NUMBER_OF_GRIDS; ++j)
     {
@@ -208,46 +199,25 @@ void Map::DeleteFromWorld(Player* pl)
     delete pl;
 }
 
-template<class T>
-void Map::AddNotifier(T* , Cell const& , CellPair const& )
-{
-}
-
-template<>
-void Map::AddNotifier(Player* obj, Cell const& cell, CellPair const& cellpair)
-{
-    PlayerRelocationNotify(obj,cell,cellpair);
-}
-
-template<>
-void Map::AddNotifier(Creature* obj, Cell const&, CellPair const&)
-{
-    obj->SetNeedNotify();
-}
-
 void
 Map::EnsureGridCreated(const GridPair &p)
 {
     if(!getNGrid(p.x_coord, p.y_coord))
     {
-        Guard guard(*this);
-        if(!getNGrid(p.x_coord, p.y_coord))
-        {
-            setNGrid(new NGridType(p.x_coord*MAX_NUMBER_OF_GRIDS + p.y_coord, p.x_coord, p.y_coord, i_gridExpiry, sWorld.getConfig(CONFIG_BOOL_GRID_UNLOAD)),
-                p.x_coord, p.y_coord);
+        setNGrid(new NGridType(p.x_coord*MAX_NUMBER_OF_GRIDS + p.y_coord, p.x_coord, p.y_coord, i_gridExpiry, sWorld.getConfig(CONFIG_BOOL_GRID_UNLOAD)),
+            p.x_coord, p.y_coord);
 
-            // build a linkage between this map and NGridType
-            buildNGridLinkage(getNGrid(p.x_coord, p.y_coord));
+        // build a linkage between this map and NGridType
+        buildNGridLinkage(getNGrid(p.x_coord, p.y_coord));
 
-            getNGrid(p.x_coord, p.y_coord)->SetGridState(GRID_STATE_IDLE);
+        getNGrid(p.x_coord, p.y_coord)->SetGridState(GRID_STATE_IDLE);
 
-            //z coord
-            int gx = (MAX_NUMBER_OF_GRIDS - 1) - p.x_coord;
-            int gy = (MAX_NUMBER_OF_GRIDS - 1) - p.y_coord;
+        //z coord
+        int gx = (MAX_NUMBER_OF_GRIDS - 1) - p.x_coord;
+        int gy = (MAX_NUMBER_OF_GRIDS - 1) - p.y_coord;
 
-            if(!m_bLoadedGrids[gx][gy])
-                LoadMapAndVMap(gx,gy);
-        }
+        if(!m_bLoadedGrids[gx][gy])
+            LoadMapAndVMap(gx,gy);
     }
 }
 
@@ -330,8 +300,6 @@ bool Map::Add(Player *player)
     player->GetViewPoint().Event_AddedToWorld(&(*grid)(cell.CellX(), cell.CellY()));
     UpdateObjectVisibility(player,cell,p);
 
-    AddNotifier(player,cell,p);
-
     if (i_data)
         i_data->OnPlayerEnter(player);
 
@@ -372,8 +340,6 @@ Map::Add(T *obj)
 
     obj->GetViewPoint().Event_AddedToWorld(&(*grid)(cell.CellX(), cell.CellY()));
     UpdateObjectVisibility(obj,cell,p);
-
-    AddNotifier(obj,cell,p);
 }
 
 void Map::MessageBroadcast(Player *player, WorldPacket *msg, bool to_self)
@@ -469,6 +435,19 @@ bool Map::loaded(const GridPair &p) const
 
 void Map::Update(const uint32 &t_diff)
 {
+    /// update worldsessions for existing players
+    for(m_mapRefIter = m_mapRefManager.begin(); m_mapRefIter != m_mapRefManager.end(); ++m_mapRefIter)
+    {
+        Player* plr = m_mapRefIter->getSource();
+        if(plr && plr->IsInWorld())
+        {
+            WorldSession * pSession = plr->GetSession();
+            MapSessionFilter updater(pSession);
+
+            pSession->Update(t_diff, updater);
+        }
+    }
+
     /// update players at tick
     for(m_mapRefIter = m_mapRefManager.begin(); m_mapRefIter != m_mapRefManager.end(); ++m_mapRefIter)
     {
@@ -708,10 +687,7 @@ Map::PlayerRelocation(Player *player, float x, float y, float z, float orientati
         player->GetViewPoint().Event_GridChanged(&(*newGrid)(new_cell.CellX(),new_cell.CellY()));
     }
 
-    player->GetViewPoint().Call_UpdateVisibilityForOwner();
-    // if move then update what player see and who seen
-    UpdateObjectVisibility(player, new_cell, new_val);
-    PlayerRelocationNotify(player,new_cell,new_val);
+    player->OnRelocated();
 
     NGridType* newGrid = getNGrid(new_cell.GridX(), new_cell.GridY());
     if( !same_cell && newGrid->GetGridState()!= GRID_STATE_ACTIVE )
@@ -731,39 +707,31 @@ Map::CreatureRelocation(Creature *creature, float x, float y, float z, float ang
     CellPair new_val = MaNGOS::ComputeCellPair(x, y);
     Cell new_cell(new_val);
 
-    // delay creature move for grid/cell to grid/cell moves
     if (old_cell.DiffCell(new_cell) || old_cell.DiffGrid(new_cell))
     {
         DEBUG_FILTER_LOG(LOG_FILTER_CREATURE_MOVES, "Creature (GUID: %u Entry: %u) added to moving list from grid[%u,%u]cell[%u,%u] to grid[%u,%u]cell[%u,%u].", creature->GetGUIDLow(), creature->GetEntry(), old_cell.GridX(), old_cell.GridY(), old_cell.CellX(), old_cell.CellY(), new_cell.GridX(), new_cell.GridY(), new_cell.CellX(), new_cell.CellY());
 
         // do move or do move to respawn or remove creature if previous all fail
-        if(CreatureCellRelocation(creature,new_cell))
+        if (CreatureCellRelocation(creature,new_cell))
         {
             // update pos
             creature->Relocate(x, y, z, ang);
-
-            // in diffcell/diffgrid case notifiers called in Creature::Update
-            creature->SetNeedNotify();
+            creature->OnRelocated();
         }
-        else
+        // if creature can't be move in new cell/grid (not loaded) move it to repawn cell/grid
+        // creature coordinates will be updated and notifiers send
+        else if (!CreatureRespawnRelocation(creature))
         {
-            // if creature can't be move in new cell/grid (not loaded) move it to repawn cell/grid
-            // creature coordinates will be updated and notifiers send
-            if(!CreatureRespawnRelocation(creature))
-            {
-                // ... or unload (if respawn grid also not loaded)
-                DEBUG_FILTER_LOG(LOG_FILTER_CREATURE_MOVES, "Creature (GUID: %u Entry: %u ) can't be move to unloaded respawn grid.",creature->GetGUIDLow(),creature->GetEntry());
-                creature->SetNeedNotify();
-            }
+            // ... or unload (if respawn grid also not loaded)
+            DEBUG_FILTER_LOG(LOG_FILTER_CREATURE_MOVES, "Creature (GUID: %u Entry: %u ) can't be move to unloaded respawn grid.",creature->GetGUIDLow(),creature->GetEntry());
         }
     }
     else
     {
         creature->Relocate(x, y, z, ang);
-        creature->SetNeedNotify();
+        creature->OnRelocated();
     }
 
-    creature->GetViewPoint().Call_UpdateVisibilityForOwner();
     MANGOS_ASSERT(CheckGridIntegrity(creature,true));
 }
 
@@ -847,7 +815,7 @@ bool Map::CreatureRespawnRelocation(Creature *c)
     {
         c->Relocate(resp_x, resp_y, resp_z, resp_o);
         c->GetMotionMaster()->Initialize();                 // prevent possible problems with default move generators
-        c->SetNeedNotify();
+        c->OnRelocated();
         return true;
     }
     else
@@ -949,19 +917,6 @@ void Map::UpdateObjectVisibility( WorldObject* obj, Cell cell, CellPair cellpair
     MaNGOS::VisibleChangesNotifier notifier(*obj);
     TypeContainerVisitor<MaNGOS::VisibleChangesNotifier, WorldTypeMapContainer > player_notifier(notifier);
     cell.Visit(cellpair, player_notifier, *this, *obj, GetVisibilityDistance());
-}
-
-void Map::PlayerRelocationNotify( Player* player, Cell cell, CellPair cellpair )
-{
-    MaNGOS::PlayerRelocationNotifier relocationNotifier(*player);
-
-    TypeContainerVisitor<MaNGOS::PlayerRelocationNotifier, GridTypeMapContainer >  p2grid_relocation(relocationNotifier);
-    TypeContainerVisitor<MaNGOS::PlayerRelocationNotifier, WorldTypeMapContainer > p2world_relocation(relocationNotifier);
-
-    float radius = MAX_CREATURE_ATTACK_RADIUS * sWorld.getConfig(CONFIG_FLOAT_RATE_CREATURE_AGGRO);
-
-    cell.Visit(cellpair, p2grid_relocation, *this, *player, radius);
-    cell.Visit(cellpair, p2world_relocation, *this, *player, radius);
 }
 
 void Map::SendInitSelf( Player * player )
@@ -1378,111 +1333,107 @@ bool DungeonMap::Add(Player *player)
     // GMs still can teleport player in instance.
     // Is it needed?
 
+    if (!CanEnter(player))
+        return false;
+
+    // check for existing instance binds
+    InstancePlayerBind *playerBind = player->GetBoundInstance(GetId(), GetDifficulty());
+    if (playerBind && playerBind->perm)
     {
-        Guard guard(*this);
-
-        if (!CanEnter(player))
-            return false;
-
-        // check for existing instance binds
-        InstancePlayerBind *playerBind = player->GetBoundInstance(GetId(), GetDifficulty());
-        if (playerBind && playerBind->perm)
+        // cannot enter other instances if bound permanently
+        if (playerBind->state != GetPersistanceState())
         {
-            // cannot enter other instances if bound permanently
-            if (playerBind->state != GetPersistanceState())
+            sLog.outError("DungeonMap::Add: player %s(%d) is permanently bound to instance %d,%d,%d,%d,%d,%d but he is being put in instance %d,%d,%d,%d,%d,%d",
+                player->GetName(), player->GetGUIDLow(), playerBind->state->GetMapId(),
+                playerBind->state->GetInstanceId(), playerBind->state->GetDifficulty(),
+                playerBind->state->GetPlayerCount(), playerBind->state->GetGroupCount(),
+                playerBind->state->CanReset(),
+                GetPersistanceState()->GetMapId(), GetPersistanceState()->GetInstanceId(),
+                GetPersistanceState()->GetDifficulty(), GetPersistanceState()->GetPlayerCount(),
+                GetPersistanceState()->GetGroupCount(), GetPersistanceState()->CanReset());
+            player->RepopAtGraveyard(); // kia MANGOS_ASSERT(false);
+        }
+    }
+    else
+    {
+        Group *pGroup = player->GetGroup();
+        if (pGroup)
+        {
+            // solo saves should be reset when entering a group
+            InstanceGroupBind *groupBind = pGroup->GetBoundInstance(this,GetDifficulty());
+            if (playerBind)
             {
-                sLog.outError("DungeonMap::Add: player %s(%d) is permanently bound to instance %d,%d,%d,%d,%d,%d but he is being put in instance %d,%d,%d,%d,%d,%d",
-                    player->GetName(), player->GetGUIDLow(), playerBind->state->GetMapId(),
-                    playerBind->state->GetInstanceId(), playerBind->state->GetDifficulty(),
-                    playerBind->state->GetPlayerCount(), playerBind->state->GetGroupCount(),
-                    playerBind->state->CanReset(),
-                    GetPersistanceState()->GetMapId(), GetPersistanceState()->GetInstanceId(),
-                    GetPersistanceState()->GetDifficulty(), GetPersistanceState()->GetPlayerCount(),
-                    GetPersistanceState()->GetGroupCount(), GetPersistanceState()->CanReset());
-                player->RepopAtGraveyard();	// kia MANGOS_ASSERT(false);
+                sLog.outError("DungeonMap::Add: %s is being put in instance %d,%d,%d,%d,%d,%d but he is in group (Id: %d) and is bound to instance %d,%d,%d,%d,%d,%d!",
+                    player->GetGuidStr().c_str(), GetPersistentState()->GetMapId(), GetPersistentState()->GetInstanceId(),
+                    GetPersistanceState()->GetDifficulty(), GetPersistanceState()->GetPlayerCount(), GetPersistanceState()->GetGroupCount(),
+                    GetPersistanceState()->CanReset(), pGroup->GetId(),
+                    playerBind->state->GetMapId(), playerBind->state->GetInstanceId(), playerBind->state->GetDifficulty(),
+                    playerBind->state->GetPlayerCount(), playerBind->state->GetGroupCount(), playerBind->state->CanReset());
+
+                if (groupBind)
+                    sLog.outError("DungeonMap::Add: the group (Id: %d) is bound to instance %d,%d,%d,%d,%d,%d",
+                        pGroup->GetId(),
+                        groupBind->state->GetMapId(), groupBind->state->GetInstanceId(), groupBind->state->GetDifficulty(),
+                        groupBind->state->GetPlayerCount(), groupBind->state->GetGroupCount(), groupBind->state->CanReset());
+
+                // no reason crash if we can fix state
+                player->UnbindInstance(GetId(), GetDifficulty());
+            }
+
+            // bind to the group or keep using the group save
+            if (!groupBind)
+                pGroup->BindToInstance(GetPersistanceState(), false);
+            else
+            {
+                // cannot jump to a different instance without resetting it
+                if (groupBind->state != GetPersistentState())
+                {
+                    sLog.outError("DungeonMap::Add: %s is being put in instance %d,%d,%d but he is in group (Id: %d) which is bound to instance %d,%d,%d!",
+                        player->GetGuidStr().c_str(), GetPersistentState()->GetMapId(),
+                        GetPersistentState()->GetInstanceId(), GetPersistentState()->GetDifficulty(),
+                        pGroup->GetId(), groupBind->state->GetMapId(),
+                        groupBind->state->GetInstanceId(), groupBind->state->GetDifficulty());
+
+                    sLog.outError("MapSave players: %d, group count: %d",
+                        GetPersistanceState()->GetPlayerCount(), GetPersistanceState()->GetGroupCount());
+
+                    if (groupBind->state)
+                        sLog.outError("GroupBind save players: %d, group count: %d", groupBind->state->GetPlayerCount(), groupBind->state->GetGroupCount());
+                    else
+                        sLog.outError("GroupBind save NULL");
+                    MANGOS_ASSERT(false);
+                }
+                // if the group/leader is permanently bound to the instance
+                // players also become permanently bound when they enter
+                if (groupBind->perm)
+                {
+                    WorldPacket data(SMSG_INSTANCE_SAVE_CREATED, 4);
+                    data << uint32(0);
+                    player->GetSession()->SendPacket(&data);
+                    player->BindToInstance(GetPersistanceState(), true);
+                }
             }
         }
         else
         {
-            Group *pGroup = player->GetGroup();
-            if (pGroup)
-            {
-                // solo saves should be reset when entering a group
-                InstanceGroupBind *groupBind = pGroup->GetBoundInstance(this,GetDifficulty());
-                if (playerBind)
-                {
-                    sLog.outError("DungeonMap::Add: %s is being put in instance %d,%d,%d,%d,%d,%d but he is in group (Id: %d) and is bound to instance %d,%d,%d,%d,%d,%d!",
-                        player->GetGuidStr().c_str(), GetPersistentState()->GetMapId(), GetPersistentState()->GetInstanceId(),
-                        GetPersistanceState()->GetDifficulty(), GetPersistanceState()->GetPlayerCount(), GetPersistanceState()->GetGroupCount(),
-                        GetPersistanceState()->CanReset(), pGroup->GetId(),
-                        playerBind->state->GetMapId(), playerBind->state->GetInstanceId(), playerBind->state->GetDifficulty(),
-                        playerBind->state->GetPlayerCount(), playerBind->state->GetGroupCount(), playerBind->state->CanReset());
-
-                    if (groupBind)
-                        sLog.outError("DungeonMap::Add: the group (Id: %d) is bound to instance %d,%d,%d,%d,%d,%d",
-                            pGroup->GetId(),
-                            groupBind->state->GetMapId(), groupBind->state->GetInstanceId(), groupBind->state->GetDifficulty(),
-                            groupBind->state->GetPlayerCount(), groupBind->state->GetGroupCount(), groupBind->state->CanReset());
-
-                    // no reason crash if we can fix state
-                    player->UnbindInstance(GetId(), GetDifficulty());
-                }
-
-                // bind to the group or keep using the group save
-                if (!groupBind)
-                    pGroup->BindToInstance(GetPersistanceState(), false);
-                else
-                {
-                    // cannot jump to a different instance without resetting it
-                    if (groupBind->state != GetPersistentState())
-                    {
-                        sLog.outError("DungeonMap::Add: %s is being put in instance %d,%d,%d but he is in group (Id: %d) which is bound to instance %d,%d,%d!",
-                            player->GetGuidStr().c_str(), GetPersistentState()->GetMapId(),
-                            GetPersistentState()->GetInstanceId(), GetPersistentState()->GetDifficulty(),
-                            pGroup->GetId(), groupBind->state->GetMapId(),
-                            groupBind->state->GetInstanceId(), groupBind->state->GetDifficulty());
-
-                        sLog.outError("MapSave players: %d, group count: %d",
-                            GetPersistanceState()->GetPlayerCount(), GetPersistanceState()->GetGroupCount());
-
-                        if (groupBind->state)
-                            sLog.outError("GroupBind save players: %d, group count: %d", groupBind->state->GetPlayerCount(), groupBind->state->GetGroupCount());
-                        else
-                            sLog.outError("GroupBind save NULL");
-                        MANGOS_ASSERT(false);
-                    }
-                    // if the group/leader is permanently bound to the instance
-                    // players also become permanently bound when they enter
-                    if (groupBind->perm)
-                    {
-                        WorldPacket data(SMSG_INSTANCE_SAVE_CREATED, 4);
-                        data << uint32(0);
-                        player->GetSession()->SendPacket(&data);
-                        player->BindToInstance(GetPersistanceState(), true);
-                    }
-                }
-            }
+            // set up a solo bind or continue using it
+            if(!playerBind)
+                player->BindToInstance(GetPersistanceState(), false);
             else
-            {
-                // set up a solo bind or continue using it
-                if(!playerBind)
-                    player->BindToInstance(GetPersistanceState(), false);
-                else
-                    // cannot jump to a different instance without resetting it
-                    MANGOS_ASSERT(playerBind->state == GetPersistentState());
-            }
+                // cannot jump to a different instance without resetting it
+                MANGOS_ASSERT(playerBind->state == GetPersistentState());
         }
-
-        // for normal instances cancel the reset schedule when the
-        // first player enters (no players yet)
-        SetResetSchedule(false);
-
-        DETAIL_LOG("MAP: Player '%s' is entering instance '%u' of map '%s'", player->GetName(), GetInstanceId(), GetMapName());
-        // initialize unload state
-        m_unloadTimer = 0;
-        m_resetAfterUnload = false;
-        m_unloadWhenEmpty = false;
     }
+
+    // for normal instances cancel the reset schedule when the
+    // first player enters (no players yet)
+    SetResetSchedule(false);
+
+    DETAIL_LOG("MAP: Player '%s' is entering instance '%u' of map '%s'", player->GetName(), GetInstanceId(), GetMapName());
+    // initialize unload state
+    m_unloadTimer = 0;
+    m_resetAfterUnload = false;
+    m_unloadWhenEmpty = false;
 
     // this will acquire the same mutex so it cannot be in the previous block
     Map::Add(player);
@@ -1664,13 +1615,12 @@ bool BattleGroundMap::CanEnter(Player * player)
 
 bool BattleGroundMap::Add(Player * player)
 {
-    {
-        Guard guard(*this);
-        if(!CanEnter(player))
-            return false;
-        // reset instance validity, battleground maps do not homebind
-        player->m_InstanceValid = true;
-    }
+    if(!CanEnter(player))
+        return false;
+
+    // reset instance validity, battleground maps do not homebind
+    player->m_InstanceValid = true;
+
     return Map::Add(player);
 }
 
@@ -1957,20 +1907,56 @@ void Map::ScriptsProcess()
                 break;
             }
             case SCRIPT_COMMAND_EMOTE:
+            {
                 if (!source)
                 {
-                    sLog.outError("SCRIPT_COMMAND_EMOTE (script id %u) call for NULL creature.", step.script->id);
+                    sLog.outError("SCRIPT_COMMAND_EMOTE (script id %u) call for NULL source.", step.script->id);
                     break;
                 }
 
-                if (source->GetTypeId()!=TYPEID_UNIT)
+                if (!source->isType(TYPEMASK_WORLDOBJECT))
                 {
-                    sLog.outError("SCRIPT_COMMAND_EMOTE (script id %u) call for non-creature (TypeId: %u), skipping.", step.script->id, source->GetTypeId());
+                    sLog.outError("SCRIPT_COMMAND_EMOTE (script id %u) call for non-worldobject (TypeId: %u), skipping.", step.script->id, source->GetTypeId());
                     break;
                 }
+                // When creatureEntry is not defined, GameObject can not be source
+                else if (!step.script->emote.creatureEntry)
+                {
+                    if (!source->isType(TYPEMASK_UNIT))
+                    {
+                        sLog.outError("SCRIPT_COMMAND_EMOTE (script id %u) are missing datalong2 (creature entry). Unsupported call for non-unit (TypeId: %u), skipping.", step.script->id, source->GetTypeId());
+                        break;
+                    }
+                }
 
-                ((Creature*)source)->HandleEmote(step.script->emote.emoteId);
+                WorldObject* pSource = (WorldObject*)source;
+                Creature* pBuddy = NULL;
+
+                // flag_target_as_source            0x01
+
+                // If target is Unit* and should do the emote (or should be source of searcher below)
+                if (target && target->isType(TYPEMASK_UNIT) && step.script->emote.flags & 0x01)
+                    pSource = (WorldObject*)target;
+
+                // If step has a buddy entry defined, search for it.
+                if (step.script->emote.creatureEntry)
+                {
+                    MaNGOS::NearestCreatureEntryWithLiveStateInObjectRangeCheck u_check(*pSource, step.script->emote.creatureEntry, true, step.script->emote.searchRadius);
+                    MaNGOS::CreatureLastSearcher<MaNGOS::NearestCreatureEntryWithLiveStateInObjectRangeCheck> searcher(pBuddy, u_check);
+
+                    Cell::VisitGridObjects(pSource, searcher, step.script->emote.searchRadius);
+
+                    // If buddy found, then use it or break (break since we must assume pBuddy was defined for a reason)
+                    if (pBuddy)
+                        pSource = (WorldObject*)pBuddy;
+                    else
+                        break;
+                }
+
+                // Must be safe cast to Unit*
+                ((Unit*)pSource)->HandleEmote(step.script->emote.emoteId);
                 break;
+            }
             case SCRIPT_COMMAND_FIELD_SET:
                 if (!source)
                 {
@@ -2673,9 +2659,9 @@ void Map::ScriptsProcess()
                 }
 
                 if (step.script->faction.factionId)
-                    pOwner->setFaction(step.script->faction.factionId);
+                    pOwner->SetFactionTemporary(step.script->faction.factionId, step.script->faction.flags);
                 else
-                    pOwner->setFaction(pOwner->GetCreatureInfo()->faction_A);
+                    pOwner->ClearTemporaryFaction();
 
                 break;
             }
@@ -2843,6 +2829,77 @@ void Map::ScriptsProcess()
 
                 break;
             }
+            case SCRIPT_COMMAND_ATTACK_START:
+            {
+                if (!source)
+                {
+                    sLog.outError("SCRIPT_COMMAND_ATTACK_START (script id %u) call for NULL source.", step.script->id);
+                    break;
+                }
+
+                if (!source->isType(TYPEMASK_WORLDOBJECT))
+                {
+                    sLog.outError("SCRIPT_COMMAND_ATTACK_START (script id %u) call for unsupported non-worldobject (TypeId: %u), skipping.", step.script->id, source->GetTypeId());
+                    break;
+                }
+
+                WorldObject* pSource = (WorldObject*)source;
+                Creature* pBuddy = NULL;
+
+                // flag_original_source_as_target   0x02
+                // flag_buddy_as_target             0x04
+
+                // If step has a buddy entry defined, search for it.
+                if (step.script->attack.creatureEntry)
+                {
+                    MaNGOS::NearestCreatureEntryWithLiveStateInObjectRangeCheck u_check(*pSource, step.script->attack.creatureEntry, true, step.script->attack.searchRadius);
+                    MaNGOS::CreatureLastSearcher<MaNGOS::NearestCreatureEntryWithLiveStateInObjectRangeCheck> searcher(pBuddy, u_check);
+
+                    Cell::VisitGridObjects(pSource, searcher, step.script->attack.searchRadius);
+
+                    // If buddy found, then use it
+                    if (pBuddy)
+                    {
+                        if (step.script->attack.flags & 0x04)
+                        {
+                            // pBuddy is target of attack
+                            target = (Object*)pBuddy;
+                        }
+                        else
+                        {
+                            // If not target of attack, then set pBuddy as source, the attacker
+                            pSource = (WorldObject*)pBuddy;
+                        }
+                    }
+                    else
+                    {
+                        // No buddy found, so don't do anything
+                        break;
+                    }
+                }
+
+                // If we should attack the original source instead of target
+                if (step.script->attack.flags & 0x02)
+                    target = source;
+
+                Unit* unitTarget = target && target->isType(TYPEMASK_UNIT) ? static_cast<Unit*>(target) : NULL;
+                Creature* pAttacker = pSource && pSource->GetTypeId() == TYPEID_UNIT ? static_cast<Creature*>(pSource) : NULL;
+
+                if (pAttacker && unitTarget)
+                {
+                    if (pAttacker->IsFriendlyTo(unitTarget))
+                    {
+                        sLog.outError("SCRIPT_COMMAND_ATTACK_START (script id %u) attacker is friendly to target, can not attack.", step.script->id);
+                        break;
+                    }
+
+                    pAttacker->AI()->AttackStart(unitTarget);
+                    break;
+                }
+
+                sLog.outError("SCRIPT_COMMAND_ATTACK_START (script id %u) unexpected error, attacker or victim could not be found, no action.", step.script->id);
+                break;
+            }
             default:
                 sLog.outError("Unknown SCRIPT_COMMAND_ %u called for script id %u.",step.script->command, step.script->id);
                 break;
@@ -2897,7 +2954,7 @@ Pet* Map::GetPet(ObjectGuid guid)
 /**
  * Function return corpse that at CURRENT map
  *
- * Note: corpse can be NOT IN WORLD, so can't be used corspe->GetMap() without pre-check corpse->isInWorld()
+ * Note: corpse can be NOT IN WORLD, so can't be used corpse->GetMap() without pre-check corpse->isInWorld()
  *
  * @param guid must be corpse guid (HIGHGUID_CORPSE)
  */

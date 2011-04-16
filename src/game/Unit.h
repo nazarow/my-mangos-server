@@ -658,12 +658,6 @@ enum SplineType
     SPLINETYPE_FACINGANGLE  = 4
 };
 
-struct Position
-{
-    Position() : x(0.0f), y(0.0f), z(0.0f), o(0.0f) {}
-    float x, y, z, o;
-};
-
 class MovementInfo
 {
     public:
@@ -1412,6 +1406,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         ObjectGuid const& GetChannelObjectGuid() const { return GetGuidValue(UNIT_FIELD_CHANNEL_OBJECT); }
         void SetChannelObjectGuid(ObjectGuid targetGuid) { SetGuidValue(UNIT_FIELD_CHANNEL_OBJECT, targetGuid); }
 
+        virtual Pet* GetMiniPet() const { return NULL; }    // overwrited in Player
+
         ObjectGuid const& GetCharmerOrOwnerGuid() const { return !GetCharmerGuid().IsEmpty() ? GetCharmerGuid() : GetOwnerGuid(); }
         ObjectGuid const& GetCharmerOrOwnerOrOwnGuid() const
         {
@@ -1422,7 +1418,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         }
         bool isCharmedOwnedByPlayerOrPlayer() const { return GetCharmerOrOwnerOrOwnGuid().IsPlayer(); }
 
-        Player* GetSpellModOwner();
+        Player* GetSpellModOwner() const;
 
         Unit* GetOwner() const;
         Pet* GetPet() const;
@@ -1456,7 +1452,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         CharmInfo* InitCharmInfo(Unit* charm);
         void       DeleteCharmInfo();
 
-        uint64 const& GetTotemGUID(TotemSlot slot) const { return m_TotemSlot[slot]; }
+        ObjectGuid const& GetTotemGuid(TotemSlot slot) const { return m_TotemSlot[slot]; }
         Totem* GetTotem(TotemSlot slot) const;
         bool IsAllTotemSlotsUsed() const;
 
@@ -1500,8 +1496,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void RemoveAllAurasOnDeath();
 
         // removing specific aura FROM stack by diff reasons and selections
-        void RemoveAuraHolderFromStack(uint32 spellId, int32 stackAmount = 1, uint64 casterGUID = 0, AuraRemoveMode mode = AURA_REMOVE_BY_DEFAULT);
-        void RemoveAuraHolderDueToSpellByDispel(uint32 spellId, int32 stackAmount, uint64 casterGUID, Unit *dispeler);
+        void RemoveAuraHolderFromStack(uint32 spellId, uint32 stackAmount = 1, uint64 casterGUID = 0, AuraRemoveMode mode = AURA_REMOVE_BY_DEFAULT);
+        void RemoveAuraHolderDueToSpellByDispel(uint32 spellId, uint32 stackAmount, uint64 casterGUID, Unit *dispeller);
 
         void DelaySpellAuraHolder(uint32 spellId, int32 delaytime, uint64 casterGUID);
 
@@ -1612,6 +1608,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         // Visibility system
         UnitVisibility GetVisibility() const { return m_Visibility; }
         void SetVisibility(UnitVisibility x);
+        void UpdateVisibilityAndView();                     // overwrite WorldObject::UpdateVisibilityAndView()
 
         // common function for visibility checks for player/creatures with detection code
         bool isVisibleForOrDetect(Unit const* u, WorldObject const* viewPoint, bool detect, bool inVisibleList = false, bool is3dDistance = true) const;
@@ -1779,7 +1776,9 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void _ApplyAllAuraMods();
 
         int32 CalculateSpellDamage(Unit const* target, SpellEntry const* spellProto, SpellEffectIndex effect_index, int32 const* basePoints = NULL);
-        int32 CalculateSpellDuration(SpellEntry const* spellProto, SpellEffectIndex effect_index, Unit const* target);
+
+        int32 CalculateAuraDuration(SpellEntry const* spellProto, uint32 effectMask, int32 duration, Unit const* caster);
+
         float CalculateLevelPenalty(SpellEntry const* spellProto) const;
 		bool PlayersWin() const { return (GetPlayersDamage()>0); }
 		int32 GetPlayersDamage() const { return m_playersDamage; }
@@ -1827,8 +1826,15 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 		// kia used flag for some spells
 		bool isUsed() const { return m_used; }
 		void SetUsed(bool val) { m_used = val; }
-
 		void ShowMovementInfo(const uint32 pl, MovementInfo const& movementInfo, const char *opcode);
+
+        // Movement info
+        //MovementInfo m_movementInfo; -- BIG TODO backport
+
+        void ScheduleAINotify(uint32 delay);
+        bool IsAINotifyScheduled() const { return m_AINotifyScheduled;}
+        void _SetAINotifyScheduled(bool on) { m_AINotifyScheduled = on;}       // only for call from RelocationNotifyEvent code
+        void OnRelocated();
 
     protected:
         explicit Unit ();
@@ -1897,6 +1903,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         uint32 m_castCounter;                               // count casts chain of triggered spells for prevent infinity cast crashes
 
         UnitVisibility m_Visibility;
+        Position m_last_notified_position;
+        bool m_AINotifyScheduled;
 
         Diminishing m_Diminishing;
         // Manage all Units threatening us
@@ -1910,7 +1918,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         GuardianPetList m_guardianPets;
 
-        uint64 m_TotemSlot[MAX_TOTEM_SLOT];
+        ObjectGuid m_TotemSlot[MAX_TOTEM_SLOT];
 
 		bool m_used;
 
@@ -1938,8 +1946,8 @@ void Unit::CallForAllControlledUnits(Func const& func, uint32 controlledMask)
         if (Pet* pet = GetPet())
             func(pet);
 
-    if ((controlledMask & CONTROLLED_MINIPET) && GetTypeId() == TYPEID_PLAYER)
-        if (Unit* mini = ((Player*)this)->GetMiniPet())
+    if (controlledMask & CONTROLLED_MINIPET)
+        if (Unit* mini = GetMiniPet())
             func(mini);
 
     if (controlledMask & CONTROLLED_GUARDIANS)
@@ -1970,8 +1978,8 @@ bool Unit::CheckAllControlledUnits(Func const& func, uint32 controlledMask) cons
             if (func(pet))
                 return true;
 
-    if ((controlledMask & CONTROLLED_MINIPET) && GetTypeId() == TYPEID_PLAYER)
-        if (Unit* mini = ((Player*)this)->GetMiniPet())
+    if (controlledMask & CONTROLLED_MINIPET)
+        if (Unit* mini = GetMiniPet())
             if (func(mini))
                 return true;
 

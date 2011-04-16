@@ -177,6 +177,8 @@ enum eConfigUInt32Values
     CONFIG_UINT32_CHARDELETE_KEEP_DAYS,
     CONFIG_UINT32_CHARDELETE_METHOD,
     CONFIG_UINT32_CHARDELETE_MIN_LEVEL,
+    CONFIG_UINT32_GUID_RESERVE_SIZE_CREATURE,
+    CONFIG_UINT32_GUID_RESERVE_SIZE_GAMEOBJECT,
     CONFIG_UINT32_VALUE_COUNT
 };
 
@@ -547,13 +549,16 @@ class World
         static float GetVisibleObjectGreyDistance()         { return m_VisibleObjectGreyDistance;     }
 
 		//movement anticheat
-        static bool GetEnableMvAnticheat() {return m_EnableMvAnticheat;}
-        static uint32 GetTeleportToPlaneAlarms() {return m_TeleportToPlaneAlarms;}
-        static uint32 GetMistimingDelta()  {return m_MistimingDelta;}
-        static uint32 GetMistimingAlarms() {return m_MistimingAlarms;}
-        bool GetAlarmKickMvAnticheat()  {return m_AlarmKickMvAnticheat;}    
-        uint32 GetAlarmCountMvAnticheat() {return m_AlarmCountMvAnticheat;} 
+        static bool GetEnableMvAnticheat()                  { return m_EnableMvAnticheat;             }
+        static uint32 GetTeleportToPlaneAlarms()            { return m_TeleportToPlaneAlarms;         }
+        static uint32 GetMistimingDelta()                   { return m_MistimingDelta;                }
+        static uint32 GetMistimingAlarms()                  { return m_MistimingAlarms;               }
+        bool GetAlarmKickMvAnticheat()                      { return m_AlarmKickMvAnticheat;          }    						  
+        uint32 GetAlarmCountMvAnticheat()                   { return m_AlarmCountMvAnticheat;         } 
         //<<< end movement anticheat
+
+        static float GetRelocationLowerLimitSq()            { return m_relocation_lower_limit_sq; }
+        static uint32 GetRelocationAINotifyDelay()          { return m_relocation_ai_notify_delay; }
 
         void ProcessCliCommands();
         void QueueCliCommand(CliCommandHolder* commandHolder) { cliCmdQueue.add(commandHolder); }
@@ -640,6 +645,7 @@ class World
         static float m_MaxVisibleDistanceInFlight;
         static float m_VisibleUnitGreyDistance;
         static float m_VisibleObjectGreyDistance;
+
         //movement anticheat enable flag
         static bool m_EnableMvAnticheat;
         static uint32 m_TeleportToPlaneAlarms;
@@ -647,6 +653,10 @@ class World
         static uint32 m_MistimingAlarms;
         bool m_AlarmKickMvAnticheat;
         uint32 m_AlarmCountMvAnticheat;
+
+        static float  m_relocation_lower_limit_sq;
+        static uint32 m_relocation_ai_notify_delay;
+
         // CLI command holder to be thread safe
         ACE_Based::LockedQueue<CliCommandHolder*,ACE_Thread_Mutex> cliCmdQueue;
 

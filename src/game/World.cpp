@@ -79,17 +79,12 @@ float World::m_VisibleObjectGreyDistance      = 0;
 
 //movement anticheat
 bool World::m_EnableMvAnticheat = true;
-uint32  World::m_TeleportToPlaneAlarms = 50;
-uint32 World::m_MistimingAlarms = 20;
-uint32 World::m_MistimingDelta = 2000;
+uint32  World::m_TeleportToPlaneAlarms        = 50;
+uint32 World::m_MistimingAlarms               = 20;
+uint32 World::m_MistimingDelta                = 2000;
 
-struct ScriptAction
-{
-    uint64 sourceGUID;
-    uint64 targetGUID;
-    uint64 ownerGUID;                                       // owner of source if source is item
-    ScriptInfo const* script;                               // pointer to static script data
-};
+float  World::m_relocation_lower_limit_sq     = 10.f * 10.f;
+uint32 World::m_relocation_ai_notify_delay    = 1000u;
 
 /// World constructor
 World::World()
@@ -270,7 +265,12 @@ World::AddSession_ (WorldSession* s)
         float popu = float(GetActiveSessionCount());        // updated number of users on the server
         popu /= pLimit;
         popu *= 2;
-        LoginDatabase.PExecute ("UPDATE realmlist SET population = '%f' WHERE id = '%u'", popu, realmID);
+
+        static SqlStatementID id;
+
+        SqlStatement stmt = LoginDatabase.CreateStatement(id, "UPDATE realmlist SET population = ? WHERE id = ?");
+        stmt.PExecute(popu, realmID);
+
         DETAIL_LOG("Server Population (%f).", popu);
     }
 }
@@ -778,6 +778,9 @@ void World::LoadConfigSettings(bool reload)
 
     setConfig(CONFIG_BOOL_PET_UNSUMMON_AT_MOUNT,      "PetUnsummonAtMount", true);
 
+    m_relocation_ai_notify_delay = sConfig.GetIntDefault("Visibility.AIRelocationNotifyDelay", 1000u);
+    m_relocation_lower_limit_sq  = pow(sConfig.GetFloatDefault("Visibility.RelocationLowerLimit",10), 2);
+
     m_VisibleUnitGreyDistance = sConfig.GetFloatDefault("Visibility.Distance.Grey.Unit", 1);
     if(m_VisibleUnitGreyDistance >  MAX_VISIBILITY_DISTANCE)
     {
@@ -844,6 +847,11 @@ void World::LoadConfigSettings(bool reload)
     setConfigMinMax(CONFIG_UINT32_CHARDELETE_METHOD, "CharDelete.Method", 0, 0, 1);
     setConfigMinMax(CONFIG_UINT32_CHARDELETE_MIN_LEVEL, "CharDelete.MinLevel", 0, 0, getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL));
     setConfigPos(CONFIG_UINT32_CHARDELETE_KEEP_DAYS, "CharDelete.KeepDays", 30);
+
+    if (configNoReload(reload, CONFIG_UINT32_GUID_RESERVE_SIZE_CREATURE, "GuidReserveSize.Creature", 100))
+        setConfigPos(CONFIG_UINT32_GUID_RESERVE_SIZE_CREATURE,   "GuidReserveSize.Creature",   100);
+    if (configNoReload(reload, CONFIG_UINT32_GUID_RESERVE_SIZE_GAMEOBJECT, "GuidReserveSize.GameObject", 100))
+        setConfigPos(CONFIG_UINT32_GUID_RESERVE_SIZE_GAMEOBJECT, "GuidReserveSize.GameObject", 100);
 
     ///- Read the "Data" directory from the config file
     std::string dataPath = sConfig.GetStringDefault("DataDir", "./");
@@ -1959,11 +1967,14 @@ void World::UpdateSessions( uint32 diff )
         next = itr;
         ++next;
         ///- and remove not active sessions from the list
-        if(!itr->second->Update(diff))                      // As interval = 0
+        WorldSession * pSession = itr->second;
+        WorldSessionFilter updater(pSession);
+
+        if(!pSession->Update(diff, updater))    // As interval = 0
         {
-            RemoveQueuedSession (itr->second);
-            delete itr->second;
+            RemoveQueuedSession(pSession);
             m_sessions.erase(itr);
+            delete pSession;
         }
     }
 }

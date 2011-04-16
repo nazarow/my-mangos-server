@@ -815,7 +815,7 @@ void WorldSession::HandleMoveNotActiveMoverOpcode(WorldPacket &recv_data)
     MovementInfo mi;
 	unsigned char unk1;
 
-    recv_data >> old_mover_guid.ReadAsPacked();
+    recv_data >> old_mover_guid;
     recv_data >> mi;
 	recv_data >> unk1;
 

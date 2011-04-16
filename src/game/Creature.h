@@ -138,6 +138,11 @@ struct CreatureInfo
     uint32  ScriptID;
 
     // helpers
+    HighGuid GetHighGuid() const
+    {
+        return HIGHGUID_UNIT;                               // in pre-3.x always HIGHGUID_UNIT
+    }
+
     SkillType GetRequiredLootSkill() const
     {
         if(type_flags & CREATURE_TYPEFLAGS_HERBLOOT)
@@ -188,11 +193,14 @@ struct CreatureData
     bool  is_dead;
     uint8 movementType;
     uint8 spawnMask;
-};
 
-struct CreatureDataAddonAura
-{
-    uint32 spell_id;
+    // helper function
+    HighGuid GetHighGuid() const
+    {
+        return HIGHGUID_UNIT;                               // in pre-3.x always HIGHGUID_UNIT
+    }
+
+    ObjectGuid GetObjectGuid(uint32 lowguid) const { return ObjectGuid(GetHighGuid(), id, lowguid); }
 };
 
 // from `creature_addon` and `creature_template_addon`tables
@@ -205,7 +213,7 @@ struct CreatureDataAddon
     uint8  flags;                                           // UnitBytes2_Flags
     uint32 emote;
     uint32 move_flags;
-    CreatureDataAddonAura const* auras;                     // loaded as char* "spell1 spell2 ... "
+    uint32 const* auras;                                    // loaded as char* "spell1 spell2 ... "
 };
 
 struct CreatureModelInfo
@@ -422,6 +430,15 @@ enum CreatureSubtype
     CREATURE_SUBTYPE_TEMPORARY_SUMMON,                      // new TemporarySummon
 };
 
+enum TemporaryFactionFlags                                  // Used at real faction changes
+{
+    TEMPFACTION_NONE                    = 0x00,             // When no flag is used in temporary faction change, faction will be persistent. It will then require manual change back to default/another faction when changed once
+    TEMPFACTION_RESTORE_RESPAWN         = 0x01,             // Default faction will be restored at respawn
+    TEMPFACTION_RESTORE_COMBAT_STOP     = 0x02,             // ... at CombatStop() (happens at creature death, at evade or custom scripte among others)
+    TEMPFACTION_RESTORE_REACH_HOME      = 0x04,             // ... at reaching home in home movement (evade), if not already done at CombatStop()
+    TEMPFACTION_ALL,
+};
+
 class MANGOS_DLL_SPEC Creature : public Unit
 {
     CreatureAI *i_AI;
@@ -434,7 +451,7 @@ class MANGOS_DLL_SPEC Creature : public Unit
         void AddToWorld();
         void RemoveFromWorld();
 
-        bool Create(uint32 guidlow, CreatureCreatePos& cPos, uint32 Entry, Team team = TEAM_NONE, const CreatureData *data = NULL, GameEventCreatureData const* eventData = NULL);
+        bool Create(uint32 guidlow, CreatureCreatePos& cPos, CreatureInfo const* cinfo, Team team = TEAM_NONE, const CreatureData *data = NULL, GameEventCreatureData const* eventData = NULL);
         bool LoadCreatureAddon(bool reload = false);
         void SelectLevel(const CreatureInfo *cinfo, float percentHealth = 100.0f, float percentMana = 100.0f);
         void LoadEquipment(uint32 equip_entry, bool force=false);
@@ -443,7 +460,9 @@ class MANGOS_DLL_SPEC Creature : public Unit
 
         char const* GetSubName() const { return GetCreatureInfo()->SubName; }
 
-        void Update(uint32 update_diff, uint32 time);                           // overwrite Unit::Update
+        void Update(uint32 update_diff, uint32 time);       // overwrite Unit::Update
+
+        virtual void RegenerateAll(uint32 update_diff);
         void GetRespawnCoord(float &x, float &y, float &z, float* ori = NULL, float* dist =NULL) const;
         uint32 GetEquipmentId() const { return m_equipmentId; }
 
@@ -582,6 +601,7 @@ class MANGOS_DLL_SPEC Creature : public Unit
                                                             // overwrited in Pet
         virtual void SaveToDB(uint32 mapid, uint8 spawnMask);
         virtual void DeleteFromDB();                        // overwrited in Pet
+        static void DeleteFromDB(uint32 lowguid, CreatureData const* data);
 
         Loot loot;
         bool lootForPickPocketed;
@@ -672,19 +692,19 @@ class MANGOS_DLL_SPEC Creature : public Unit
                 return m_charmInfo->GetCharmSpell(pos)->GetAction();
         }
 
-        void SetCombatStartPosition(float x, float y, float z) { CombatStartX = x; CombatStartY = y; CombatStartZ = z; }
-        void GetCombatStartPosition(float &x, float &y, float &z) { x = CombatStartX; y = CombatStartY; z = CombatStartZ; }
+        void SetCombatStartPosition(float x, float y, float z) { m_combatStartX = x; m_combatStartY = y; m_combatStartZ = z; }
+        void GetCombatStartPosition(float &x, float &y, float &z) { x = m_combatStartX; y = m_combatStartY; z = m_combatStartZ; }
 
-        void SetSummonPoint(CreatureCreatePos const& pos) { m_summonXpoint = pos.m_pos.x; m_summonYpoint = pos.m_pos.y; m_summonZpoint = pos.m_pos.z; m_summonOrientation = pos.m_pos.o; }
-        void GetSummonPoint(float &fX, float &fY, float &fZ, float &fOrient) const { fX = m_summonXpoint; fY = m_summonYpoint; fZ = m_summonZpoint; fOrient = m_summonOrientation; }
+        void SetSummonPoint(CreatureCreatePos const& pos) { m_summonPos = pos.m_pos; }
+        void GetSummonPoint(float &fX, float &fY, float &fZ, float &fOrient) const { fX = m_summonPos.x; fY = m_summonPos.y; fZ = m_summonPos.z; fOrient = m_summonPos.o; }
 
         void SetDeadByDefault (bool death_state) { m_isDeadByDefault = death_state; }
 
         void SetActiveObjectState(bool on);
 
-        // TODO this method is a hack, move all BattleGroundCreatures to database - or set home-point for BG-creatures
-        //void SetDBTableGuid(uint32 id) { m_DBTableGuid = id; }
-        void SetNeedNotify() { m_needNotify = true; }
+        void SetFactionTemporary(uint32 factionId, uint32 tempFactionFlags = TEMPFACTION_ALL);
+        void ClearTemporaryFaction();
+        uint32 GetTemporaryFactionFlags() { return m_temporaryFactionFlags; }
 
         void SendAreaSpiritHealerQueryOpcode(Player *pl);
 
@@ -695,9 +715,8 @@ class MANGOS_DLL_SPEC Creature : public Unit
         void SetVirtualItemRaw(VirtualItemSlot slot, uint32 display_id, uint32 info0, uint32 info1);
     protected:
         uint32 m_spellId;
-        bool CreateFromProto(uint32 guidlow, uint32 Entry, Team team, const CreatureData *data = NULL, GameEventCreatureData const* eventData = NULL);
+        bool CreateFromProto(uint32 guidlow, CreatureInfo const* cinfo, Team team, const CreatureData *data = NULL, GameEventCreatureData const* eventData =NULL);
         bool InitEntry(uint32 entry, const CreatureData* data = NULL, GameEventCreatureData const* eventData = NULL);
-        void RelocationNotify();
 
         uint32 m_groupLootTimer;                            // (msecs)timer used for group loot
         uint32 m_groupLootId;                               // used to find group which is looting corpse
@@ -731,24 +750,22 @@ class MANGOS_DLL_SPEC Creature : public Unit
         Cell m_currentCell;                                 // store current cell where creature listed
         uint32 m_equipmentId;
 
+        // below fields has potential for optimization
         bool m_AlreadyCallAssistance;
         bool m_AlreadySearchedAssistance;
         bool m_regenHealth;
         bool m_AI_locked;
         bool m_isDeadByDefault;
-        bool m_needNotify;
+        uint32 m_temporaryFactionFlags;                     // used for real faction changes (not auras etc)
 
         SpellSchoolMask m_meleeDamageSchoolMask;
         uint32 m_originalEntry;
 
-        float CombatStartX;
-        float CombatStartY;
-        float CombatStartZ;
+        float m_combatStartX;
+        float m_combatStartY;
+        float m_combatStartZ;
 
-        float m_summonXpoint;
-        float m_summonYpoint;
-        float m_summonZpoint;
-        float m_summonOrientation;
+        Position m_summonPos;
 
     private:
         GridReference<Creature> m_gridRef;

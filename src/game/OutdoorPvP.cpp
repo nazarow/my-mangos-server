@@ -166,9 +166,9 @@ bool OutdoorPvPObjective::AddCreature(uint32 type, uint32 entry, Team teamval, u
     CreatureCreatePos pos(pMap, x, y, z, o);
 
     Creature* pCreature = new Creature;
-    if (!pCreature->Create(guid, pos, entry, teamval))
+    if (!pCreature->Create(guid, pos, cinfo, teamval))
     {
-        sLog.outError("Can't create creature entry: %u",entry);
+        sLog.outError("Can't create creature entry: %u", entry);
         delete pCreature;
         return true;
     }
@@ -284,7 +284,7 @@ bool OutdoorPvPObjective::AddCapturePoint(uint32 entry, uint32 map, float x, flo
     // add creature...
     CreatureCreatePos pos(pMap, x, y, z, o);
     Creature* pCreature = new Creature;
-    if (!pCreature->Create(creature_guid, pos, OPVP_TRIGGER_CREATURE_ENTRY))
+    if (!pCreature->Create(creature_guid, pos, cinfo))
     {
         sLog.outError("Can't create creature entry: %u",entry);
         delete pCreature;
