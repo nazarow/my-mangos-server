@@ -342,7 +342,9 @@ bool OutdoorPvPObjectiveTF::Update(uint32 diff)
                 break;
             }
 
-            GameObject* flag = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
+			Map* map = sMapMgr.FindMap(530);
+
+            GameObject* flag = map?map->GetGameObject(ObjectGuid(m_CapturePoint)):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
             if(flag)
             {
                 flag->SetGoArtKit(artkit);

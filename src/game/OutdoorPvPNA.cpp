@@ -45,6 +45,7 @@ void OutdoorPvPNA::HandleKillImpl(Player *plr, Unit * killed)
 
 uint32 OutdoorPvPObjectiveNA::GetAliveGuardsCount()
 {
+	Map* map = sMapMgr.FindMap(530);
     uint32 cnt = 0;
     for(std::map<uint32, uint64>::iterator itr = m_Creatures.begin(); itr != m_Creatures.end(); ++itr)
     {
@@ -66,7 +67,7 @@ uint32 OutdoorPvPObjectiveNA::GetAliveGuardsCount()
         case NA_NPC_GUARD_14:
         case NA_NPC_GUARD_15:
             {
-                if(Creature * cr = NULL)//ObjectAccessor::GetCreatureInWorld(ObjectGuid(itr->second)))
+                if (Creature * cr = map?map->GetCreature(ObjectGuid(itr->second)):NULL)//ObjectAccessor::GetCreatureInWorld(ObjectGuid(itr->second)))
                 {
                     if(cr->isAlive())
                         ++cnt;
@@ -644,8 +645,9 @@ bool OutdoorPvPObjectiveNA::Update(uint32 diff)
                 break;
             }
 
-            GameObject* flag = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
-            if(flag)
+			Map* map = sMapMgr.FindMap(530);
+            GameObject* flag = map?map->GetGameObject(ObjectGuid(m_CapturePoint)):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
+            if (flag)
             {
                 flag->SetGoArtKit(artkit);
             }

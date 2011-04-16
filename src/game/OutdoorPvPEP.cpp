@@ -92,8 +92,9 @@ bool OutdoorPvPObjectiveEP_EWT::Update(uint32 diff)
                 break;
             }
 
-            GameObject* flag = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
-            GameObject* flag2 = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[EP_EWT_FLAGS]));
+			Map* map = sMapMgr.FindMap(530);
+            GameObject* flag = map?map->GetGameObject(ObjectGuid(m_CapturePoint)):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
+            GameObject* flag2 = map?map->GetGameObject(ObjectGuid(m_Objects[EP_EWT_FLAGS])):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[EP_EWT_FLAGS]));
             if(flag)
             {
                 flag->SetGoArtKit(artkit);
@@ -266,8 +267,9 @@ bool OutdoorPvPObjectiveEP_NPT::Update(uint32 diff)
                 break;
             }
 
-            GameObject* flag = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
-            GameObject* flag2 = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[EP_NPT_FLAGS]));
+			Map* map = sMapMgr.FindMap(530);
+            GameObject* flag = map?map->GetGameObject(ObjectGuid(m_CapturePoint)):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
+            GameObject* flag2 = map?map->GetGameObject(ObjectGuid(m_Objects[EP_NPT_FLAGS])):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[EP_NPT_FLAGS]));
             if(flag)
             {
                 flag->SetGoArtKit(artkit);
@@ -362,7 +364,8 @@ void OutdoorPvPObjectiveEP_NPT::SummonGO(Team team)
         m_SummonedGOSide = team;
         DelObject(EP_NPT_BUFF);
         AddObject(EP_NPT_BUFF,EP_NPT_LordaeronShrine.entry,EP_NPT_LordaeronShrine.map,EP_NPT_LordaeronShrine.x,EP_NPT_LordaeronShrine.y,EP_NPT_LordaeronShrine.z,EP_NPT_LordaeronShrine.o,EP_NPT_LordaeronShrine.rot0,EP_NPT_LordaeronShrine.rot1,EP_NPT_LordaeronShrine.rot2,EP_NPT_LordaeronShrine.rot3);
-        GameObject * go = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[EP_NPT_BUFF]));
+		Map* map = sMapMgr.FindMap(530);
+        GameObject * go = map?map->GetGameObject(ObjectGuid(m_Objects[EP_NPT_BUFF])):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[EP_NPT_BUFF]));
         if(go)
             go->SetUInt32Value(GAMEOBJECT_FACTION,(team == ALLIANCE ? 84 : 83));
     }
@@ -431,8 +434,9 @@ bool OutdoorPvPObjectiveEP_CGT::Update(uint32 diff)
                 break;
             }
 
-            GameObject* flag = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
-            GameObject* flag2 = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[EP_CGT_FLAGS]));
+			Map* map = sMapMgr.FindMap(530);
+            GameObject* flag = map?map->GetGameObject(ObjectGuid(m_CapturePoint)):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
+            GameObject* flag2 = map?map->GetGameObject(ObjectGuid(m_Objects[EP_CGT_FLAGS])):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[EP_CGT_FLAGS]));
             if(flag)
             {
                 flag->SetGoArtKit(artkit);
@@ -595,8 +599,9 @@ bool OutdoorPvPObjectiveEP_PWT::Update(uint32 diff)
                 break;
             }
 
-            GameObject* flag = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
-            GameObject* flag2 = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[EP_PWT_FLAGS]));
+			Map* map = sMapMgr.FindMap(530);
+            GameObject* flag = map?map->GetGameObject(ObjectGuid(m_CapturePoint)):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
+            GameObject* flag2 = map?map->GetGameObject(ObjectGuid(m_Objects[EP_PWT_FLAGS])):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[EP_PWT_FLAGS]));
             if(flag)
             {
                 flag->SetGoArtKit(artkit);
@@ -736,7 +741,7 @@ bool OutdoorPvPObjectiveEP_PWT::HandleGossipOption(Player *plr, uint64 guid, uin
     std::map<uint64,uint32>::iterator itr = m_CreatureTypes.find(guid);
     if(itr != m_CreatureTypes.end())
     {
-        Creature * cr = NULL;//ObjectAccessor::GetCreatureInWorld(ObjectGuid(guid));
+        Creature * cr = plr?plr->GetMap()->GetCreature(ObjectGuid(guid)):NULL;//ObjectAccessor::GetCreatureInWorld(ObjectGuid(guid));
         if(!cr)
             return true;
         if(itr->second == EP_PWT_FLIGHTMASTER)

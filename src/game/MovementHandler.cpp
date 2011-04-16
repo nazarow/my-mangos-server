@@ -344,7 +344,7 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
             }
             ///GetPlayer()->m_anti_transportGUID = GUID_LOPART(movementInfo.t_guid);
             //Correct finding GO guid in DB (thanks to GriffonHeart)
-			GameObject *obj = NULL;//ObjectAccessor::GetGameObjectInWorld(movementInfo.t_guid.GetRawValue());
+			GameObject *obj = plMover->GetMap()?plMover->GetMap()->GetGameObject(movementInfo.t_guid):NULL;//ObjectAccessor::GetGameObjectInWorld(movementInfo.t_guid.GetRawValue());
             if(obj)
                 plMover->m_anti_transportGUID = obj->GetGUIDLow();
             else

@@ -56,8 +56,11 @@ void OutdoorPvPObjective::HandlePlayerLeave(Player * plr)
 
 void OutdoorPvPObjective::HandlePlayerActivityChanged(Player * plr)
 {
-    if(m_CapturePointCreature)
-        if(Creature * c = NULL)//ObjectAccessor::GetCreatureInWorld(ObjectGuid(m_CapturePointCreature)))
+	if (!plr)
+		return;
+
+    if (m_CapturePointCreature)
+        if (Creature * c = plr->GetMap()->GetCreature(ObjectGuid(m_CapturePointCreature)))//ObjectAccessor::GetCreatureInWorld(ObjectGuid(m_CapturePointCreature)))
             if(c->AI())
                 c->AI()->MoveInLineOfSight(plr);
 }
@@ -68,7 +71,7 @@ bool OutdoorPvPObjective::AddObject(uint32 type, uint32 entry, uint32 map, float
     if (!goinfo)
         return false;
 
-    Map * pMap = MapManager::Instance().FindMap(map);
+    Map * pMap = sMapMgr.FindMap(map);
     if(!pMap)
         return true;
 
@@ -131,7 +134,7 @@ bool OutdoorPvPObjective::AddCreature(uint32 type, uint32 entry, Team teamval, u
     else
         displayId = minfo->modelid;                        // it can be different (for another gender)
 
-    Map * pMap = MapManager::Instance().FindMap(map);
+    Map * pMap = sMapMgr.FindMap(map);
     if(!pMap)
         return true;
     uint32 guid = pMap->GenerateLocalLowGuid(HIGHGUID_UNIT);
@@ -206,7 +209,7 @@ bool OutdoorPvPObjective::AddCapturePoint(uint32 entry, uint32 map, float x, flo
     uint32 displayId = Creature::ChooseDisplayId(cinfo);
 
     // add to map if map is already loaded
-    Map * pMap = MapManager::Instance().FindMap(map);
+    Map * pMap = sMapMgr.FindMap(map);
     if(!pMap)
         return true;
     uint32 creature_guid = pMap->GenerateLocalLowGuid(HIGHGUID_UNIT);
@@ -233,7 +236,7 @@ bool OutdoorPvPObjective::AddCapturePoint(uint32 entry, uint32 map, float x, flo
     sObjectMgr.AddCreatureToGrid(creature_guid, &cdata);
 	m_CapturePointCreature = ObjectGuid(HIGHGUID_UNIT, OPVP_TRIGGER_CREATURE_ENTRY, creature_guid).GetRawValue();
 
-    // create capture point go
+/*    // create capture point go
     uint32 guid = pMap->GenerateLocalLowGuid(HIGHGUID_GAMEOBJECT);
 
     GameObjectData& data = sObjectMgr.NewGOData(guid);
@@ -255,7 +258,7 @@ bool OutdoorPvPObjective::AddCapturePoint(uint32 entry, uint32 map, float x, flo
 
     sObjectMgr.AddGameobjectToGrid(guid, &data);
 
-	m_CapturePoint = ObjectGuid(HIGHGUID_GAMEOBJECT, entry, guid).GetRawValue();
+	m_CapturePoint = ObjectGuid(HIGHGUID_GAMEOBJECT, entry, guid).GetRawValue();*/
 
     // get the needed values from goinfo
     m_ShiftMaxPhase = goinfo->raw.data[17];
@@ -265,15 +268,17 @@ bool OutdoorPvPObjective::AddCapturePoint(uint32 entry, uint32 map, float x, flo
 
     // add GO...
     GameObject * go = new GameObject;
-    if(!go->Create(guid,entry, pMap,x,y,z,o,rotation0,rotation1,rotation2,rotation3,100,GO_STATE_READY))
+    if (!go->Create(pMap->GenerateLocalLowGuid(HIGHGUID_GAMEOBJECT), entry, pMap, 
+		x, y, z, o, rotation0, rotation1, rotation2, rotation3, GO_ANIMPROGRESS_DEFAULT, GO_STATE_READY))
     {
         sLog.outError("Gameobject template %u not found in database.", entry);
         delete go;
     }
     else
     {
+		go->AddToWorld();
         go->SetRespawnTime(0);
-        pMap->GetPersistentState()->SaveGORespawnTime(go->GetGUIDLow(), 0);
+        //pMap->GetPersistentState()->SaveGORespawnTime(go->GetGUIDLow(), 0);
         pMap->Add(go);
     }
     // add creature...
@@ -310,7 +315,8 @@ bool OutdoorPvPObjective::DelCreature(uint32 type)
         return false;
     }
 
-    Creature *cr = NULL;//ObjectAccessor::GetCreatureInWorld(ObjectGuid(m_Creatures[type]));
+	Map* map = sMapMgr.FindMap(530);
+    Creature *cr = map?map->GetCreature(ObjectGuid(m_Creatures[type])):NULL;//ObjectAccessor::GetCreatureInWorld(ObjectGuid(m_Creatures[type]));
     if(!cr)
     {
         // can happen when closing the core
@@ -326,7 +332,7 @@ bool OutdoorPvPObjective::DelCreature(uint32 type)
     // explicit removal from map
     // beats me why this is needed, but with the recent removal "cleanup" some creatures stay in the map if "properly" deleted
     // so this is a big fat workaround, if AddObjectToRemoveList and DoDelayedMovesAndRemoves worked correctly, this wouldn't be needed
-    if(Map * map = MapManager::Instance().FindMap(cr->GetMapId()))
+    if(Map * map = sMapMgr.FindMap(cr->GetMapId()))
         map->Remove(cr,false);
     // delete respawn time for this creature
     WorldDatabase.PExecute("DELETE FROM creature_respawn WHERE guid = '%u'", guid);
@@ -342,7 +348,8 @@ bool OutdoorPvPObjective::DelObject(uint32 type)
     if(!m_Objects[type])
         return false;
 
-    GameObject *obj = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[type]));
+	Map* map = sMapMgr.FindMap(530);
+    GameObject *obj = map?map->GetGameObject(ObjectGuid(m_Objects[type])):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[type]));
     if(!obj)
     {
         m_Objects[type] = 0;
@@ -359,9 +366,10 @@ bool OutdoorPvPObjective::DelObject(uint32 type)
 
 bool OutdoorPvPObjective::DelCapturePoint()
 {
+	Map* map = sMapMgr.FindMap(530);
     if(m_CapturePoint)
     {
-        GameObject *obj = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
+        GameObject *obj = map?map->GetGameObject(ObjectGuid(m_CapturePoint)):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
         if(obj)
         {
             uint32 guid = obj->GetGUIDLow();
@@ -373,7 +381,7 @@ bool OutdoorPvPObjective::DelCapturePoint()
     }
     if(m_CapturePointCreature)
     {
-        Creature *cr = NULL;//ObjectAccessor::GetCreatureInWorld(ObjectGuid(m_CapturePointCreature));
+        Creature *cr = map?map->GetCreature(ObjectGuid(m_CapturePointCreature)):NULL;//ObjectAccessor::GetCreatureInWorld(ObjectGuid(m_CapturePointCreature));
         if(cr)
         {
             uint32 guid = cr->GetGUIDLow();
@@ -384,7 +392,7 @@ bool OutdoorPvPObjective::DelCapturePoint()
             // explicit removal from map
             // beats me why this is needed, but with the recent removal "cleanup" some creatures stay in the map if "properly" deleted
             // so this is a big fat workaround, if AddObjectToRemoveList and DoDelayedMovesAndRemoves worked correctly, this wouldn't be needed
-            if(Map * map = MapManager::Instance().FindMap(cr->GetMapId()))
+            if(Map * map = sMapMgr.FindMap(cr->GetMapId()))
                 map->Remove(cr,false);
             // delete respawn time for this creature
             WorldDatabase.PExecute("DELETE FROM creature_respawn WHERE guid = '%u'", guid);
@@ -453,20 +461,21 @@ bool OutdoorPvP::Update(uint32 diff)
 
 void OutdoorPvPObjective::UpdateActivePlayerProximityCheck()
 {
-    if(GameObject *cp = NULL)//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint)))
+    //if (GameObject *cp = NULL)//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint)))
     {
-        for(int team = 0; team < 2; ++team)
+        for (int team = 0; team < 2; ++team)
         {
             std::set<uint64>::iterator itr, next;
-            for(itr = m_ActivePlayerGuids[team].begin(); itr != m_ActivePlayerGuids[team].end(); itr = next)
+            for (itr = m_ActivePlayerGuids[team].begin(); itr != m_ActivePlayerGuids[team].end(); itr = next)
             {
                 next = itr;
                 ++next;
                 // if the player is online
-                if(Player * pl = sObjectMgr.GetPlayer(*itr))
+                if (Player * pl = sObjectMgr.GetPlayer(*itr))
                 {
-                    if(!cp->IsWithinDistInMap(pl,cp->GetGOInfo()->raw.data[0]))
-                        HandleCapturePointEvent(pl, cp->GetGOInfo()->raw.data[9]); //i_objective->HandlePlayerLeave((Player*)u);
+					if (GameObject *cp = pl->GetMap()->GetGameObject(ObjectGuid(m_CapturePoint)))//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint)))
+                        if (!cp->IsWithinDistInMap(pl, cp->GetGOInfo()->raw.data[0]))
+                            HandleCapturePointEvent(pl, cp->GetGOInfo()->raw.data[9]); //i_objective->HandlePlayerLeave((Player*)u);
                 }
                 else
                 {
@@ -561,7 +570,7 @@ bool OutdoorPvPObjective::HandleCaptureCreaturePlayerMoveInLos(Player * p, Creat
         return false;
 
     // check if capture point go is spawned
-    GameObject * cp = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
+    GameObject * cp = p?p->GetMap()->GetGameObject(ObjectGuid(m_CapturePoint)):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
     if(!cp)
         return false;
 

@@ -165,7 +165,7 @@ void OutdoorPvPHP::FillInitialWorldStates(WorldPacket &data, uint32 &count)
 bool OutdoorPvPObjectiveHP::Update(uint32 diff)
 {
     // if status changed:
-    if(OutdoorPvPObjective::Update(diff))
+	if(OutdoorPvPObjective::Update(diff))
     {
         if(m_OldState != m_State)
         {
@@ -248,8 +248,11 @@ bool OutdoorPvPObjectiveHP::Update(uint32 diff)
                 break;
             }
 
-            GameObject* flag = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
-            GameObject* flag2 = NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[m_TowerType]));
+			Map* map = sMapMgr.FindMap(530);
+
+            GameObject* flag = HashMapHolder<GameObject>::Find(ObjectGuid(m_CapturePoint));
+				//map?map->GetGameObject(ObjectGuid(m_CapturePoint)):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_CapturePoint));
+            GameObject* flag2 = map?map->GetGameObject(ObjectGuid(m_Objects[m_TowerType])):NULL;//ObjectAccessor::GetGameObjectInWorld(ObjectGuid(m_Objects[m_TowerType]));
             if(flag)
             {
                 flag->SetGoArtKit(artkit);
