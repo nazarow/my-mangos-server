@@ -213,7 +213,7 @@ void SpellCastTargets::read( ByteBuffer& data, Unit *caster )
 
 void SpellCastTargets::write( ByteBuffer& data ) const
 {
-    data << uint32(m_targetMask);
+    data << uint16(m_targetMask);
 
     if( m_targetMask & ( TARGET_FLAG_UNIT | TARGET_FLAG_PVP_CORPSE | TARGET_FLAG_OBJECT | TARGET_FLAG_CORPSE | TARGET_FLAG_UNK2 ) )
     {
@@ -3315,17 +3315,18 @@ void Spell::SendSpellStart()
     if (IsRangedSpell())
         castFlags |= CAST_FLAG_AMMO;
 
-    WorldPacket data(SMSG_SPELL_START, (8+8+4+4+2));
+    WorldPacket data(SMSG_SPELL_START, (9+9+4+1+2+4+2));
     if (m_CastItem)
         data << m_CastItem->GetPackGUID();
     else
         data << m_caster->GetPackGUID();
 
     data << m_caster->GetPackGUID();
-    data << uint32(m_spellInfo->Id);;                       // spellId
+    data << uint32(m_spellInfo->Id);                        // spellId
     data << uint8(m_cast_count);                            // pending spell cast?
     data << uint16(castFlags);                              // cast flags
     data << uint32(m_timer);                                // delay?
+
     data << m_targets;
 
     if( castFlags & CAST_FLAG_AMMO )
@@ -3491,7 +3492,7 @@ void Spell::SendLogExecute()
 {
     Unit *target = m_targets.getUnitTarget() ? m_targets.getUnitTarget() : m_caster;
 
-    WorldPacket data(SMSG_SPELLLOGEXECUTE, (8+4+4+4+4+8));
+    WorldPacket data(SMSG_SPELLLOGEXECUTE, (9+4+4+4+4+9+4+4+4));
 
     if(m_caster->GetTypeId() == TYPEID_PLAYER)
         data << m_caster->GetPackGUID();
@@ -3504,7 +3505,7 @@ void Spell::SendLogExecute()
     for(uint32 i = 0; i < count1; ++i)
     {
         data << uint32(m_spellInfo->Effect[EFFECT_INDEX_0]);// spell effect
-        uint32 count2 = 1;
+        uint32 count2 = m_spellInfo->Effect[EFFECT_INDEX_0]==3?0:1;
         data << uint32(count2);                             // count2 (target count?)
         for(uint32 j = 0; j < count2; ++j)
         {
@@ -3579,6 +3580,11 @@ void Spell::SendLogExecute()
                     else
                         data << uint8(0);
                     break;
+				case SPELL_EFFECT_87:
+				case SPELL_EFFECT_88:
+				case SPELL_EFFECT_89:
+				case SPELL_EFFECT_90:
+					break;
                 default:
                     return;
             }
