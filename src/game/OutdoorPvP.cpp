@@ -96,23 +96,11 @@ bool OutdoorPvPObjective::AddObject(uint32 type, uint32 entry, uint32 map, float
     data.ArtKit         = goinfo->type == GAMEOBJECT_TYPE_CAPTURE_POINT ? 21 : 0;
 
     sObjectMgr.AddGameobjectToGrid(guid, &data);
+    GameObject::SpawnInMaps(guid, &data);
 
     // 2 way registering
     m_Objects[type] = ObjectGuid(HIGHGUID_GAMEOBJECT, entry, guid).GetRawValue();
     m_ObjectTypes[m_Objects[type]]=type;
-
-
-    GameObject * go = new GameObject;
-    if(!go->Create(guid,entry, pMap,x,y,z,o,rotation0,rotation1,rotation2,rotation3,100,GO_STATE_READY))
-    {
-        sLog.outError("Gameobject template %u not found in database.", entry);
-        delete go;
-        return true;
-    }
-
-    go->SetRespawnTime(0);
-	pMap->GetPersistentState()->SaveGORespawnTime(go->GetGUIDLow(),0);
-    pMap->Add(go);
 
     return true;
 }
@@ -159,35 +147,10 @@ bool OutdoorPvPObjective::AddCreature(uint32 type, uint32 entry, Team teamval, u
     data.spawnMask = 1;
 
     sObjectMgr.AddCreatureToGrid(guid, &data);
+    Creature::SpawnInMaps(guid, &data);
 
 	m_Creatures[type] = ObjectGuid(HIGHGUID_UNIT, entry, guid).GetRawValue();
     m_CreatureTypes[m_Creatures[type]] = type;
-
-    CreatureCreatePos pos(pMap, x, y, z, o);
-
-    Creature* pCreature = new Creature;
-    if (!pCreature->Create(guid, pos, cinfo, teamval))
-    {
-        sLog.outError("Can't create creature entry: %u", entry);
-        delete pCreature;
-        return true;
-    }
-
-    pCreature->AIM_Initialize();
-
-    pCreature->Relocate(x, y, z, o);
-
-    if(!pCreature->IsPositionValid())
-    {
-        sLog.outError("ERROR: Creature (guidlow %d, entry %d) not added to opvp. Suggested coordinates isn't valid (X: %f Y: %f)",pCreature->GetGUIDLow(),pCreature->GetEntry(),pCreature->GetPositionX(),pCreature->GetPositionY());
-        delete pCreature;
-        return false;
-    }
-
-    if(spawntimedelay)
-        pCreature->SetRespawnDelay(spawntimedelay);
-
-    pMap->Add(pCreature);
 
     return true;
 }
@@ -234,9 +197,10 @@ bool OutdoorPvPObjective::AddCapturePoint(uint32 entry, uint32 map, float x, flo
     cdata.spawnMask = 1;
 
     sObjectMgr.AddCreatureToGrid(creature_guid, &cdata);
+    Creature::SpawnInMaps(creature_guid, &cdata);
 	m_CapturePointCreature = ObjectGuid(HIGHGUID_UNIT, OPVP_TRIGGER_CREATURE_ENTRY, creature_guid).GetRawValue();
 
-/*    // create capture point go
+    // create capture point go
     uint32 guid = pMap->GenerateLocalLowGuid(HIGHGUID_GAMEOBJECT);
 
     GameObjectData& data = sObjectMgr.NewGOData(guid);
@@ -257,53 +221,15 @@ bool OutdoorPvPObjective::AddCapturePoint(uint32 entry, uint32 map, float x, flo
     data.go_state       = GO_STATE_READY;
 
     sObjectMgr.AddGameobjectToGrid(guid, &data);
+    GameObject::SpawnInMaps(guid, &data);
 
-	m_CapturePoint = ObjectGuid(HIGHGUID_GAMEOBJECT, entry, guid).GetRawValue();*/
+    m_CapturePoint = ObjectGuid(HIGHGUID_GAMEOBJECT, entry, guid).GetRawValue();
 
     // get the needed values from goinfo
     m_ShiftMaxPhase = goinfo->raw.data[17];
     m_ShiftMaxCaptureSpeed = m_ShiftMaxPhase / float(goinfo->raw.data[16]);
     m_NeutralValue = goinfo->raw.data[12];
 
-
-    // add GO...
-    GameObject * go = new GameObject;
-    if (!go->Create(pMap->GenerateLocalLowGuid(HIGHGUID_GAMEOBJECT), entry, pMap, 
-		x, y, z, o, rotation0, rotation1, rotation2, rotation3, GO_ANIMPROGRESS_DEFAULT, GO_STATE_READY))
-    {
-        sLog.outError("Gameobject template %u not found in database.", entry);
-        delete go;
-    }
-    else
-    {
-		go->AddToWorld();
-        go->SetRespawnTime(0);
-        //pMap->GetPersistentState()->SaveGORespawnTime(go->GetGUIDLow(), 0);
-        pMap->Add(go);
-    }
-    // add creature...
-    CreatureCreatePos pos(pMap, x, y, z, o);
-    Creature* pCreature = new Creature;
-    if (!pCreature->Create(creature_guid, pos, cinfo))
-    {
-        sLog.outError("Can't create creature entry: %u",entry);
-        delete pCreature;
-    }
-    else
-    {
-        pCreature->AIM_Initialize();
-
-        pCreature->Relocate(x, y, z, o);
-
-        if(!pCreature->IsPositionValid())
-        {
-            sLog.outError("ERROR: Creature (guidlow %d, entry %d) not added to opvp. Suggested coordinates isn't valid (X: %f Y: %f)",pCreature->GetGUIDLow(),pCreature->GetEntry(),pCreature->GetPositionX(),pCreature->GetPositionY());
-            delete pCreature;
-            return false;
-        }
-
-        pMap->Add(pCreature);
-    }
     return true;
 }
 
