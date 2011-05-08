@@ -26,6 +26,8 @@
 #include "Common.h"
 #include "SharedDefines.h"
 #include "ObjectGuid.h"
+#include "AuctionHouseMgr.h"
+#include "Item.h"
 
 struct ItemPrototype;
 struct AuctionEntry;
@@ -71,6 +73,22 @@ enum PartyResult
     ERR_INVITE_RESTRICTED               = 13,
 };
 
+enum LfgMode
+{
+    LFG_MODE                = 0,
+    LFM_MODE                = 1,
+};
+
+enum LfgType
+{
+    LFG_TYPE_NONE           = 0,
+    LFG_TYPE_DUNGEON        = 1,
+    LFG_TYPE_RAID           = 2,
+    LFG_TYPE_QUEST          = 3,
+    LFG_TYPE_ZONE           = 4,
+    LFG_TYPE_HEROIC_DUNGEON = 5
+};
+
 enum ChatRestrictionType
 {
     ERR_CHAT_RESTRICTED = 0,
@@ -99,6 +117,7 @@ class PacketFilter
     protected:
         WorldSession * const m_pSession;
 };
+
 //process only thread-safe packets in Map::Update()
 class MapSessionFilter : public PacketFilter
 {
@@ -140,7 +159,7 @@ class MANGOS_DLL_SPEC WorldSession
         void SendNotification(const char *format,...) ATTR_PRINTF(2,3);
         void SendNotification(int32 string_id,...);
         void SendPetNameInvalid(uint32 error, const std::string& name, DeclinedName *declinedName);
-        void SendLfgResult(uint32 type, uint32 entry, uint8 lfg_type);
+        void SendLfgResult(LfgType type, uint32 entry, LfgMode mode);
         void SendPartyResult(PartyOperation operation, const std::string& member, PartyResult res);
         void SendAreaTriggerMessage(const char* Text, ...) ATTR_PRINTF(2,3);
         void SendQueryTimeResponse();
@@ -178,7 +197,7 @@ class MANGOS_DLL_SPEC WorldSession
 
         void QueuePacket(WorldPacket* new_packet);
 
-        bool Update(uint32 diff, PacketFilter& updater);
+        bool Update(PacketFilter& updater);
 
         /// Handle the authentication waiting queue (to be completed)
         void SendAuthWaitQue(uint32 position);
@@ -235,12 +254,16 @@ class MANGOS_DLL_SPEC WorldSession
         bool SendItemInfo( uint32 itemid, WorldPacket data );
 
         //auction
-        void SendAuctionHello(Unit * unit);
-        void SendAuctionCommandResult( uint32 auctionId, uint32 Action, uint32 ErrorCode, uint32 bidError = 0);
-        void SendAuctionBidderNotification( uint32 location, uint32 auctionId, ObjectGuid bidderGuid, uint32 bidSum, uint32 diff, uint32 item_template);
-        void SendAuctionOwnerNotification( AuctionEntry * auction );
-        void SendAuctionOutbiddedMail( AuctionEntry * auction, uint32 newPrice );
-        void SendAuctionCancelledToBidderMail( AuctionEntry* auction );
+        void SendAuctionHello(Unit *unit);
+        void SendAuctionCommandResult(AuctionEntry *auc, AuctionAction Action, AuctionError ErrorCode, InventoryResult invError = EQUIP_ERR_OK);
+        void SendAuctionBidderNotification(AuctionEntry *auction, bool won);
+        void SendAuctionOwnerNotification(AuctionEntry *auction, bool sold);
+        void SendAuctionRemovedNotification(AuctionEntry* auction);
+        void SendAuctionOutbiddedMail(AuctionEntry *auction);
+        void SendAuctionCancelledToBidderMail(AuctionEntry *auction);
+        void BuildListAuctionItems(std::list<AuctionEntry*> &auctions, WorldPacket& data, std::wstring const& searchedname, uint32 listfrom, uint32 levelmin,
+            uint32 levelmax, uint32 usable, uint32 inventoryType, uint32 itemClass, uint32 itemSubClass, uint32 quality, uint32& count, uint32& totalcount, bool isFull);
+
         AuctionHouseEntry const* GetCheckedAuctionHouseForAuctioneer(ObjectGuid guid);
 
         //Item Enchantment

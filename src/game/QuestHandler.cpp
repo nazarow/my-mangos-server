@@ -638,7 +638,7 @@ void WorldSession::HandleQuestgiverStatusMultipleQuery(WorldPacket& /*recvPacket
 		if (!GetPlayer() || !GetPlayer()->IsInWorld() || !GetPlayer()->GetMap()) //kia
 			continue;
 
-        if (itr->IsCreatureOrPet())
+        if (itr->IsAnyTypeCreature())
         {
             // need also pet quests case support
             Creature *questgiver = GetPlayer()->GetMap()->GetAnyTypeCreature(*itr);

@@ -549,6 +549,7 @@ enum LootState
 };
 
 class Unit;
+struct GameObjectDisplayInfoEntry;
 
 // 5 sec for bobber catch
 #define FISHING_BOBBER_READY_TIME 5
@@ -637,6 +638,8 @@ class MANGOS_DLL_SPEC GameObject : public WorldObject
         void SetGoArtKit(uint32 artkit);
         uint32 GetGoAnimProgress() const { return GetUInt32Value(GAMEOBJECT_ANIMPROGRESS); }
         void SetGoAnimProgress(uint32 animprogress) { SetUInt32Value(GAMEOBJECT_ANIMPROGRESS, animprogress); }
+        uint32 GetDisplayId() const { return GetUInt32Value(GAMEOBJECT_DISPLAYID); }
+        void SetDisplayId(uint32 modelId);
 
         float GetObjectBoundingRadius() const;              // overwrite WorldObject version
 
@@ -705,6 +708,7 @@ class MANGOS_DLL_SPEC GameObject : public WorldObject
         GuidsSet m_UniqueUsers;                             // all players who use item, some items activated after specific amount unique uses
 
         GameObjectInfo const* m_goInfo;
+        GameObjectDisplayInfoEntry const* m_displayInfo;
     private:
         void SwitchDoorOrButton(bool activate, bool alternative = false);
 

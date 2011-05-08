@@ -1304,8 +1304,6 @@ void World::SetInitialWorldSettings()
     static uint32 abtimer = 0;
     abtimer = sConfig.GetIntDefault("AutoBroadcast.Timer", 60000);
 
-    m_timers[WUPDATE_OBJECTS].SetInterval(0);
-    m_timers[WUPDATE_SESSIONS].SetInterval(0);
     m_timers[WUPDATE_WEATHERS].SetInterval(1*IN_MILLISECONDS);
     m_timers[WUPDATE_AUCTIONS].SetInterval(MINUTE*IN_MILLISECONDS);
     m_timers[WUPDATE_UPTIME].SetInterval(getConfig(CONFIG_UINT32_UPTIME_UPDATE)*MINUTE*IN_MILLISECONDS);
@@ -1488,15 +1486,10 @@ void World::Update(uint32 diff)
         sAuctionMgr.Update();
     }
 
-    RecordTimeDiff(NULL);
-    /// <li> Handle session updates when the timer has passed
-    if (m_timers[WUPDATE_SESSIONS].Passed())
-    {
-        m_timers[WUPDATE_SESSIONS].Reset();
-
-        UpdateSessions(diff);
-    }
-    RecordTimeDiff("UpdateSessions");
+	RecordTimeDiff(NULL);
+    /// <li> Handle session updates
+    UpdateSessions(diff);
+	RecordTimeDiff("UpdateSessions");
 
     /// <li> Handle weather updates when the timer has passed
     if (m_timers[WUPDATE_WEATHERS].Passed())
@@ -1528,20 +1521,16 @@ void World::Update(uint32 diff)
     }
 
     /// <li> Handle all other objects
-    if (m_timers[WUPDATE_OBJECTS].Passed())
-    {
-        m_timers[WUPDATE_OBJECTS].Reset();
-        ///- Update objects when the timer has passed (maps, transport, creatures,...)
-        sMapMgr.Update(diff);                // As interval = 0
+    ///- Update objects (maps, transport, creatures,...)
+    sMapMgr.Update(diff);
 
-        RecordTimeDiff(NULL);
+    RecordTimeDiff(NULL);
 
-        sBattleGroundMgr.Update(diff);
-        RecordTimeDiff("UpdateBattleGroundMgr");
+    sBattleGroundMgr.Update(diff);
+	RecordTimeDiff("UpdateBattleGroundMgr");
 
-        sOutdoorPvPMgr.Update(diff);
-        RecordTimeDiff("UpdateOutdoorPvPMgr");
-    }
+	sOutdoorPvPMgr.Update(diff);
+	RecordTimeDiff("UpdateOutdoorPvPMgr");
 
     RecordTimeDiff(NULL);
     ///- Delete all characters which have been deleted X days before
@@ -1970,7 +1959,7 @@ void World::UpdateSessions( uint32 diff )
         WorldSession * pSession = itr->second;
         WorldSessionFilter updater(pSession);
 
-        if(!pSession->Update(diff, updater))    // As interval = 0
+        if(!pSession->Update(updater))
         {
             RemoveQueuedSession(pSession);
             m_sessions.erase(itr);
