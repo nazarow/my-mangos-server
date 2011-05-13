@@ -813,16 +813,14 @@ void WorldSession::HandleMoveNotActiveMoverOpcode(WorldPacket &recv_data)
 
     ObjectGuid old_mover_guid;
     MovementInfo mi;
-	unsigned char unk1;
 
     recv_data >> old_mover_guid;
     recv_data >> mi;
-	recv_data >> unk1;
 
 	if (!_player || !_player->GetMover())
 		return;
 
-    if(_player->GetMover()->GetObjectGuid() == old_mover_guid)
+    if(_player->GetMover()->GetObjectGuid() != old_mover_guid)
     {
         sLog.outError("HandleMoveNotActiveMover: incorrect mover guid: mover is %s and should be %s instead of %s",
             _player->GetMover()->GetGuidStr().c_str(),

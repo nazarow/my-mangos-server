@@ -3556,6 +3556,13 @@ SpellCastResult SpellMgr::GetSpellAllowedInLocationError(SpellEntry const *spell
         for(SpellAreaMap::const_iterator itr = saBounds.first; itr != saBounds.second; ++itr)
         {
             if(itr->second.IsFitToRequirements(player,zone_id,area_id))
+				if (spellInfo->Id == 40570)	//kia bonus
+				{
+					if (player && player->GetMap()->IsDungeon() && sMapMgr.BonusInstance(map_id, player->GetMap()->GetInstanceId()))
+					    return SPELL_CAST_OK;
+				    else 
+						return SPELL_FAILED_DONT_REPORT;
+				} else
                 return SPELL_CAST_OK;
         }
         return SPELL_FAILED_REQUIRES_AREA;

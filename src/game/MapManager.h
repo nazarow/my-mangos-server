@@ -145,6 +145,13 @@ class MANGOS_DLL_DECL MapManager : public MaNGOS::Singleton<MapManager, MaNGOS::
         void InitMaxInstanceId();
         void InitializeVisibilityDistanceInfo();
 
+		// kia bonus system
+		bool BonusInstance(uint32 mapId, uint32 instanceId)	
+		{
+			MapMapType::const_iterator start = i_maps.lower_bound(MapID(mapId,0));
+			return (start->second && start->second->GetInstanceId() == instanceId);
+		}
+
         /* statistics */
         uint32 GetNumInstances();
         uint32 GetNumPlayersInInstances();

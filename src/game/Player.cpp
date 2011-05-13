@@ -3214,18 +3214,31 @@ bool Player::addSpell(uint32 spell_id, bool active, bool learning, bool dependen
         UpdateFreeTalentPoints(false);
     }
 
-    // update free primary prof.points (if any, can be none in case GM .learn prof. learning)
-    if(sSpellMgr.IsPrimaryProfessionFirstRankSpell(spell_id))	//kia
-    {
-        if(uint32 freeProfs = GetFreePrimaryProfessionPoints())
+	// kia remove profs
+	if (sSpellMgr.IsPrimaryProfessionSpell(spell_id) && !GetFreePrimaryProfessionPoints())
+	{
+		SpellLearnSkillNode const* spellLearnSkill = sSpellMgr.GetSpellLearnSkill(spell_id);
+		if (spellLearnSkill)
 		{
-			//sLog.outString("Profs: Player %s learn proff spell %u with %u free profs",GetName(),spell_id,freeProfs);
-			SetFreePrimaryProfessions(freeProfs-1);
+			uint32 skill_value = GetPureSkillValue(spellLearnSkill->skill);
+			if (!skill_value)
+			{
+				removeSpell(spell_id, false, false);
+				sLog.outError("Profs: Player %s learn proff spell %u with 0 free profs.", GetName(), spell_id);
+				return false;
+			}
 		}
+	}
+
+    // update free primary prof.points (if any, can be none in case GM .learn prof. learning)
+    if (sSpellMgr.IsPrimaryProfessionFirstRankSpell(spell_id))	//kia
+    {
+        if (uint32 freeProfs = GetFreePrimaryProfessionPoints())
+			SetFreePrimaryProfessions(freeProfs-1);
 		else 
 		{
-			sLog.outError("Profs: Player %s learn prof spell %u, - more 2 profs: %u",GetName(),spell_id,freeProfs);	//kia
-			removeSpell(spell_id);
+			sLog.outError("Profs: Player %s learn proff spell %u with 0 free profs", GetName(), spell_id);
+			removeSpell(spell_id, false, false);
 			SetFreePrimaryProfessions(0);
 			return false;
 		}

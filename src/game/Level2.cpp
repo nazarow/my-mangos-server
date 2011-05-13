@@ -2519,6 +2519,8 @@ bool ChatHandler::HandlePInfoCommand(char* args)
 		return true;
 	}
 
+	PSendSysMessage(sMapMgr.BonusInstance(target->GetMapId(),target->GetInstanceId())?"In bonus instance.":"In normal instance.");
+
     return true;
 }
 

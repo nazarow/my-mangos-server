@@ -5999,6 +5999,11 @@ int32 Unit::SpellBaseDamageBonusDone(SpellSchoolMask schoolMask)
         }
 
     }
+
+	// kia bonus
+	if (HasAura(40570))
+		DoneAdvertisedBenefit *= 3;
+
     return DoneAdvertisedBenefit;
 }
 
@@ -6339,6 +6344,11 @@ int32 Unit::SpellBaseHealingBonusDone(SpellSchoolMask schoolMask)
             if ((*i)->GetModifier()->m_miscvalue & schoolMask)
                 AdvertisedBenefit += int32(GetTotalAttackPowerValue(BASE_ATTACK) * (*i)->GetModifier()->m_amount / 100.0f);
     }
+
+	// kia bonus
+	if (HasAura(40570))
+		AdvertisedBenefit *=3;
+
     return AdvertisedBenefit;
 }
 
