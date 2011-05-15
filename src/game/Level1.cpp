@@ -1718,7 +1718,7 @@ bool ChatHandler::HandleJailCommand(char *args)
         return true;
     } else jailreason = reason;
 
-    uint64 GUID = sObjectMgr.GetPlayerGUIDByName(cname.c_str());
+    uint64 GUID = sObjectMgr.GetPlayerGuidByName(cname.c_str()).GetRawValue();
     if (GUID == 0)
     {
         SendSysMessage(LANG_JAIL_WRONG_NAME);
@@ -1910,7 +1910,7 @@ bool ChatHandler::HandleUnJailCommand(char *args)
     if (charname == NULL) return false;
     else cname = charname;
 
-    uint64 GUID = sObjectMgr.GetPlayerGUIDByName(cname.c_str());
+    uint64 GUID = sObjectMgr.GetPlayerGuidByName(cname.c_str()).GetRawValue();
     Player *chr = sObjectMgr.GetPlayer(GUID);
 
     if (chr)

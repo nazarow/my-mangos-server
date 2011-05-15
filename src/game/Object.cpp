@@ -211,7 +211,7 @@ void Object::BuildValuesUpdateBlockForPlayer(UpdateData *data, Player *target) c
 
 void Object::BuildOutOfRangeUpdateBlock(UpdateData * data) const
 {
-    data->AddOutOfRangeGUID(GetGUID());
+    data->AddOutOfRangeGUID(GetObjectGuid());
 }
 
 void Object::DestroyForPlayer( Player *target ) const
@@ -296,7 +296,7 @@ void Object::BuildMovementUpdate(ByteBuffer * data, uint8 updateFlags) const
         {
             if(GetTypeId() == TYPEID_PLAYER)
             {
-                *data << uint64(((Player*)this)->GetTransport()->GetGUID());
+                *data << ObjectGuid(((Player*)this)->GetTransport()->GetObjectGuid());
                 *data << float(((Player*)this)->GetTransOffsetX());
                 *data << float(((Player*)this)->GetTransOffsetY());
                 *data << float(((Player*)this)->GetTransOffsetZ());
@@ -579,7 +579,7 @@ void Object::BuildValuesUpdate(uint8 updatetype, ByteBuffer * data, UpdateMask *
                     if (IsPerCasterAuraState)
                     {
                         // IsPerCasterAuraState set if related pet caster aura state set already
-                        if (((Unit*)this)->HasAuraStateForCaster(AURA_STATE_CONFLAGRATE,target->GetGUID()))
+                        if (((Unit*)this)->HasAuraStateForCaster(AURA_STATE_CONFLAGRATE, target->GetObjectGuid()))
                             *data << m_uint32Values[index];
                         else
                             *data << (m_uint32Values[index] & ~(1 << (AURA_STATE_CONFLAGRATE-1)));
@@ -1573,17 +1573,17 @@ void WorldObject::SendMessageToSetExcept(WorldPacket *data, Player const* skippe
     }
 }
 
-void WorldObject::SendObjectDeSpawnAnim(uint64 guid)
+void WorldObject::SendObjectDeSpawnAnim(ObjectGuid guid)
 {
     WorldPacket data(SMSG_GAMEOBJECT_DESPAWN_ANIM, 8);
-    data << uint64(guid);
+    data << ObjectGuid(guid);
     SendMessageToSet(&data, true);
 }
 
-void WorldObject::SendGameObjectCustomAnim(uint64 guid, uint32 value)
+void WorldObject::SendGameObjectCustomAnim(ObjectGuid guid, uint32 value)
 {
-    WorldPacket data(SMSG_GAMEOBJECT_CUSTOM_ANIM, 8+4);
-    data << uint64(guid);
+    WorldPacket data(SMSG_GAMEOBJECT_CUSTOM_ANIM, 9+4);
+    data << ObjectGuid(guid);
     data << uint32(value);                                      // not known what this is
     SendMessageToSet(&data, true);
 }

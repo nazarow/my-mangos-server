@@ -263,7 +263,7 @@ void WorldSession::SendLfgResult(LfgType type, uint32 entry, LfgMode lfg_mode)
 
     //TODO: Guard Player map
     HashMapHolder<Player>::MapType const& players = sObjectAccessor.GetPlayers();
-    for(HashMapHolder<Player>::MapType::const_iterator iter = players.begin(); iter != players.end(); ++iter)
+    for (HashMapHolder<Player>::MapType::const_iterator iter = players.begin(); iter != players.end(); ++iter)
     {
         Player *plr = iter->second;
 
@@ -297,7 +297,7 @@ void WorldSession::SendLfgResult(LfgType type, uint32 entry, LfgMode lfg_mode)
             for(GroupReference *itr = group->GetFirstMember(); itr != NULL; itr = itr->next())
             {
                 Player *member = itr->getSource();
-                if (member && member->GetGUID() != plr->GetGUID())
+                if (member && member->GetObjectGuid() != plr->GetObjectGuid())
                 {
                     data << member->GetPackGUID();          // packed guid
                     data << uint32(member->getLevel());     // player level

@@ -277,7 +277,7 @@ void ChatLog::GuildMsg(Player *player, std::string &msg, bool officer)
     }
     else
     {
-        Guild *guild = sObjectMgr.GetGuildById(player->GetGuildId());
+        Guild *guild = sGuildMgr.GetGuildById(player->GetGuildId());
         if (!guild)
         {
             log_str.append("[unknown guild] ");

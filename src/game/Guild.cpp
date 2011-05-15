@@ -23,6 +23,7 @@
 #include "Opcodes.h"
 #include "ObjectMgr.h"
 #include "Guild.h"
+#include "GuildMgr.h"
 #include "Chat.h"
 #include "SocialMgr.h"
 #include "Util.h"
@@ -106,7 +107,7 @@ Guild::~Guild()
 
 bool Guild::Create(Player* leader, std::string gname)
 {
-    if (sObjectMgr.GetGuildByName(gname))
+    if (sGuildMgr.GetGuildByName(gname))
         return false;
 
     WorldSession* lSession = leader->GetSession();
@@ -569,7 +570,7 @@ void Guild::BroadcastToGuild(WorldSession *session, const std::string& msg, uint
     if (session && session->GetPlayer() && HasRankRight(session->GetPlayer()->GetRank(),GR_RIGHT_GCHATSPEAK))
     {
         WorldPacket data;
-        ChatHandler(session).FillMessageData(&data, CHAT_MSG_GUILD, language, 0, msg.c_str());
+        ChatHandler::FillMessageData(&data, session, CHAT_MSG_GUILD, language, msg.c_str());
 
         for (MemberList::const_iterator itr = members.begin(); itr != members.end(); ++itr)
         {
@@ -591,7 +592,7 @@ void Guild::BroadcastToOfficers(WorldSession *session, const std::string& msg, u
         for(MemberList::const_iterator itr = members.begin(); itr != members.end(); ++itr)
         {
             WorldPacket data;
-            ChatHandler::FillMessageData(&data, session, CHAT_MSG_OFFICER, language, NULL, 0, msg.c_str(), NULL);
+            ChatHandler::FillMessageData(&data, session, CHAT_MSG_OFFICER, language, msg.c_str());
 
             Player *pl = ObjectAccessor::FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
 
@@ -729,7 +730,7 @@ void Guild::Disband()
     CharacterDatabase.PExecute("DELETE FROM guild_bank_eventlog WHERE guildid = '%u'", m_Id);
     CharacterDatabase.PExecute("DELETE FROM guild_eventlog WHERE guildid = '%u'", m_Id);
     CharacterDatabase.CommitTransaction();
-    sObjectMgr.RemoveGuild(m_Id);
+    sGuildMgr.RemoveGuild(m_Id);
 }
 
 void Guild::Roster(WorldSession *session /*= NULL*/)

@@ -16,29 +16,35 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef MANGOS_REACTORAI_H
-#define MANGOS_REACTORAI_H
+#ifndef _GUILDMGR_H
+#define _GUILDMGR_H
 
-#include "CreatureAI.h"
-#include "ObjectGuid.h"
+#include "Common.h"
+#include "Policies/Singleton.h"
 
-class Unit;
+class Guild;
+class ObjectGuid;
 
-class MANGOS_DLL_DECL ReactorAI : public CreatureAI
+class GuildMgr
 {
+        typedef UNORDERED_MAP<uint32, Guild*> GuildMap;
+
+        GuildMap m_GuildMap;
     public:
+        GuildMgr();
+        ~GuildMgr();
 
-        explicit ReactorAI(Creature *c) : CreatureAI(c) {}
+        void AddGuild(Guild* guild);
+        void RemoveGuild(uint32 guildId);
 
-        void MoveInLineOfSight(Unit *);
-        void AttackStart(Unit *);
-        void EnterEvadeMode();
-        bool IsVisible(Unit *) const;
+        Guild* GetGuildById(uint32 guildId) const;
+        Guild* GetGuildByName(std::string const& name) const;
+        Guild* GetGuildByLeader(ObjectGuid const& guid) const;
+        std::string GetGuildNameById(uint32 guildId) const;
 
-        void UpdateAI(const uint32);
-        static int Permissible(const Creature *);
-
-    private:
-        ObjectGuid i_victimGuid;
+        void LoadGuilds();
 };
-#endif
+
+#define sGuildMgr MaNGOS::Singleton<GuildMgr>::Instance()
+
+#endif // _GUILDMGR_H

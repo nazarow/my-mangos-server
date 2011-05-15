@@ -29,6 +29,7 @@
 #include "ChannelMgr.h"
 #include "Group.h"
 #include "Guild.h"
+#include "GuildMgr.h"
 #include "Player.h"
 #include "SpellAuras.h"
 #include "Language.h"
@@ -237,7 +238,7 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
                 }
             }
 
-            GetPlayer()->Whisper(msg, lang, player->GetGUID());
+            GetPlayer()->Whisper(msg, lang, player->GetObjectGuid());
         } break;
 
         case CHAT_MSG_PARTY:
@@ -275,7 +276,7 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
                     pl->HandleChatSpyMessage(msg, CHAT_MSG_PARTY, lang, GetPlayer());
 
             WorldPacket data;
-            ChatHandler::FillMessageData(&data, this, type, lang, NULL, 0, msg.c_str(), NULL);
+            ChatHandler::FillMessageData(&data, this, type, lang, msg.c_str());
             group->BroadcastPacket(&data, false, group->GetMemberGroup(GetPlayer()->GetObjectGuid()));
         }
         break;
@@ -299,8 +300,8 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
             sChatLog.GuildMsg(GetPlayer(), msg, false);
 
             if (GetPlayer()->GetGuildId())
-                if (Guild *guild = sObjectMgr.GetGuildById(GetPlayer()->GetGuildId()))
-                {
+                if (Guild* guild = sGuildMgr.GetGuildById(GetPlayer()->GetGuildId()))
+				{
                     guild->BroadcastToGuild(this, msg, lang == LANG_ADDON ? LANG_ADDON : LANG_UNIVERSAL);
                     GetPlayer()->HandleChatSpyMessage(msg, CHAT_MSG_OFFICER, lang);
                 }
@@ -326,8 +327,8 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
             sChatLog.GuildMsg(GetPlayer(), msg, true);
 
             if (GetPlayer()->GetGuildId())
-                if (Guild *guild = sObjectMgr.GetGuildById(GetPlayer()->GetGuildId()))
-                {
+                if (Guild* guild = sGuildMgr.GetGuildById(GetPlayer()->GetGuildId()))
+				{
                     guild->BroadcastToOfficers(this, msg, lang == LANG_ADDON ? LANG_ADDON : LANG_UNIVERSAL);
                     GetPlayer()->HandleChatSpyMessage(msg, CHAT_MSG_OFFICER, lang);
                 }
@@ -368,7 +369,7 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
                     pl->HandleChatSpyMessage(msg, CHAT_MSG_RAID, lang, GetPlayer());
 
             WorldPacket data;
-            ChatHandler::FillMessageData(&data, this, CHAT_MSG_RAID, lang, "", 0, msg.c_str(), NULL);
+            ChatHandler::FillMessageData(&data, this, CHAT_MSG_RAID, lang, msg.c_str());
             group->BroadcastPacket(&data, false);
         } break;
         case CHAT_MSG_RAID_LEADER:
@@ -406,7 +407,7 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
                     pl->HandleChatSpyMessage(msg, CHAT_MSG_RAID_LEADER, lang, GetPlayer());
 
             WorldPacket data;
-            ChatHandler::FillMessageData(&data, this, CHAT_MSG_RAID_LEADER, lang, "", 0, msg.c_str(), NULL);
+            ChatHandler::FillMessageData(&data, this, CHAT_MSG_RAID_LEADER, lang, msg.c_str());
             group->BroadcastPacket(&data, false);
         } break;
 
@@ -436,7 +437,7 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
 
             WorldPacket data;
             //in battleground, raid warning is sent only to players in battleground - code is ok
-            ChatHandler::FillMessageData(&data, this, CHAT_MSG_RAID_WARNING, lang, "", 0, msg.c_str(), NULL);
+            ChatHandler::FillMessageData(&data, this, CHAT_MSG_RAID_WARNING, lang, msg.c_str());
             group->BroadcastPacket(&data, false);
         } break;
 
@@ -465,7 +466,7 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
                     pl->HandleChatSpyMessage(msg, CHAT_MSG_BATTLEGROUND, lang, GetPlayer());
 
             WorldPacket data;
-            ChatHandler::FillMessageData(&data, this, CHAT_MSG_BATTLEGROUND, lang, "", 0, msg.c_str(), NULL);
+            ChatHandler::FillMessageData(&data, this, CHAT_MSG_BATTLEGROUND, lang, msg.c_str());
             group->BroadcastPacket(&data, false);
         } break;
 
@@ -494,7 +495,7 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
                     pl->HandleChatSpyMessage(msg, CHAT_MSG_BATTLEGROUND_LEADER, lang, GetPlayer());
 
             WorldPacket data;
-            ChatHandler::FillMessageData(&data, this, CHAT_MSG_BATTLEGROUND_LEADER, lang, "", 0, msg.c_str(), NULL);
+            ChatHandler::FillMessageData(&data, this, CHAT_MSG_BATTLEGROUND_LEADER, lang, msg.c_str());
             group->BroadcastPacket(&data, false);
         } break;
 
@@ -516,7 +517,7 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
             {
                 if (Channel *chn = cMgr->GetChannel(channel, _player))
                 {
-                    chn->Say(_player->GetGUID(), msg.c_str(), lang);
+                    chn->Say(_player->GetObjectGuid(), msg.c_str(), lang);
                     GetPlayer()->HandleChatSpyMessage(msg, CHAT_MSG_CHANNEL, lang, NULL, channel);
                 }
             }
@@ -594,14 +595,14 @@ namespace MaNGOS
                 uint32 namlen = (nam ? strlen(nam) : 0) + 1;
 
                 data.Initialize(SMSG_TEXT_EMOTE, (20+namlen));
-                data << i_player.GetGUID();
-                data << (uint32)i_text_emote;
-                data << i_emote_num;
-                data << (uint32)namlen;
-                if( namlen > 1 )
+                data << ObjectGuid(i_player.GetObjectGuid());
+                data << uint32(i_text_emote);
+                data << uint32(i_emote_num);
+                data << uint32(namlen);
+                if (namlen > 1)
                     data.append(nam, namlen);
                 else
-                    data << (uint8)0x00;
+                    data << uint8(0x00);
             }
 
         private:
@@ -669,7 +670,7 @@ void WorldSession::HandleTextEmoteOpcode( WorldPacket & recv_data )
 
 void WorldSession::HandleChatIgnoredOpcode(WorldPacket& recv_data )
 {
-    uint64 iguid;
+    ObjectGuid iguid;
     uint8 unk;
     //DEBUG_LOG("WORLD: Received CMSG_CHAT_IGNORED");
 
@@ -681,7 +682,7 @@ void WorldSession::HandleChatIgnoredOpcode(WorldPacket& recv_data )
         return;
 
     WorldPacket data;
-    ChatHandler::FillMessageData(&data, this, CHAT_MSG_IGNORED, LANG_UNIVERSAL, NULL, GetPlayer()->GetGUID(), GetPlayer()->GetName(), NULL);
+    ChatHandler::FillMessageData(&data, this, CHAT_MSG_IGNORED, LANG_UNIVERSAL, NULL, GetPlayer()->GetObjectGuid(), GetPlayer()->GetName(), NULL);
     player->GetSession()->SendPacket(&data);
 }
 
