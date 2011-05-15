@@ -213,7 +213,7 @@ void SpellCastTargets::read( ByteBuffer& data, Unit *caster )
 
 void SpellCastTargets::write( ByteBuffer& data ) const
 {
-    data << uint16(m_targetMask);
+    data << uint32(m_targetMask);
 
     if( m_targetMask & ( TARGET_FLAG_UNIT | TARGET_FLAG_PVP_CORPSE | TARGET_FLAG_OBJECT | TARGET_FLAG_CORPSE | TARGET_FLAG_UNK2 ) )
     {
