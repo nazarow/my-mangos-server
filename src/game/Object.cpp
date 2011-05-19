@@ -554,8 +554,8 @@ void Object::BuildValuesUpdate(uint8 updatetype, ByteBuffer * data, UpdateMask *
             {
                 if (index == UNIT_NPC_FLAGS)
                 {
-                    // remove custom flag before sending
-                    uint32 appendValue = m_uint32Values[index] & ~(UNIT_NPC_FLAG_GUARD+ UNIT_NPC_FLAG_OUTDOORPVP);
+                    //uint32 appendValue = m_uint32Values[index] & ~(UNIT_NPC_FLAG_GUARD+ UNIT_NPC_FLAG_OUTDOORPVP);
+                    uint32 appendValue = m_uint32Values[index];
 
                     if (GetTypeId() == TYPEID_UNIT)
                     {
@@ -1539,7 +1539,7 @@ void WorldObject::BuildMonsterChat(WorldPacket *data, uint8 msgtype, char const*
     *data << uint32(strlen(name)+1);
     *data << name;
     *data << ObjectGuid(targetGuid);                        // Unit Target
-    if (!targetGuid.IsEmpty() && !targetGuid.IsPlayer())
+    if (targetGuid && !targetGuid.IsPlayer())
     {
         *data << uint32(strlen(targetName)+1);              // target name length
         *data << targetName;                                // target name
