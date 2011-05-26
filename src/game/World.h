@@ -177,6 +177,7 @@ enum eConfigUInt32Values
     CONFIG_UINT32_CHARDELETE_MIN_LEVEL,
     CONFIG_UINT32_GUID_RESERVE_SIZE_CREATURE,
     CONFIG_UINT32_GUID_RESERVE_SIZE_GAMEOBJECT,
+    CONFIG_UINT32_KICKTIMER,
     CONFIG_UINT32_VALUE_COUNT
 };
 
@@ -671,6 +672,8 @@ class World
         //used versions
         std::string m_DBVersion;
         std::string m_CreatureEventAIVersion;
+
+        uint32 m_kickTimer;
 };
 
 extern uint32 realmID;

@@ -747,7 +747,7 @@ class MANGOS_DLL_SPEC WorldSession
         uint32 _accountId;
         uint8 m_expansion;
 		uint32 m_nwflags;
-		uint32 m_kickTime;
+        time_t m_kickTime;
 
         time_t _logoutTime;
         bool m_inQueue;                                     // session wait in auth.queue

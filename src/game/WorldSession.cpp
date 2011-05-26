@@ -83,11 +83,13 @@ bool WorldSessionFilter::Process(WorldPacket* packet)
 /// WorldSession constructor
 WorldSession::WorldSession(uint32 id, WorldSocket *sock, AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale, uint32 nwflags) :
 LookingForGroup_auto_join(false), LookingForGroup_auto_add(false), m_muteTime(mute_time),
-_player(NULL), m_Socket(sock),_security(sec), _accountId(id), m_expansion(expansion), _logoutTime(0), m_nwflags(nwflags), m_kickTime(300000),
+_player(NULL), m_Socket(sock),_security(sec), _accountId(id), m_expansion(expansion), _logoutTime(0), m_nwflags(nwflags),
 m_inQueue(false), m_playerLoading(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false),
 m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)), m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)),
 m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED)
 {
+    m_kickTime = time(NULL);
+
     if (sock)
     {
         m_Address = sock->GetRemoteAddress ();
@@ -204,14 +206,11 @@ void WorldSession::LogUnprocessedTail(WorldPacket *packet)
 /// Update the WorldSession (triggered by World update)
 bool WorldSession::Update(PacketFilter& updater)
 {
-/* kia	if (GetPlayer() && GetPlayer()->IsInWorld())
-		m_kickTime = 300000;
+	if (GetPlayer() && GetPlayer()->IsInWorld())
+		m_kickTime = time(NULL);
 	else 
-	{
-		if (m_kickTime <= diff)
+		if ((m_kickTime+sWorld.getConfig(CONFIG_UINT32_KICKTIMER)) <= time(NULL))
 			KickPlayer();
-		else m_kickTime -= diff;
-	}*/
 
 	///- Retrieve packets from the receive queue and call the appropriate handlers
     /// not process packets if socket already closed

@@ -1411,12 +1411,23 @@ void Aura::TriggerSpell()
                             }
                         }                        
                     }break;
-//                    // Dementia
-//                    case 41404: break;
+                    // Dementia                         // kia
+                    case 41404:
+                    {
+                        uint32 spellS[2] = { 41406, 41409 };
+                        trigger_spell_id = spellS[urand(0,1)];
+                    }break;
+                    // Alert Drums                      // kia
+                    case 42177:
+                    {
+                        uint32 spellS[4] = { 42180, 42181, 42182, 42183 };
+                        if (urand(0, 100) > 30)
+                            return;
+
+                        trigger_spell_id = spellS[urand(0,3)];
+                    }break;
 //                    // Chaos Form
 //                    case 41629: break;
-//                    // Alert Drums
-//                    case 42177: break;
 //                    // Spout
 //                    case 42581: break;
 //                    // Spout
@@ -1660,7 +1671,7 @@ void Aura::TriggerSpell()
         if (Unit* caster = GetCaster())
         {
             if (triggerTarget->GetTypeId() != TYPEID_UNIT || !sScriptMgr.OnEffectDummy(caster, GetId(), GetEffIndex(), (Creature*)triggerTarget))
-                sLog.outError("Aura::TriggerSpell: Spell %u have 0 in EffectTriggered[%d], not handled custom case?",GetId(),GetEffIndex());
+                sLog.outError("Aura::TriggerSpell: Spell %u, caster(%s) have 0 in EffectTriggered[%d], not handled custom case?", GetId(), caster?caster->GetGuidStr().c_str():"---", GetEffIndex());
         }
     }
 }
