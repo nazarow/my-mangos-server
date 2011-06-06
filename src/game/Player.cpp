@@ -5481,6 +5481,9 @@ void Player::UpdateWeaponSkill (WeaponAttackType attType)
     if(pVictim && pVictim->IsCharmerOrOwnerPlayerOrPlayerItself())
         return;
 
+    if (pVictim && pVictim->getFaction()==1703)		        // kia no skill gain on training dummy
+        return;
+
     if (IsInFeralForm())
         return;                                             // always maximized SKILL_FERAL_COMBAT in fact
 
