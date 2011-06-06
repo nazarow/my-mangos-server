@@ -199,7 +199,7 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
         void outTime();
         static void outTimestamp(FILE* file);
         static std::string GetTimestampStr();
-
+
         uint32 getLogFilter() const { return m_logFilter; }
         bool HasLogFilter(uint32 filter) const { return m_logFilter & filter; }
         void SetLogFilter(LogFilters filter, bool on) { if (on) m_logFilter |= filter; else m_logFilter &= ~filter; }

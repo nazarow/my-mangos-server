@@ -109,7 +109,7 @@ bool Group::Create(ObjectGuid guid, const char * name)
     m_difficulty = DUNGEON_DIFFICULTY_NORMAL;
     if (!isBGGroup())
     {
-        m_Id = sObjectMgr.GenerateGroupId();
+        m_Id = sObjectMgr.GenerateGroupLowGuid();
 
         Player *leader = sObjectMgr.GetPlayer(guid);
         if(leader) m_difficulty = leader->GetDifficulty();
@@ -961,11 +961,9 @@ void Group::SendTargetIconList(WorldSession *session)
 
 void Group::SendUpdate()
 {
-    Player *player;
-
     for(member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
     {
-        player = sObjectMgr.GetPlayer(citr->guid);
+        Player* player = sObjectMgr.GetPlayer(citr->guid);
         if(!player || !player->GetSession() || player->GetGroup() != this )
             continue;
                                                             // guess size
@@ -974,7 +972,7 @@ void Group::SendUpdate()
         data << uint8(isBGGroup() ? 1 : 0);                 // 2.0.x, isBattleGroundGroup?
         data << uint8(citr->group);                         // groupid
         data << uint8(citr->assistant?0x01:0);              // 0x2 main assist, 0x4 main tank
-        data << uint64(0x50000000FFFFFFFELL);               // related to voice chat?
+        data << GetObjectGuid();                            // group guid
         data << uint32(GetMembersCount()-1);
         for(member_citerator citr2 = m_memberSlots.begin(); citr2 != m_memberSlots.end(); ++citr2)
         {
