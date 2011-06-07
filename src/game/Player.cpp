@@ -7661,6 +7661,15 @@ void Player::SendLootRelease(ObjectGuid guid)
     SendDirectMessage( &data );
 }
 
+void Player::SendEmptyLoot(ObjectGuid guid)
+{
+    WorldPacket data(SMSG_LOOT_RESPONSE, (9+1+1));           // we guess size
+    data << ObjectGuid(guid);
+    data << uint8(1);
+    data << uint8(0);
+    SendDirectMessage(&data);
+}
+
 void Player::SendLoot(ObjectGuid guid, LootType loot_type)
 {
     if (ObjectGuid lootGuid = GetLootGuid())
@@ -7681,7 +7690,7 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
             // And permit out of range GO with no owner in case fishing hole
             if (!go || (loot_type != LOOT_FISHINGHOLE && (loot_type != LOOT_FISHING && loot_type != LOOT_FISHING_FAIL || go->GetOwnerGuid() != GetObjectGuid()) && !go->IsWithinDistInMap(this,INTERACTION_DISTANCE)))
             {
-                SendLootRelease(guid);
+                SendEmptyLoot(guid);
                 return;
             }
 
@@ -7696,7 +7705,7 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
                         if (bg->GetTypeID() == BATTLEGROUND_AV)
                             if (!(((BattleGroundAV*)bg)->PlayerCanDoMineQuest(go->GetEntry(), GetTeam())))
                             {
-                                SendLootRelease(guid);
+                                SendEmptyLoot(guid);
                                 return;
                             }
 
@@ -7724,7 +7733,7 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
 
             if (!item)
             {
-                SendLootRelease(guid);
+                SendEmptyLoot(guid);
                 return;
             }
 
@@ -7761,7 +7770,7 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
 
             if (!bones || !((loot_type == LOOT_CORPSE) || (loot_type == LOOT_INSIGNIA)) || (bones->GetType() != CORPSE_BONES) )
             {
-                SendLootRelease(guid);
+                SendEmptyLoot(guid);
                 return;
             }
 
@@ -7792,13 +7801,13 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
             // must be in range and creature must be alive for pickpocket and must be dead for another loot
             if (!creature || creature->isAlive()!=(loot_type == LOOT_PICKPOCKETING) || !creature->IsWithinDistInMap(this,INTERACTION_DISTANCE))
             {
-                SendLootRelease(guid);
+                SendEmptyLoot(guid);
                 return;
             }
 
             if (loot_type == LOOT_PICKPOCKETING && IsFriendlyTo(creature))
             {
-                SendLootRelease(guid);
+                SendEmptyLoot(guid);
                 return;
             }
 

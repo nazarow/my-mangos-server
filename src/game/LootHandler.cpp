@@ -51,7 +51,7 @@ void WorldSession::HandleAutostoreLootItemOpcode( WorldPacket & recv_data )
             // not check distance for GO in case owned GO (fishing bobber case, for example) or Fishing hole GO
             if (!go || ((go->GetOwnerGuid() != _player->GetObjectGuid() && go->GetGoType() != GAMEOBJECT_TYPE_FISHINGHOLE) && !go->IsWithinDistInMap(_player,INTERACTION_DISTANCE)))
             {
-                player->SendLootRelease(lguid);
+                player->SendEmptyLoot(lguid);
                 return;
             }
 
@@ -64,7 +64,7 @@ void WorldSession::HandleAutostoreLootItemOpcode( WorldPacket & recv_data )
 
             if (!pItem || !pItem->HasGeneratedLoot())
             {
-                player->SendLootRelease(lguid);
+                player->SendEmptyLoot(lguid);
                 return;
             }
 
@@ -76,7 +76,7 @@ void WorldSession::HandleAutostoreLootItemOpcode( WorldPacket & recv_data )
             Corpse *bones = player->GetMap()->GetCorpse(lguid);
             if (!bones)
             {
-                player->SendLootRelease(lguid);
+                player->SendEmptyLoot(lguid);
                 return;
             }
             loot = &bones->loot;
@@ -90,7 +90,7 @@ void WorldSession::HandleAutostoreLootItemOpcode( WorldPacket & recv_data )
 
             if( !ok_loot || !pCreature->IsWithinDistInMap(_player,INTERACTION_DISTANCE) )
             {
-                player->SendLootRelease(lguid);
+                player->SendEmptyLoot(lguid);
                 return;
             }
 
@@ -119,7 +119,7 @@ void WorldSession::HandleAutostoreLootItemOpcode( WorldPacket & recv_data )
     // questitems use the blocked field for other purposes
     if (!qitem && item->is_blocked)
     {
-        player->SendLootRelease(lguid);
+        player->SendEmptyLoot(lguid);
         return;
     }
 
@@ -505,7 +505,7 @@ void WorldSession::HandleLootMasterGiveOpcode( WorldPacket & recv_data )
 
     if (!_player->GetGroup() || _player->GetGroup()->GetLooterGuid() != _player->GetObjectGuid())
     {
-        _player->SendLootRelease(GetPlayer()->GetLootGuid());
+        _player->SendEmptyLoot(GetPlayer()->GetLootGuid());
         return;
     }
 
