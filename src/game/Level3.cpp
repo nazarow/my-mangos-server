@@ -6438,6 +6438,8 @@ bool ChatHandler::HandleModifyRaceCommand(char *args)	//kia added modrace
 
     Races race;
 
+    uint8 old_race = player->getRace();
+
 	char const* race_full = "";
 
     if(!strncmp(race_str, "human", race_len))            // HUMAN
@@ -6574,10 +6576,15 @@ bool ChatHandler::HandleModifyRaceCommand(char *args)	//kia added modrace
 		}
     }
 
-    PSendSysMessage(LANG_YOU_CHANGE_FACE, player->GetName(), race_full);
+    PSendSysMessage(LANG_YOU_CHANGE_RACE, player->GetName(), race_full);
 
     if (needReportToTarget(player))
         ChatHandler(player).PSendSysMessage(LANG_YOUR_RACE_CHANGED, race_full, GetNameLink().c_str());
+
+    if (m_session)
+        sLog.outCommand(m_session->GetAccountId(), "GM %s (Account: %u) modify race from %u to %s for %s (Account: %u).",
+            m_session->GetPlayer()->GetName(), m_session->GetAccountId(), old_race,
+            race_full, player->GetName(), player->GetSession()->GetAccountId());
 
     return true;
 }
@@ -6608,6 +6615,11 @@ bool ChatHandler::HandleModifyFaceCommand(char* args)	//kia added modface
 
     if (needReportToTarget(player))
         ChatHandler(player).PSendSysMessage(LANG_YOUR_FACE_CHANGED, GetNameLink().c_str());
+
+    if (m_session)
+        sLog.outCommand(m_session->GetAccountId(), "GM %s (Account: %u) modify face for %s (Account: %u).",
+            m_session->GetPlayer()->GetName(), m_session->GetAccountId(),
+            player->GetName(), player->GetSession()->GetAccountId());
 
     return true;
 }
