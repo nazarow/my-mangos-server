@@ -1346,15 +1346,21 @@ void LoadLootTemplates_Reference()
 
 void Loot::ShowLoot()
 {
-	if (!items.size())
+    if (!items.size() && !m_questItems.size())
 		return;
 
 	sLog.outItems("<ShowItems");
     for (uint8 i = 0; i < items.size(); ++i)
     {
         LootItem &item = items[i];
-		ItemPrototype const *pProto = ObjectMgr::GetItemPrototype(item.itemid);
-		sLog.outItems("%s {%u:%u} [%s]", pProto?pProto->Name1:"", item.itemid, item.count, item.is_looted?"L":"l"); 
-	}
+        ItemPrototype const *pProto = ObjectMgr::GetItemPrototype(item.itemid);
+        sLog.outItems("%s {%u:%u} [%s]", pProto?pProto->Name1:"", item.itemid, item.count, item.is_looted?"L":"l"); 
+    }
+    for (uint8 i = 0; i < m_questItems.size(); ++i)
+    {
+        LootItem &item = m_questItems[i];
+        ItemPrototype const *pProto = ObjectMgr::GetItemPrototype(item.itemid);
+        sLog.outItems("%s {%u:%u} [%s]", pProto?pProto->Name1:"", item.itemid, item.count, item.is_looted?"L":"l"); 
+    }
 	sLog.outItems("ShowItems>");
 }
