@@ -1660,6 +1660,8 @@ void Aura::TriggerSpell()
                     caster->CastSpell(triggerTarget, trigger_spell_id, true, NULL, this);
                 return;
             }
+            case 39140:                                     // Drain World Tree Visual  // kia
+                return;
         }
     }
 
