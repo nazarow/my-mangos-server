@@ -1717,8 +1717,8 @@ bool ChatHandler::HandleJailCommand(char *args)
         return true;
     } else jailreason = reason;
 
-    uint64 GUID = sObjectMgr.GetPlayerGuidByName(cname.c_str()).GetRawValue();
-    if (GUID == 0)
+    ObjectGuid GUID = sObjectMgr.GetPlayerGuidByName(cname.c_str());
+    if (GUID.IsEmpty())
     {
         SendSysMessage(LANG_JAIL_WRONG_NAME);
         return true;
@@ -1881,7 +1881,7 @@ bool ChatHandler::HandleJailCommand(char *args)
     if (sObjectMgr.m_jailconf_max_jails == chr->m_jail_times)
     {
         chr->GetSession()->KickPlayer();
-        chr->DeleteFromDB(fields[0].GetUInt64(), fields[1].GetUInt32());
+        chr->DeleteFromDB(ObjectGuid(fields[0].GetUInt64()), fields[1].GetUInt32());
     }
     else if ((sObjectMgr.m_jailconf_max_jails == chr->m_jail_times) && sObjectMgr.m_jailconf_ban)
     {
@@ -1909,7 +1909,7 @@ bool ChatHandler::HandleUnJailCommand(char *args)
     if (charname == NULL) return false;
     else cname = charname;
 
-    uint64 GUID = sObjectMgr.GetPlayerGuidByName(cname.c_str()).GetRawValue();
+    ObjectGuid GUID = sObjectMgr.GetPlayerGuidByName(cname.c_str());
     Player *chr = sObjectMgr.GetPlayer(GUID);
 
     if (chr)

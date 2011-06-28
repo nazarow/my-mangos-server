@@ -2073,7 +2073,7 @@ uint64 WorldObject::SummonGameObject(uint32 entry, float x, float y, float z, fl
 
     map->Add(pGameObj);
 
-    return pGameObj->GetGUID();
+    return pGameObj->GetObjectGuid().GetRawValue();
 }
 
 bool WorldObject::PrintCoordinatesError(float x, float y, float z, char const* descr) const

@@ -228,43 +228,43 @@ void OutdoorPvPZM::HandleKillImpl(Player *plr, Unit * killed)
 
 void OutdoorPvPZM::BuffTeam(uint32 team)
 {
-    if(team == ALLIANCE)
+    if (team == ALLIANCE)
     {
-        for(std::set<uint64>::iterator itr = m_PlayerGuids[0].begin(); itr != m_PlayerGuids[0].end(); ++itr)
+        for (std::set<uint64>::iterator itr = m_PlayerGuids[0].begin(); itr != m_PlayerGuids[0].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
-                if(plr->IsInWorld()) plr->CastSpell(plr,ZM_CAPTURE_BUFF,true);
+            if (Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
+                if (plr->IsInWorld()) plr->CastSpell(plr,ZM_CAPTURE_BUFF,true);
         }
-        for(std::set<uint64>::iterator itr = m_PlayerGuids[1].begin(); itr != m_PlayerGuids[1].end(); ++itr)
+        for (std::set<uint64>::iterator itr = m_PlayerGuids[1].begin(); itr != m_PlayerGuids[1].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
-                if(plr->IsInWorld()) plr->RemoveAurasDueToSpell(ZM_CAPTURE_BUFF);
+            if (Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
+                if (plr->IsInWorld()) plr->RemoveAurasDueToSpell(ZM_CAPTURE_BUFF);
         }
     }
-    else if(team == HORDE)
+    else if (team == HORDE)
     {
-        for(std::set<uint64>::iterator itr = m_PlayerGuids[1].begin(); itr != m_PlayerGuids[1].end(); ++itr)
+        for (std::set<uint64>::iterator itr = m_PlayerGuids[1].begin(); itr != m_PlayerGuids[1].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
-                if(plr->IsInWorld()) plr->CastSpell(plr,ZM_CAPTURE_BUFF,true);
+            if (Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
+                if (plr->IsInWorld()) plr->CastSpell(plr,ZM_CAPTURE_BUFF,true);
         }
-        for(std::set<uint64>::iterator itr = m_PlayerGuids[0].begin(); itr != m_PlayerGuids[0].end(); ++itr)
+        for (std::set<uint64>::iterator itr = m_PlayerGuids[0].begin(); itr != m_PlayerGuids[0].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
-                if(plr->IsInWorld()) plr->RemoveAurasDueToSpell(ZM_CAPTURE_BUFF);
+            if (Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
+                if (plr->IsInWorld()) plr->RemoveAurasDueToSpell(ZM_CAPTURE_BUFF);
         }
     }
     else
     {
-        for(std::set<uint64>::iterator itr = m_PlayerGuids[0].begin(); itr != m_PlayerGuids[0].end(); ++itr)
+        for (std::set<uint64>::iterator itr = m_PlayerGuids[0].begin(); itr != m_PlayerGuids[0].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
-                if(plr->IsInWorld()) plr->RemoveAurasDueToSpell(ZM_CAPTURE_BUFF);
+            if (Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
+                if (plr->IsInWorld()) plr->RemoveAurasDueToSpell(ZM_CAPTURE_BUFF);
         }
-        for(std::set<uint64>::iterator itr = m_PlayerGuids[1].begin(); itr != m_PlayerGuids[1].end(); ++itr)
+        for (std::set<uint64>::iterator itr = m_PlayerGuids[1].begin(); itr != m_PlayerGuids[1].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
-                if(plr->IsInWorld()) plr->RemoveAurasDueToSpell(ZM_CAPTURE_BUFF);
+            if (Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
+                if (plr->IsInWorld()) plr->RemoveAurasDueToSpell(ZM_CAPTURE_BUFF);
         }
     }
 }
@@ -379,7 +379,7 @@ void OutdoorPvPObjectiveZM_GraveYard::SetBeaconState(uint32 controlling_faction)
             if(m_FlagCarrierGUID)
             {
                 // remove flag from carrier, reset flag carrier guid
-                Player * p = sObjectMgr.GetPlayer(m_FlagCarrierGUID);
+                Player * p = sObjectMgr.GetPlayer(ObjectGuid(m_FlagCarrierGUID));
                 if(p)
                 {
                    p->RemoveAurasDueToSpell(ZM_BATTLE_STANDARD_A);
@@ -396,7 +396,7 @@ void OutdoorPvPObjectiveZM_GraveYard::SetBeaconState(uint32 controlling_faction)
 
 bool OutdoorPvPObjectiveZM_GraveYard::CanTalkTo(Player * plr, Creature * c, GossipMenu & gso)
 {
-    uint64 guid = c->GetGUID();
+    uint64 guid = c->GetObjectGuid().GetRawValue();
     std::map<uint64,uint32>::iterator itr = m_CreatureTypes.find(guid);
     if(itr != m_CreatureTypes.end())
     {
@@ -428,12 +428,12 @@ bool OutdoorPvPObjectiveZM_GraveYard::HandleGossipOption(Player *plr, uint64 gui
         if(itr->second == ZM_ALLIANCE_FIELD_SCOUT)
         {
             cr->CastSpell(plr,ZM_BATTLE_STANDARD_A,true);
-            m_FlagCarrierGUID = plr->GetGUID();
+            m_FlagCarrierGUID = plr->GetObjectGuid().GetRawValue();
         }
         else if(itr->second == ZM_HORDE_FIELD_SCOUT)
         {
             cr->CastSpell(plr,ZM_BATTLE_STANDARD_H,true);
-            m_FlagCarrierGUID = plr->GetGUID();
+            m_FlagCarrierGUID = plr->GetObjectGuid().GetRawValue();
         }
         UpdateTowerState();
         plr->PlayerTalkClass->CloseGossip();

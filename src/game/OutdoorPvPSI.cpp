@@ -89,12 +89,12 @@ void OutdoorPvPSI::BuffTeam(uint32 team)
     {
         for(std::set<uint64>::iterator itr = m_PlayerGuids[0].begin(); itr != m_PlayerGuids[0].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
+            if(Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
                 if(plr->IsInWorld()) plr->CastSpell(plr,SI_CENARION_FAVOR,true);
         }
         for(std::set<uint64>::iterator itr = m_PlayerGuids[1].begin(); itr != m_PlayerGuids[1].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
+            if(Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
                 if(plr->IsInWorld()) plr->RemoveAurasDueToSpell(SI_CENARION_FAVOR);
         }
     }
@@ -102,12 +102,12 @@ void OutdoorPvPSI::BuffTeam(uint32 team)
     {
         for(std::set<uint64>::iterator itr = m_PlayerGuids[1].begin(); itr != m_PlayerGuids[1].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
+            if(Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
                 if(plr->IsInWorld()) plr->CastSpell(plr,SI_CENARION_FAVOR,true);
         }
         for(std::set<uint64>::iterator itr = m_PlayerGuids[0].begin(); itr != m_PlayerGuids[0].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
+            if(Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
                 if(plr->IsInWorld()) plr->RemoveAurasDueToSpell(SI_CENARION_FAVOR);
         }
     }
@@ -115,12 +115,12 @@ void OutdoorPvPSI::BuffTeam(uint32 team)
     {
         for(std::set<uint64>::iterator itr = m_PlayerGuids[0].begin(); itr != m_PlayerGuids[0].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
+            if(Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
                 if(plr->IsInWorld()) plr->RemoveAurasDueToSpell(SI_CENARION_FAVOR);
         }
         for(std::set<uint64>::iterator itr = m_PlayerGuids[1].begin(); itr != m_PlayerGuids[1].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
+            if(Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
                 if(plr->IsInWorld()) plr->RemoveAurasDueToSpell(SI_CENARION_FAVOR);
         }
     }

@@ -731,7 +731,7 @@ void OutdoorPvPObjectiveEP_PWT::SummonFlightMaster(Team team)
 bool OutdoorPvPObjectiveEP_PWT::CanTalkTo(Player * p, Creature * c, GossipMenu &gso)
 {
     if( p->GetTeam() == m_FlightMasterSpawned &&
-        c->GetGUID() == m_Creatures[EP_PWT_FLIGHTMASTER])
+        c->GetObjectGuid().GetRawValue() == m_Creatures[EP_PWT_FLIGHTMASTER])
         return true;
     return false;
 }
@@ -854,7 +854,7 @@ void OutdoorPvPEP::BuffTeams()
 {
     for(std::set<uint64>::iterator itr = m_PlayerGuids[0].begin(); itr != m_PlayerGuids[0].end(); ++itr)
     {
-        if(Player * plr = sObjectMgr.GetPlayer(*itr))
+        if(Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
         {
             for(int i = 0; i < 4; ++i)
                 if(plr->IsInWorld()) plr->RemoveAurasDueToSpell(EP_AllianceBuffs[i]);
@@ -864,7 +864,7 @@ void OutdoorPvPEP::BuffTeams()
     }
     for(std::set<uint64>::iterator itr = m_PlayerGuids[1].begin(); itr != m_PlayerGuids[1].end(); ++itr)
     {
-        if(Player * plr = sObjectMgr.GetPlayer(*itr))
+        if(Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
         {
             for(int i = 0; i < 4; ++i)
                 if(plr->IsInWorld()) plr->RemoveAurasDueToSpell(EP_HordeBuffs[i]);

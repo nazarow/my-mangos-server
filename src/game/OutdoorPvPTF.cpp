@@ -141,12 +141,12 @@ void OutdoorPvPTF::BuffTeam(uint32 team)
     {
         for(std::set<uint64>::iterator itr = m_PlayerGuids[0].begin(); itr != m_PlayerGuids[0].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
+            if(Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
                 if(plr->IsInWorld()) plr->CastSpell(plr,TF_CAPTURE_BUFF,true);
         }
         for(std::set<uint64>::iterator itr = m_PlayerGuids[1].begin(); itr != m_PlayerGuids[1].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
+            if(Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
                 if(plr->IsInWorld()) plr->RemoveAurasDueToSpell(TF_CAPTURE_BUFF);
         }
     }
@@ -154,12 +154,12 @@ void OutdoorPvPTF::BuffTeam(uint32 team)
     {
         for(std::set<uint64>::iterator itr = m_PlayerGuids[1].begin(); itr != m_PlayerGuids[1].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
+            if(Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
                 if(plr->IsInWorld()) plr->CastSpell(plr,TF_CAPTURE_BUFF,true);
         }
         for(std::set<uint64>::iterator itr = m_PlayerGuids[0].begin(); itr != m_PlayerGuids[0].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
+            if(Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
                 if(plr->IsInWorld()) plr->RemoveAurasDueToSpell(TF_CAPTURE_BUFF);
         }
     }
@@ -167,12 +167,12 @@ void OutdoorPvPTF::BuffTeam(uint32 team)
     {
         for(std::set<uint64>::iterator itr = m_PlayerGuids[0].begin(); itr != m_PlayerGuids[0].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
+            if(Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
                 if(plr->IsInWorld()) plr->RemoveAurasDueToSpell(TF_CAPTURE_BUFF);
         }
         for(std::set<uint64>::iterator itr = m_PlayerGuids[1].begin(); itr != m_PlayerGuids[1].end(); ++itr)
         {
-            if(Player * plr = sObjectMgr.GetPlayer(*itr))
+            if(Player * plr = sObjectMgr.GetPlayer(ObjectGuid(*itr)))
                 if(plr->IsInWorld()) plr->RemoveAurasDueToSpell(TF_CAPTURE_BUFF);
         }
     }

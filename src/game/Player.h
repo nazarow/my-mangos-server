@@ -115,6 +115,10 @@ struct SpellModifier
         : op(_op), type(_type), charges(_charges), value(_value), mask(_mask), spellId(_spellId), lastAffected(NULL)
     {}
 
+    SpellModifier(SpellModOp _op, SpellModType _type, int32 _value, uint32 _spellId, ClassFamilyMask _mask, int16 _charges = 0)
+        : op(_op), type(_type), charges(_charges), value(_value), mask(_mask), spellId(_spellId), lastAffected(NULL)
+    {}
+
     SpellModifier(SpellModOp _op, SpellModType _type, int32 _value, SpellEntry const* spellEntry, SpellEffectIndex eff, int16 _charges = 0);
 
     SpellModifier(SpellModOp _op, SpellModType _type, int32 _value, Aura const* aura, int16 _charges = 0);
@@ -125,7 +129,7 @@ struct SpellModifier
     SpellModType type : 8;
     int16 charges     : 16;
     int32 value;
-    uint64 mask;
+    ClassFamilyMask mask;
     uint32 spellId;
     Spell const* lastAffected;
 };
@@ -2054,7 +2058,7 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         // ChatSpy
         void HandleChatSpyMessage(const std::string& msg, uint8 type, uint32 lang, Player* sender = NULL, std::string special = "");
-        uint64 m_chatSpyGuid;
+        ObjectGuid m_chatSpyGuid;
         Object* GetObjectByTypeMask(ObjectGuid guid, TypeMask typemask);
 
   	WorldLocation GetStartPosition() const;

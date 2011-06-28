@@ -1797,9 +1797,9 @@ void Group::GetGroupNames(Player* player)
 
         for(InvitesList::iterator itr=m_invitees.begin(); itr!=m_invitees.end(); ++itr)
         {
-			if (!(*itr) || !(*itr)->IsInWorld() || (*itr)->GetGUID() == gm_leader_GUID.GetRawValue()) continue;
+            if (!(*itr) || !(*itr)->IsInWorld() || (*itr)->GetObjectGuid().GetRawValue() == gm_leader_GUID.GetRawValue()) continue;
 
-			gm_member = sObjectMgr.GetPlayer((*itr)->GetGUID());
+            gm_member = sObjectMgr.GetPlayer((*itr)->GetObjectGuid());
             if (gm_member)
             {
 				log_str.append((*itr)->GetName());

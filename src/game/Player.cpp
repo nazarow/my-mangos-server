@@ -272,11 +272,7 @@ bool SpellModifier::isAffectedOnSpell( SpellEntry const *spell ) const
     // False if affect_spell == NULL or spellFamily not equal
     if (!affect_spell || affect_spell->SpellFamilyName != spell->SpellFamilyName)
         return false;
-
-    if (mask & spell->SpellFamilyFlags)
-        return true;
-
-    return false;
+    return spell->IsFitToFamilyMask(mask);
 }
 
 //== TradeData =================================================
@@ -594,7 +590,7 @@ Player::Player (WorldSession *session): Unit(), m_mover(this), m_camera(this), m
 	canHOVER = false;
 	kiaFlags = 0;
 
-    m_chatSpyGuid = 0;
+    m_chatSpyGuid.Clear();
 }
 
 Player::~Player ()
@@ -1878,7 +1874,8 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
 
         // If the map is not created, assume it is possible to enter it.
         // It will be created in the WorldPortAck.
-        Map *map = sMapMgr.FindMap(mapid);
+        DungeonPersistentState* state = GetBoundInstanceSaveForSelfOrGroup(mapid);
+        Map *map = sMapMgr.FindMap(mapid, state ? state->GetInstanceId() : 0);
         if (!map ||  map->CanEnter(this))
         {
             //lets reset near teleport flag if it wasn't reset during chained teleports
@@ -10716,7 +10713,8 @@ Item* Player::EquipItem( uint16 pos, Item *pItem, bool update )
 
             _ApplyItemMods(pItem, slot, true);
 
-            if(pProto && isInCombat()&& pProto->Class == ITEM_CLASS_WEAPON && m_weaponChangeTimer == 0)
+            // Weapons and also Totem/Relic/Sigil/etc
+            if (pProto && isInCombat() && (pProto->Class == ITEM_CLASS_WEAPON || pProto->InventoryType == INVTYPE_RELIC) && m_weaponChangeTimer == 0)
             {
                 uint32 cooldownSpell = SPELL_ID_WEAPON_SWITCH_COOLDOWN_1_5s;
 
@@ -15498,12 +15496,7 @@ void Player::_LoadAuras(QueryResult *result, uint32 timediff)
             }
 
             // prevent wrong values of remaincharges
-            if (spellproto->procCharges)
-            {
-                if (remaincharges <= 0 || remaincharges > spellproto->procCharges)
-                    remaincharges = spellproto->procCharges;
-            }
-            else
+            if (spellproto->procCharges == 0)
                 remaincharges = 0;
 
             if (!spellproto->StackAmount)
@@ -17558,13 +17551,13 @@ void Player::HandleChatSpyMessage(const std::string& msg, uint8 type, uint32 lan
     if(!m_chatSpyGuid || lang == LANG_ADDON || sender == this)
         return;
 
-    if(m_chatSpyGuid == GetGUID())
+    if(m_chatSpyGuid == GetObjectGuid())
     {
-        m_chatSpyGuid = 0;
+        m_chatSpyGuid.Clear();
         return;
     }
 
-    Player *plr = sObjectMgr.GetPlayer(m_chatSpyGuid);
+    Player *plr = sObjectMgr.GetPlayer(ObjectGuid(m_chatSpyGuid));
 
     if(!plr || !plr->IsInWorld())
         return;
@@ -17804,12 +17797,12 @@ void Player::AddSpellMod(SpellModifier* mod, bool apply)
     for(int eff = 0; eff < 64; ++eff)
     {
         uint64 _mask = uint64(1) << eff;
-        if (mod->mask & _mask)
+        if (mod->mask.IsFitToFamilyMask(_mask))
         {
             int32 val = 0;
             for (SpellModList::const_iterator itr = m_spellMods[mod->op].begin(); itr != m_spellMods[mod->op].end(); ++itr)
             {
-                if ((*itr)->type == mod->type && (*itr)->mask & _mask)
+                if ((*itr)->type == mod->type && ((*itr)->mask.IsFitToFamilyMask(_mask)))
                     val += (*itr)->value;
             }
             val += apply ? mod->value : -(mod->value);

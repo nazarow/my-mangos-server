@@ -502,11 +502,6 @@ void Unit::RemoveSpellsCausingAura(AuraType auraType, SpellAuraHolder* except)
     }
 }
 
-bool Unit::HasAuraType(AuraType auraType) const
-{
-    return (!m_modAuras[auraType].empty());
-}
-
 /* Called by DealDamage for auras that have a chance to be dispelled on damage taken. */
 void Unit::RemoveSpellbyDamageTaken(AuraType auraType, uint32 damage)
 {
@@ -2027,7 +2022,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit *pCaster, SpellSchoolMask schoolM
             case SPELLFAMILY_PRIEST:
             {
                 // Reflective Shield
-                if (spellProto->SpellFamilyFlags == 0x1 && canReflect)
+                if (spellProto->IsFitToFamilyMask(UI64LIT(0x0000000000000001)) && canReflect)
                 {
                     if (pCaster == this)
                         break;
@@ -4508,6 +4503,24 @@ void Unit::_ApplyAllAuraMods()
     }
 }
 
+bool Unit::HasAuraType(AuraType auraType) const
+{
+    return !GetAurasByType(auraType).empty();
+}
+
+bool Unit::HasAffectedAura(AuraType auraType, SpellEntry const* spellProto) const
+{
+    Unit::AuraList const& auras = GetAurasByType(auraType);
+
+    for (Unit::AuraList::const_iterator itr = auras.begin(); itr != auras.end(); ++itr)
+    {
+        if ((*itr)->isAffectedOnSpell(spellProto))
+            return true;
+    }
+
+    return false;
+}
+
 Aura* Unit::GetAura(uint32 spellId, SpellEffectIndex effindex)
 {
     SpellAuraHolderBounds bounds = GetSpellAuraHolderBounds(spellId);
@@ -5425,7 +5438,7 @@ void Unit::ModifyAuraState(AuraState flag, bool apply)
                 {
                     // exceptions (applied at state but not removed at state change)
                     // Rampage
-                    if(spellProto->SpellIconID==2006 && spellProto->SpellFamilyName==SPELLFAMILY_WARRIOR && spellProto->SpellFamilyFlags==UI64LIT(0x100000))
+                    if (spellProto->SpellIconID == 2006 && spellProto->IsFitToFamilyMask(UI64LIT(0x0000000000100000)))
                     {
                         ++itr;
                         continue;
@@ -7356,7 +7369,7 @@ void Unit::UpdateSpeed(UnitMoveType mtype, bool forced, float ratio)
     switch(mtype)
     {
         case MOVE_WALK:
-            return;
+            break;
         case MOVE_RUN:
         {
             if (IsMounted()) // Use on mount auras

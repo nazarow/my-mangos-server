@@ -1499,7 +1499,7 @@ void WorldSession::HandleMoveSetCanFlyAckOpcode( WorldPacket & recv_data )
     recv_data >> guid;
 
     // skip not personal message;
-    if(GetPlayer()->GetGUID()!=guid)
+    if (GetPlayer()->GetObjectGuid().GetRawValue() != guid)
 	{
 		recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
         return;

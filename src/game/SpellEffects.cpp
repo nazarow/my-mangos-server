@@ -350,7 +350,7 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
 					// Shatter
 					case 33671:
 					{
-						if (unitTarget->GetGUID() == m_caster->GetGUID() || unitTarget->GetTypeId() != TYPEID_PLAYER)
+                        if (unitTarget->GetObjectGuid().GetRawValue() == m_caster->GetObjectGuid().GetRawValue() || unitTarget->GetTypeId() != TYPEID_PLAYER)
 							return;
                         float radius = GetSpellRadius(sSpellRadiusStore.LookupEntry(m_spellInfo->EffectRadiusIndex[0]));
                         if(!radius) return;
@@ -801,6 +801,11 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                         : 17270;                            // Create Bone Dust
 
                     m_caster->CastSpell(m_caster, spell_id, true, NULL);
+                    return;
+                }
+                case 17770:                                 // Wolfshead Helm Energy
+                {
+                    m_caster->CastSpell(m_caster, 29940, true, NULL);
                     return;
                 }
                 case 17950:                                 // Shadow Portal
@@ -2066,7 +2071,7 @@ void Spell::EffectTriggerSpell(SpellEffectIndex effIndex)
                 if (!spellInfo)
                     continue;
 
-                if (spellInfo->SpellFamilyName == SPELLFAMILY_ROGUE && spellInfo->SpellFamilyFlags & SPELLFAMILYFLAG_ROGUE_STEALTH)
+                if (spellInfo->IsFitToFamily(SPELLFAMILY_ROGUE, UI64LIT(0x0000000000400000)))
                 {
                     spellId = spellInfo->Id;
                     break;
@@ -2993,7 +2998,7 @@ void Spell::EffectOpenLock(SpellEffectIndex eff_idx)
 
         // handle outdoor pvp object opening, return true if go was registered for handling
         // these objects must have been spawned by outdoorpvp!
-        else if(goInfo->type == GAMEOBJECT_TYPE_GOOBER && sOutdoorPvPMgr.HandleOpenGo(player, gameObjTarget->GetGUID()))
+        else if(goInfo->type == GAMEOBJECT_TYPE_GOOBER && sOutdoorPvPMgr.HandleOpenGo(player, gameObjTarget->GetObjectGuid().GetRawValue()))
             return;
         lockId = goInfo->GetLockId();
         guid = gameObjTarget->GetObjectGuid();
@@ -3783,7 +3788,7 @@ void Spell::DoSummonGuardian(SpellEffectIndex eff_idx, uint32 forceFaction)
 		        {
 			        for (int i = 0; i < 3; i++)
 				    {
-						SpellAuraHolder *holder = spawnCreature->GetSpellAuraHolder(33849, spawnCreature->GetGUID());
+                        SpellAuraHolder *holder = spawnCreature->GetSpellAuraHolder(33849, spawnCreature->GetObjectGuid());
 					    Aura* Aur = CreateAura(sl, SpellEffectIndex(i), NULL, holder, spawnCreature, m_caster);
 						if (Aur)
 						{
@@ -4540,14 +4545,14 @@ void Spell::EffectWeaponDmg(SpellEffectIndex eff_idx)
     m_damage+= uint32(bonus > 0 ? bonus : 0);
 
     // Hemorrhage
-    if (m_spellInfo->SpellFamilyName==SPELLFAMILY_ROGUE && (m_spellInfo->SpellFamilyFlags & UI64LIT(0x2000000)))
+    if (m_spellInfo->IsFitToFamily(SPELLFAMILY_ROGUE, UI64LIT(0x0000000002000000)))
     {
         if(m_caster->GetTypeId()==TYPEID_PLAYER)
             ((Player*)m_caster)->AddComboPoints(unitTarget, 1);
     }
 
     // Mangle (Cat): CP
-    if (m_spellInfo->SpellFamilyName==SPELLFAMILY_DRUID && (m_spellInfo->SpellFamilyFlags==UI64LIT(0x0000040000000000)))
+    if (m_spellInfo->IsFitToFamily(SPELLFAMILY_DRUID, UI64LIT(0x0000040000000000)))
     {
         if(m_caster->GetTypeId()==TYPEID_PLAYER)
             ((Player*)m_caster)->AddComboPoints(unitTarget, 1);
@@ -5322,11 +5327,10 @@ void Spell::EffectSanctuary(SpellEffectIndex /*eff_idx*/)
 
     unitTarget->CombatStop();
     unitTarget->getHostileRefManager().deleteReferences();  // stop all fighting
+
     // Vanish allows to remove all threat and cast regular stealth so other spells can be used
-    if(m_spellInfo->SpellFamilyName == SPELLFAMILY_ROGUE && (m_spellInfo->SpellFamilyFlags & SPELLFAMILYFLAG_ROGUE_VANISH))
-    {
+    if (m_spellInfo->IsFitToFamily(SPELLFAMILY_ROGUE, UI64LIT(0x0000000000000800)))
         ((Player *)m_caster)->RemoveSpellsCausingAura(SPELL_AURA_MOD_ROOT);
-    }
 }
 
 void Spell::EffectAddComboPoints(SpellEffectIndex /*eff_idx*/)

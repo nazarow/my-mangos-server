@@ -306,7 +306,7 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
 		}
 
 		//if passenger on transport and transport changed - remove it
-		if (plMover && plMover->m_transport && plMover->m_transport->GetGUID()!=movementInfo.t_guid.GetRawValue())
+        if (plMover && plMover->m_transport && plMover->m_transport->GetObjectGuid().GetRawValue() != movementInfo.t_guid.GetRawValue())
 		{
             plMover->m_transport->RemovePassenger(GetPlayer());
             plMover->m_transport = NULL;
@@ -854,7 +854,7 @@ void WorldSession::HandleMoveKnockBackAck( WorldPacket & recv_data )
     recv_data >> guid;
 
     // ignore, waiting processing in WorldSession::HandleMoveWorldportAckOpcode and WorldSession::HandleMoveTeleportAck
-	if (GetPlayer()->GetGUID()!=guid.GetRawValue())//(plMover && plMover->IsBeingTeleported())
+    if (GetPlayer()->GetObjectGuid().GetRawValue() != guid.GetRawValue())//(plMover && plMover->IsBeingTeleported())
     {
         recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
         return;
@@ -900,7 +900,7 @@ void WorldSession::HandleMoveHoverAck( WorldPacket& recv_data )
     recv_data >> guid;
 
 	// skip not personal message;
-    if(GetPlayer()->GetGUID()!=guid)
+    if (GetPlayer()->GetObjectGuid().GetRawValue() != guid)
 	{
 		recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
 	    return;
@@ -934,7 +934,7 @@ void WorldSession::HandleMoveWaterWalkAck(WorldPacket& recv_data)
 	recv_data >> guid;
 
 	// skip not personal message;
-    if(GetPlayer()->GetGUID()!=guid)
+    if (GetPlayer()->GetObjectGuid().GetRawValue() != guid)
 	{
 		recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
 	    return;
