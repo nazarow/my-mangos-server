@@ -54,6 +54,7 @@
 #include "InstanceData.h"
 #include "DBCStores.h"
 #include "CreatureEventAIMgr.h"
+#include "Spell.h"
 
 bool ChatHandler::HandleJailReloadCommand(char* arg)
 {
@@ -3721,6 +3722,12 @@ bool ChatHandler::HandleNpcInfoCommand(char* args)
 	PSendSysMessage("CanInitATT[%i] isTA[%i] isInAcc[%i] DistanceZ[%f] hostile[%i] AttackDist[%f] WithDist[%i] InLOS[%i] Stopped[%i] victim[%s]",target->CanInitiateAttack(),owner->isTargetableForAttack(),
 		owner->isInAccessablePlaceFor(target),target->GetDistanceZ(owner),target->IsHostileTo(owner),target->GetAttackDistance(owner),
 		target->IsWithinDistInMap(owner,target->GetAttackDistance(owner)),target->IsWithinLOSInMap(owner),target->IsStopped(),target->getVictim()?target->getVictim()->GetName():"---");
+
+    PSendSysMessage("Current spells: Melee[%u] Generic[%u] Autorepeat[%u] Channeled[%u]",
+        target->GetCurrentSpell(CURRENT_MELEE_SPELL)?target->GetCurrentSpell(CURRENT_MELEE_SPELL)->m_spellInfo->Id:0,
+        target->GetCurrentSpell(CURRENT_GENERIC_SPELL)?target->GetCurrentSpell(CURRENT_GENERIC_SPELL)->m_spellInfo->Id:0,
+        target->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL)?target->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL)->m_spellInfo->Id:0,
+        target->GetCurrentSpell(CURRENT_CHANNELED_SPELL)?target->GetCurrentSpell(CURRENT_CHANNELED_SPELL)->m_spellInfo->Id:0);
 
 	uint32 own = sObjectMgr.GetUnitOwner(target->GetGUIDLow());
 	if (own)

@@ -677,20 +677,17 @@ void CreatureEventAI::ProcessAction(CreatureEventAI_Action const& action, uint32
             EnterEvadeMode();
             break;
         case ACTION_T_FLEE_FOR_ASSIST:
-            m_creature->DoFleeToGetAssistance();
+            if (m_creature->CanFreeMove())
+                m_creature->DoFleeToGetAssistance();
             break;
         case ACTION_T_QUEST_EVENT_ALL:
             if (pActionInvoker && pActionInvoker->GetTypeId() == TYPEID_PLAYER)
                 ((Player*)pActionInvoker)->GroupEventHappens(action.quest_event_all.questId,m_creature);
             break;
         case ACTION_T_CAST_EVENT_ALL:
-        {
-            ThreatList const& threatList = m_creature->getThreatManager().getThreatList();
-            for (ThreatList::const_iterator i = threatList.begin(); i != threatList.end(); ++i)
-                if (Player* temp = m_creature->GetMap()->GetPlayer((*i)->getUnitGuid()))
-                        temp->CastedCreatureOrGO(action.cast_event_all.creatureId, m_creature->GetObjectGuid(), action.cast_event_all.spellId);
+            if (pActionInvoker && pActionInvoker->GetTypeId() == TYPEID_PLAYER)
+                ((Player*)pActionInvoker)->CastedCreatureOrGO(action.cast_event_all.creatureId, m_creature->GetObjectGuid(), action.cast_event_all.spellId);
             break;
-        }
         case ACTION_T_REMOVEAURASFROMSPELL:
             if (Unit* target = GetTargetByType(action.remove_aura.target, pActionInvoker))
                 target->RemoveAurasDueToSpell(action.remove_aura.spellId);
