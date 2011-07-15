@@ -29,6 +29,7 @@
 #include "Language.h"
 #include "World.h"
 #include "GossipDef.h"
+#include "MapManager.h"
 
 OutdoorPvPObjectiveEP_EWT::OutdoorPvPObjectiveEP_EWT(OutdoorPvP *pvp)
 : OutdoorPvPObjective(pvp), m_TowerState(EP_TS_N), m_UnitsSummonedSide(TEAM_NONE)

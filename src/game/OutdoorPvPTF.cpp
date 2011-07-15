@@ -25,6 +25,7 @@
 #include "ObjectMgr.h"
 #include "Language.h"
 #include "World.h"
+#include "MapManager.h"
 
 OutdoorPvPTF::OutdoorPvPTF()
 {

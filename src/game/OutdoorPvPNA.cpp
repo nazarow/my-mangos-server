@@ -25,6 +25,7 @@
 #include "WorldPacket.h"
 #include "Language.h"
 #include "World.h"
+#include "MapManager.h"
 
 OutdoorPvPNA::OutdoorPvPNA()
 {
