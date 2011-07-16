@@ -541,6 +541,21 @@ class MANGOS_DLL_SPEC Creature : public Unit
                 UpdateWalkMode(this, false);
         }
 
+        void SetWalk(bool walk)
+        {
+            walk ? AddSplineFlag(SPLINEFLAG_WALKMODE) : RemoveSplineFlag(SPLINEFLAG_WALKMODE);
+        }
+
+        bool IsLevitating(void)
+        {
+            return HasSplineFlag(SPLINEFLAG_FLYING);
+        }
+
+        void SetLevitate(bool levitate)
+        {
+            levitate ? AddSplineFlag(SPLINEFLAG_FLYING) : RemoveSplineFlag(SPLINEFLAG_FLYING);
+        }
+
         void SendMonsterMoveWithSpeedToCurrentDestination(Player* player = NULL);
 
         uint32 GetShieldBlockValue() const                  // dunno mob block value

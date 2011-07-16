@@ -22,7 +22,7 @@
 #include "Chat.h"
 #include "Group.h"
 #include "Guild.h"
-#include "GuildMgr.h""
+#include "GuildMgr.h"
 #include "ObjectMgr.h"
 #include "SpellAuras.h"
 #include "Policies/SingletonImp.h"
