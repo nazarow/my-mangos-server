@@ -38,7 +38,6 @@
 #include "ObjectAccessor.h"
 #include "Object.h"
 #include "BattleGround.h"
-#include "OutdoorPvP.h"
 #include "SpellAuras.h"
 #include "Pet.h"
 #include "SocialMgr.h"
@@ -371,11 +370,6 @@ void WorldSession::HandleTogglePvP( WorldPacket & recv_data )
     {
         if(!GetPlayer()->pvpInfo.inHostileArea && GetPlayer()->IsPvP())
             GetPlayer()->pvpInfo.endTimer = time(NULL);     // start toggle-off
-    }
-
-    if(OutdoorPvP * pvp = _player->GetOutdoorPvP())
-    {
-        pvp->HandlePlayerActivityChanged(_player);
     }
 }
 
@@ -756,12 +750,6 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket & recv_data)
         if (BattleGround* bg = pl->GetBattleGround())
             bg->HandleAreaTrigger(pl, Trigger_ID);
         return;
-    }
-
-    if(OutdoorPvP * pvp = GetPlayer()->GetOutdoorPvP())
-    {
-        if(pvp->HandleAreaTrigger(_player, Trigger_ID))
-            return;
     }
 
     // NULL if all values default (non teleport trigger)

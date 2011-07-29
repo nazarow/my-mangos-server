@@ -52,8 +52,6 @@
 #include "BattleGround.h"
 #include "BattleGroundAV.h"
 #include "BattleGroundMgr.h"
-#include "OutdoorPvP.h"
-#include "OutdoorPvPMgr.h"
 #include "ArenaTeam.h"
 #include "Chat.h"
 #include "Database/DatabaseImpl.h"
@@ -641,6 +639,7 @@ void Player::CleanupsBeforeDelete()
         TradeCancel(false);
         DuelComplete(DUEL_INTERUPTED);
     }
+
     Unit::CleanupsBeforeDelete();
 }
 
@@ -6646,6 +6645,13 @@ void Player::UpdateArea(uint32 newArea)
     UpdateAreaDependentAuras();
 }
 
+// Return if a players is capable of doing world pvp
+bool Player::IsWorldPvPActive()
+{
+    return isAlive() && !HasInvisibilityAura() && !HasStealthAura() && (IsPvP() || sWorld.IsPvPRealm()) &&
+        !HasMovementFlag(MOVEFLAG_FLYING) && !IsTaxiFlying() && !isGameMaster();
+}
+
 void Player::UpdateZone(uint32 newZone, uint32 newArea)
 {
     AreaTableEntry const* zone = GetAreaEntryByAreaID(newZone);
@@ -6654,11 +6660,11 @@ void Player::UpdateZone(uint32 newZone, uint32 newArea)
 
     if(m_zoneUpdateId != newZone)
     {
-	    // inform outdoor pvp
-        sOutdoorPvPMgr.HandlePlayerLeaveZone(this, m_zoneUpdateId);
-        sOutdoorPvPMgr.HandlePlayerEnterZone(this, newZone);
-
 		SendInitWorldStates(newZone, newArea);              // only if really enters to new zone, not just area change, works strange...
+
+        // call this method in order to handle some scripted zones
+        if (InstanceData* mapInstance = GetInstanceData())
+        mapInstance->OnPlayerEnterZone(this, newZone);
 
         if (sWorld.getConfig(CONFIG_BOOL_WEATHER))
         {
@@ -6796,11 +6802,6 @@ void Player::CheckDuelDistance(time_t currTime)
             DuelComplete(DUEL_FLED);
         }
     }
-}
-
-bool Player::IsOutdoorPvPActive()
-{
-    return (isAlive() && !HasInvisibilityAura() && !HasStealthAura() && (HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_IN_PVP) || sWorld.IsPvPRealm()) && !m_movementInfo.HasMovementFlag(MOVEFLAG_FLYING2) && !IsTaxiFlying());
 }
 
 void Player::DuelComplete(DuelCompleteType type)
@@ -8160,6 +8161,58 @@ static WorldStatePair EY_world_states[] =
     { 0x0,   0x0 }
 };
 
+static WorldStatePair SI_world_states[] =                   // Silithus
+{
+    { 2313, 0x0 },                                          // 1 ally silityst gathered
+    { 2314, 0x0 },                                          // 2 horde silityst gathered
+    { 2317, 0x0 },                                          // 3 max silithyst
+
+    // dunno about these... aq opening event maybe?
+    { 2322, 0x0 },                                          // 10 sandworm N
+    { 2323, 0x0 },                                          // 11 sandworm S
+    { 2324, 0x0 },                                          // 12 sandworm SW
+    { 2325, 0x0 },                                          // 13 sandworm E
+    { 0x0,  0x0 }
+};
+
+static WorldStatePair EP_world_states[] =
+{
+    { 0x97a, 0x0 },     // 10 2426
+    { 0x917, 0x0 },     // 11 2327
+    { 0x918, 0x0 },     // 12 2328
+    { 0x97b, 0x32 },     // 13 2427
+    { 0x97c, 0x32 },     // 14 2428
+    { 0x933, 0x1 },     // 15 2355
+    { 0x946, 0x0 },     // 16 2374
+    { 0x947, 0x0 },     // 17 2375
+    { 0x948, 0x0 },     // 18 2376
+    { 0x949, 0x0 },     // 19 2377
+    { 0x94a, 0x0 },     // 20 2378
+    { 0x94b, 0x0 },     // 21 2379
+    { 0x932, 0x0 },     // 22 2354
+    { 0x934, 0x0 },     // 23 2356
+    { 0x935, 0x0 },     // 24 2357
+    { 0x936, 0x0 },     // 25 2358
+    { 0x937, 0x0 },     // 26 2359
+    { 0x938, 0x0 },     // 27 2360
+    { 0x939, 0x1 },     // 28 2361
+    { 0x930, 0x1 },     // 29 2352
+    { 0x93a, 0x0 },     // 30 2362
+    { 0x93b, 0x0 },     // 31 2363
+    { 0x93c, 0x0 },     // 32 2364
+    { 0x93d, 0x0 },     // 33 2365
+    { 0x944, 0x0 },     // 34 2372
+    { 0x945, 0x0 },     // 35 2373
+    { 0x931, 0x1 },     // 36 2353
+    { 0x93e, 0x0 },     // 37 2366
+    { 0x931, 0x1 },     // 38 2367 ??  grey horde not in dbc! send for consistency's sake, and to match field count
+    { 0x940, 0x0 },     // 39 2368
+    { 0x941, 0x0 },     // 7 2369
+    { 0x942, 0x0 },     // 8 2370
+    { 0x943, 0x0 },     // 9 2371
+    { 0x0,  0x0 }
+};
+
 static WorldStatePair HP_world_states[] =                   // Hellfire Peninsula
 {
     { 0x9ba, 0x1 },                                         // 2490 10
@@ -8241,11 +8294,49 @@ static WorldStatePair ZM_world_states[] =                   // Zangarmarsh
     { 0x0,   0x0 }
 };
 
+static WorldStatePair NA_world_states[] =
+{
+    { 2503, 0x0 },  // 10
+    { 2502, 0x0 },  // 11
+    { 2493, 0x0 },  // 12
+    { 2491, 0x0 },  // 13
+
+    { 2495, 0x0 },  // 14
+    { 2494, 0x0 },  // 15
+    { 2497, 0x0 },  // 16
+
+    { 2762, 0x0 },  // 17
+    { 2662, 0x0 },  // 18
+    { 2663, 0x0 },  // 19
+    { 2664, 0x0 },  // 20
+
+    { 2760, 0x0 },  // 21
+    { 2670, 0x0 },  // 22
+    { 2668, 0x0 },  // 23
+    { 2669, 0x0 },  // 24
+
+    { 2761, 0x0 },  // 25
+    { 2667, 0x0 },  // 26
+    { 2665, 0x0 },  // 27
+    { 2666, 0x0 },  // 28
+
+    { 2763, 0x0 },  // 29
+    { 2659, 0x0 },  // 30
+    { 2660, 0x0 },  // 31
+    { 2661, 0x0 },  // 32
+
+    { 2671, 0x0 },  // 33
+    { 2676, 0x0 },  // 34
+    { 2677, 0x0 },  // 35
+    { 2672, 0x0 },  // 36
+    { 2673, 0x0 },  // 37
+    { 0x0,  0x0 }
+};
+
 void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
 {
     // data depends on zoneid/mapid...
     BattleGround* bg = GetBattleGround();
-	OutdoorPvP * pvp = GetOutdoorPvP();
     uint32 mapid = GetMapId();
 
     DEBUG_LOG("Sending SMSG_INIT_WORLD_STATES to Map:%u, Zone: %u", mapid, zoneid);
@@ -8281,72 +8372,15 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
         case 38:
         case 40:
         case 51:
+        case 139:                                           // Eastern plaguelands
+            FillInitialWorldState(data, count, EP_world_states);
+            break;
+        case 1377:                                          // Silithus
+            FillInitialWorldState(data, count, SI_world_states);
+            break;
         case 1519:
         case 1537:
         case 2257:
-            break;
-        case 139: // EPL
-            {
-                if(pvp && pvp->GetTypeId() == OUTDOOR_PVP_EP)
-                    pvp->FillInitialWorldStates(data, count);
-                else
-                {
-                    data << uint32(0x97a) << uint32(0x0); // 10 2426 
-                    data << uint32(0x917) << uint32(0x0); // 11 2327 
-                    data << uint32(0x918) << uint32(0x0); // 12 2328 
-                    data << uint32(0x97b) << uint32(0x32); // 13 2427
-                    data << uint32(0x97c) << uint32(0x32); // 14 2428
-                    data << uint32(0x933) << uint32(0x1); // 15 2355 
-                    data << uint32(0x946) << uint32(0x0); // 16 2374 
-                    data << uint32(0x947) << uint32(0x0); // 17 2375 
-                    data << uint32(0x948) << uint32(0x0); // 18 2376 
-                    data << uint32(0x949) << uint32(0x0); // 19 2377 
-                    data << uint32(0x94a) << uint32(0x0); // 20 2378 
-                    data << uint32(0x94b) << uint32(0x0); // 21 2379 
-                    data << uint32(0x932) << uint32(0x0); // 22 2354 
-                    data << uint32(0x934) << uint32(0x0); // 23 2356 
-                    data << uint32(0x935) << uint32(0x0); // 24 2357 
-                    data << uint32(0x936) << uint32(0x0); // 25 2358 
-                    data << uint32(0x937) << uint32(0x0); // 26 2359 
-                    data << uint32(0x938) << uint32(0x0); // 27 2360 
-                    data << uint32(0x939) << uint32(0x1); // 28 2361 
-                    data << uint32(0x930) << uint32(0x1); // 29 2352 
-                    data << uint32(0x93a) << uint32(0x0); // 30 2362 
-                    data << uint32(0x93b) << uint32(0x0); // 31 2363 
-                    data << uint32(0x93c) << uint32(0x0); // 32 2364 
-                    data << uint32(0x93d) << uint32(0x0); // 33 2365 
-                    data << uint32(0x944) << uint32(0x0); // 34 2372 
-                    data << uint32(0x945) << uint32(0x0); // 35 2373 
-                    data << uint32(0x931) << uint32(0x1); // 36 2353 
-                    data << uint32(0x93e) << uint32(0x0); // 37 2366 
-                    data << uint32(0x931) << uint32(0x1); // 38 2367 ??  grey horde not in dbc! send for consistency's sake, and to match field count
-                    data << uint32(0x940) << uint32(0x0); // 39 2368 
-                    data << uint32(0x941) << uint32(0x0); // 7 2369 
-                    data << uint32(0x942) << uint32(0x0); // 8 2370 
-                    data << uint32(0x943) << uint32(0x0); // 9 2371
-					count += 33;
-                }
-            }
-            break;
-        case 1377: // Silithus			
-            {
-                if(pvp && pvp->GetTypeId() == OUTDOOR_PVP_SI)
-                    pvp->FillInitialWorldStates(data, count);
-                else
-                {
-                    // states are always shown
-                    data << uint32(2313) << uint32(0x0); // 7 ally silityst gathered
-                    data << uint32(2314) << uint32(0x0); // 8 horde silityst gathered
-                    data << uint32(2317) << uint32(0x0); // 9 max silithyst
-					count += 3;
-                }
-                // dunno about these... aq opening event maybe?
-                data << uint32(2322) << uint32(0x0); // 10 sandworm N
-                data << uint32(2323) << uint32(0x0); // 11 sandworm S
-                data << uint32(2324) << uint32(0x0); // 12 sandworm SW
-                data << uint32(2325) << uint32(0x0); // 13 sandworm E	
-				count += 4;
-            }
             break;
         case 2597:                                          // AV
             if (bg && bg->GetTypeID() == BATTLEGROUND_AV)
@@ -8375,58 +8409,16 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
         // any of these needs change! the client remembers the prev setting!
         // ON EVERY ZONE LEAVE, RESET THE OLD ZONE'S WORLD STATE, BUT AT LEAST THE UI STUFF!
         case 3483:                                          // Hellfire Peninsula
-            if (pvp && pvp->GetTypeId() == OUTDOOR_PVP_HP)
-                pvp->FillInitialWorldStates(data, count);
-            else
-                FillInitialWorldState(data, count, HP_world_states);
+            FillInitialWorldState(data,count, HP_world_states);
             break;
-        case 3518:
-            if (pvp && pvp->GetTypeId() == OUTDOOR_PVP_NA)
-                pvp->FillInitialWorldStates(data, count);
-            else
-            {
-                data << uint32(2503) << uint32(0x0);    // 10
-                data << uint32(2502) << uint32(0x0);    // 11
-                data << uint32(2493) << uint32(0x0);    // 12
-                data << uint32(2491) << uint32(0x0);    // 13
-                data << uint32(2495) << uint32(0x0);    // 14
-                data << uint32(2494) << uint32(0x0);    // 15
-                data << uint32(2497) << uint32(0x0);    // 16
-                data << uint32(2762) << uint32(0x0);    // 17
-                data << uint32(2662) << uint32(0x0);    // 18
-                data << uint32(2663) << uint32(0x0);    // 19
-                data << uint32(2664) << uint32(0x0);    // 20
-                data << uint32(2760) << uint32(0x0);    // 21
-                data << uint32(2670) << uint32(0x0);    // 22
-                data << uint32(2668) << uint32(0x0);    // 23
-                data << uint32(2669) << uint32(0x0);    // 24
-                data << uint32(2761) << uint32(0x0);    // 25
-                data << uint32(2667) << uint32(0x0);    // 26
-                data << uint32(2665) << uint32(0x0);    // 27
-                data << uint32(2666) << uint32(0x0);    // 28
-                data << uint32(2763) << uint32(0x0);    // 29
-                data << uint32(2659) << uint32(0x0);    // 30
-                data << uint32(2660) << uint32(0x0);    // 31
-                data << uint32(2661) << uint32(0x0);    // 32
-                data << uint32(2671) << uint32(0x0);    // 33
-                data << uint32(2676) << uint32(0x0);    // 34
-                data << uint32(2677) << uint32(0x0);    // 35
-                data << uint32(2672) << uint32(0x0);    // 36
-                data << uint32(2673) << uint32(0x0);    // 37
-				count += 28;
-            }
+        case 3518:                                          // Nargrand - Halaa
+            FillInitialWorldState(data, count, NA_world_states);
             break;
         case 3519:                                          // Terokkar Forest
-            if (pvp && pvp->GetTypeId() == OUTDOOR_PVP_TF)
-                pvp->FillInitialWorldStates(data, count);
-            else
-                FillInitialWorldState(data, count, TF_world_states);
+            FillInitialWorldState(data,count, TF_world_states);
             break;
         case 3521:                                          // Zangarmarsh
-            if (pvp && pvp->GetTypeId() == OUTDOOR_PVP_ZM)
-                pvp->FillInitialWorldStates(data, count);
-            else
-                FillInitialWorldState(data, count, ZM_world_states);
+            FillInitialWorldState(data,count, ZM_world_states);
             break;
         case 3698:                                          // Nagrand Arena
             if (bg && bg->GetTypeID() == BATTLEGROUND_NA)
@@ -19906,11 +19898,6 @@ void Player::AutoUnequipOffhandIfNeed()
         std::string subject = GetSession()->GetMangosString(LANG_NOT_EQUIPPED_ITEM);
         MailDraft(subject).AddItem(offItem).SendMailTo(this, MailSender(this, MAIL_STATIONERY_GM), MAIL_CHECK_MASK_COPIED);
     }
-}
-
-OutdoorPvP * Player::GetOutdoorPvP() const
-{
-    return sOutdoorPvPMgr.GetOutdoorPvPToZoneId(GetZoneId());
 }
 
 bool Player::HasItemFitToSpellReqirements(SpellEntry const* spellInfo, Item const* ignoreItem)

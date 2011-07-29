@@ -33,7 +33,6 @@
 #include "World.h"
 #include "ObjectGuid.h"
 #include "SpellMgr.h"
-#include "OutdoorPvPMgr.h"
 
 bool ChatHandler::HandleDebugSendSpellFailCommand(char* args)
 {
@@ -629,7 +628,7 @@ bool ChatHandler::HandleDebugArenaCommand(char* /*args*/)
 
 bool ChatHandler::HandleDebugOutdoorPvPCommand(char* /*args*/)
 {
-    sOutdoorPvPMgr.ToggleOutdoorPvPTesting();
+    //sOutdoorPvPMgr.ToggleOutdoorPvPTesting();
     return true;
 }
 

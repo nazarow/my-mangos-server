@@ -50,7 +50,6 @@ class Transport;
 class UpdateMask;
 class SpellCastTargets;
 class PlayerSocial;
-class OutdoorPvP;
 class DungeonPersistentState;
 class Spell;
 class Item;
@@ -1966,17 +1965,10 @@ class MANGOS_DLL_SPEC Player : public Unit
         void ClearAfkReports() { m_bgData.bgAfkReporter.clear(); }
 
         bool GetBGAccessByLevel(BattleGroundTypeId bgTypeId) const;
-
-        /*********************************************************/
-        /***               OUTDOOR PVP SYSTEM                  ***/
-        /*********************************************************/
-
-        OutdoorPvP * GetOutdoorPvP() const;
-        // returns true if the player is in active state for outdoor pvp objective capturing, false otherwise
-        bool IsOutdoorPvPActive();
         bool CanUseBattleGroundObject();
         bool isTotalImmune();
         bool CanCaptureTowerPoint();
+        bool IsWorldPvPActive();
 
         /*********************************************************/
         /***                    REST SYSTEM                    ***/

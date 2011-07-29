@@ -34,7 +34,6 @@
 #include "GuildMgr.h"
 #include "World.h"
 #include "BattleGroundMgr.h"
-#include "OutdoorPvPMgr.h"
 #include "Language.h"                                       // for CMSG_DISMOUNT handler
 #include "Chat.h"
 #include "MapManager.h"
@@ -408,10 +407,6 @@ void WorldSession::LogoutPlayer(bool Save)
         if(BattleGround *bg = _player->GetBattleGround())
             bg->EventPlayerLoggedOut(_player);
 
-        // Delete player from outdoorPVP
-		if (_player && _player->IsInWorld())
-			sOutdoorPvPMgr.HandlePlayerLeaveZone(_player,_player->GetZoneId());
-
         ///- Teleport to home if the player is in an invalid instance
         if(!_player->m_InstanceValid && !_player->isGameMaster())
         {
@@ -424,8 +419,6 @@ void WorldSession::LogoutPlayer(bool Save)
         // this should fix players beeing able to logout and login back with full hp at death position
         while(_player->IsBeingTeleportedFar())
             HandleMoveWorldportAckOpcode();
-
-        sOutdoorPvPMgr.HandlePlayerLeaveZone(_player,_player->GetZoneId());
 
         for (int i=0; i < PLAYER_MAX_BATTLEGROUND_QUEUES; ++i)
         {

@@ -45,7 +45,6 @@
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"
-#include "OutdoorPvPMgr.h"
 #include "NullCreatureAI.h"
 
 // apply implementation of the singletons
