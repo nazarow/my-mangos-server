@@ -52,6 +52,8 @@
 #include "BattleGround.h"
 #include "BattleGroundAV.h"
 #include "BattleGroundMgr.h"
+#include "WorldPvP.h"
+#include "WorldPvPMgr.h"
 #include "ArenaTeam.h"
 #include "Chat.h"
 #include "Database/DatabaseImpl.h"
@@ -639,6 +641,9 @@ void Player::CleanupsBeforeDelete()
         TradeCancel(false);
         DuelComplete(DUEL_INTERUPTED);
     }
+
+    // notify zone scripts for player logout
+    sWorldPvPMgr.HandlePlayerLeaveZone(this, m_zoneUpdateId);
 
     Unit::CleanupsBeforeDelete();
 }
@@ -6645,6 +6650,11 @@ void Player::UpdateArea(uint32 newArea)
     UpdateAreaDependentAuras();
 }
 
+WorldPvP* Player::GetWorldPvP() const
+{
+    return sWorldPvPMgr.GetWorldPvPToZoneId(GetZoneId());
+}
+
 // Return if a players is capable of doing world pvp
 bool Player::IsWorldPvPActive()
 {
@@ -6660,11 +6670,11 @@ void Player::UpdateZone(uint32 newZone, uint32 newArea)
 
     if(m_zoneUpdateId != newZone)
     {
-		SendInitWorldStates(newZone, newArea);              // only if really enters to new zone, not just area change, works strange...
+        // handle world pvp zones
+        sWorldPvPMgr.HandlePlayerLeaveZone(this, m_zoneUpdateId);
+        sWorldPvPMgr.HandlePlayerEnterZone(this, newZone);
 
-        // call this method in order to handle some scripted zones
-        if (InstanceData* mapInstance = GetInstanceData())
-        mapInstance->OnPlayerEnterZone(this, newZone);
+        SendInitWorldStates(newZone, newArea);              // only if really enters to new zone, not just area change, works strange...
 
         if (sWorld.getConfig(CONFIG_BOOL_WEATHER))
         {
@@ -8338,6 +8348,7 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
     // data depends on zoneid/mapid...
     BattleGround* bg = GetBattleGround();
     uint32 mapid = GetMapId();
+    WorldPvP* outdoorBg = sWorldPvPMgr.GetWorldPvPToZoneId(zoneid);
 
     DEBUG_LOG("Sending SMSG_INIT_WORLD_STATES to Map:%u, Zone: %u", mapid, zoneid);
 
@@ -8373,10 +8384,16 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
         case 40:
         case 51:
         case 139:                                           // Eastern plaguelands
-            FillInitialWorldState(data, count, EP_world_states);
+            if (outdoorBg && outdoorBg->GetTypeId() == WORLD_PVP_TYPE_EP)
+                outdoorBg->FillInitialWorldStates(data, count);
+            else
+                FillInitialWorldState(data, count, EP_world_states);
             break;
         case 1377:                                          // Silithus
-            FillInitialWorldState(data, count, SI_world_states);
+            if (outdoorBg && outdoorBg->GetTypeId() == WORLD_PVP_TYPE_SI)
+                outdoorBg->FillInitialWorldStates(data, count);
+            else
+                FillInitialWorldState(data, count, SI_world_states);
             break;
         case 1519:
         case 1537:
@@ -8409,16 +8426,28 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
         // any of these needs change! the client remembers the prev setting!
         // ON EVERY ZONE LEAVE, RESET THE OLD ZONE'S WORLD STATE, BUT AT LEAST THE UI STUFF!
         case 3483:                                          // Hellfire Peninsula
-            FillInitialWorldState(data,count, HP_world_states);
+            if (outdoorBg && outdoorBg->GetTypeId() == WORLD_PVP_TYPE_HP)
+                outdoorBg->FillInitialWorldStates(data, count);
+            else
+                FillInitialWorldState(data,count, HP_world_states);
             break;
         case 3518:                                          // Nargrand - Halaa
-            FillInitialWorldState(data, count, NA_world_states);
+            if (outdoorBg && outdoorBg->GetTypeId() == WORLD_PVP_TYPE_NA)
+                outdoorBg->FillInitialWorldStates(data, count);
+            else
+                FillInitialWorldState(data, count, NA_world_states);
             break;
         case 3519:                                          // Terokkar Forest
-            FillInitialWorldState(data,count, TF_world_states);
+            if (outdoorBg && outdoorBg->GetTypeId() == WORLD_PVP_TYPE_TF)
+                outdoorBg->FillInitialWorldStates(data, count);
+            else
+                FillInitialWorldState(data,count, TF_world_states);
             break;
         case 3521:                                          // Zangarmarsh
-            FillInitialWorldState(data,count, ZM_world_states);
+            if (outdoorBg && outdoorBg->GetTypeId() == WORLD_PVP_TYPE_ZM)
+                outdoorBg->FillInitialWorldStates(data, count);
+            else
+                FillInitialWorldState(data,count, ZM_world_states);
             break;
         case 3698:                                          // Nagrand Arena
             if (bg && bg->GetTypeID() == BATTLEGROUND_NA)

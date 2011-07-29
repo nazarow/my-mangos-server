@@ -49,6 +49,7 @@
 #include "CreatureAIRegistry.h"
 #include "Policies/SingletonImp.h"
 #include "BattleGroundMgr.h"
+#include "WorldPvPMgr.h"
 #include "TemporarySummon.h"
 #include "VMapFactory.h"
 #include "GameEventMgr.h"
@@ -1338,6 +1339,10 @@ void World::SetInitialWorldSettings()
     sBattleGroundMgr.CreateInitialBattleGrounds();
     sBattleGroundMgr.InitAutomaticArenaPointDistribution();
 
+    ///- Initialize outdoor pvp
+    sLog.outString( "Starting Outdoor PvP System" );
+    sWorldPvPMgr.InitWorldPvP();
+
     //Not sure if this can be moved up in the sequence (with static data loading) as it uses MapManager
     sLog.outString( "Loading Transports..." );
     sMapMgr.LoadTransports();
@@ -1530,6 +1535,10 @@ void World::Update(uint32 diff)
 
     sBattleGroundMgr.Update(diff);
 	RecordTimeDiff("UpdateBattleGroundMgr");
+
+    RecordTimeDiff(NULL);
+    sWorldPvPMgr.Update(diff);
+    RecordTimeDiff("UpdateWorldPvPMgr");
 
     RecordTimeDiff(NULL);
     ///- Delete all characters which have been deleted X days before

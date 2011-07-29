@@ -36,6 +36,7 @@
 #include "MapPersistentStateMgr.h"
 #include "BattleGround.h"
 #include "BattleGroundAV.h"
+#include "WorldPvPMgr.h"
 #include "Util.h"
 #include "ScriptMgr.h"
 
@@ -159,6 +160,12 @@ bool GameObject::Create(uint32 guidlow, uint32 name_id, Map *map, float x, float
     //Normally non-players do not teleport to other maps.
     if (InstanceData* iData = map->GetInstanceData())
         iData->OnObjectCreate(this);
+
+    SetZoneScript();
+
+    // Notify the outdoor pvp script
+    if (m_zoneScript)
+        m_zoneScript->OnGameObjectCreate(this);
 
     return true;
 }
@@ -1651,8 +1658,17 @@ void GameObject::Use(Unit* user)
                     case CAPTURE_STATE_CONTEST_A:
                         if (m_captureTicks == CAPTURE_SLIDER_ALLIANCE)
                         {
-                            if (info->capturePoint.winEventID1 && !sScriptMgr.OnProcessEvent(info->capturePoint.winEventID1, user, this, true))
-                                GetMap()->ScriptsStart(sEventScripts, info->capturePoint.winEventID1, user, this);
+                            if (info->capturePoint.winEventID1)
+                            {
+                                // send zone script
+                                if (m_zoneScript)
+                                    m_zoneScript->ProcessEvent(this, (Player*)user, info->capturePoint.winEventID1);
+                                // if zone script fails send to scriptMgr
+                                else if (!sScriptMgr.OnProcessEvent(info->capturePoint.winEventID1, user, this, true))
+                                    GetMap()->ScriptsStart(sEventScripts, info->capturePoint.winEventID1, user, this);
+                            }
+
+                            SetGoArtKit(2);
 
                             m_captureState = CAPTURE_STATE_WIN_A;
                         }
@@ -1660,8 +1676,20 @@ void GameObject::Use(Unit* user)
                     case CAPTURE_STATE_NEUTRAL:
                         if (m_captureTicks > (50.0f+float(info->capturePoint.neutralPercent)/2.0f))
                         {
-                            if (info->capturePoint.progressEventID1 && !sScriptMgr.OnProcessEvent(info->capturePoint.progressEventID1, user, this, true))
-                                GetMap()->ScriptsStart(sEventScripts, info->capturePoint.progressEventID1, user, this);
+                            if (info->capturePoint.progressEventID1)
+                            {
+                                // send zone script
+                                if (m_zoneScript)
+                                    m_zoneScript->ProcessEvent(this, (Player*)user, info->capturePoint.progressEventID1);
+                                // if zone script fails send to scriptMgr
+                                else if (!sScriptMgr.OnProcessEvent(info->capturePoint.progressEventID1, user, this, true))
+                                    GetMap()->ScriptsStart(sEventScripts, info->capturePoint.progressEventID1, user, this);
+
+                                // handle objective complete
+                                sWorldPvPMgr.HandleObjectiveComplete(m_AlliancePlayersSet, info->capturePoint.progressEventID1);
+                            }
+
+                            SetGoArtKit(2);
 
                             m_captureState = CAPTURE_STATE_PROGRESS_A;
                         }
@@ -1670,8 +1698,17 @@ void GameObject::Use(Unit* user)
                     case CAPTURE_STATE_CONTEST_H:
                         if (m_captureTicks > (50.0f-float(info->capturePoint.neutralPercent)/2.0f))
                         {
-                            if (info->capturePoint.neutralEventID2 && !sScriptMgr.OnProcessEvent(info->capturePoint.neutralEventID2, user, this, true))
-                                GetMap()->ScriptsStart(sEventScripts, info->capturePoint.neutralEventID2, user, this);
+                            if (info->capturePoint.neutralEventID2)
+                            {
+                                // send zone script
+                                if (m_zoneScript)
+                                    m_zoneScript->ProcessEvent(this, (Player*)user, info->capturePoint.neutralEventID2);
+                                // if zone script fails send to scriptMgr
+                                else if (!sScriptMgr.OnProcessEvent(info->capturePoint.neutralEventID2, user, this, true))
+                                    GetMap()->ScriptsStart(sEventScripts, info->capturePoint.neutralEventID2, user, this);
+                            }
+
+                            SetGoArtKit(21);
 
                             m_captureState = CAPTURE_STATE_NEUTRAL;
                         }
@@ -1679,8 +1716,17 @@ void GameObject::Use(Unit* user)
                     case CAPTURE_STATE_WIN_H:
                         if (m_captureTicks > CAPTURE_SLIDER_HORDE)
                         {
-                            if (info->capturePoint.contestedEventID2 && !sScriptMgr.OnProcessEvent(info->capturePoint.contestedEventID2, user, this, true))
-                                GetMap()->ScriptsStart(sEventScripts, info->capturePoint.contestedEventID2, user, this);
+                            if (info->capturePoint.contestedEventID2)
+                            {
+                                // send zone script
+                                if (m_zoneScript)
+                                    m_zoneScript->ProcessEvent(this, (Player*)user, info->capturePoint.contestedEventID2);
+                                // if zone script fails send to scriptMgr
+                                else if (!sScriptMgr.OnProcessEvent(info->capturePoint.contestedEventID2, user, this, true))
+                                    GetMap()->ScriptsStart(sEventScripts, info->capturePoint.contestedEventID2, user, this);
+                            }
+
+                            SetGoArtKit(1);
 
                             m_captureState = CAPTURE_STATE_CONTEST_H;
                         }
@@ -1695,8 +1741,17 @@ void GameObject::Use(Unit* user)
                     case CAPTURE_STATE_CONTEST_H:
                         if (m_captureTicks == CAPTURE_SLIDER_HORDE)
                         {
-                            if (info->capturePoint.winEventID2 && !sScriptMgr.OnProcessEvent(info->capturePoint.winEventID2, user, this, true))
-                                GetMap()->ScriptsStart(sEventScripts, info->capturePoint.winEventID2, user, this);
+                            if (info->capturePoint.winEventID2)
+                            {
+                                // send zone script
+                                if (m_zoneScript)
+                                    m_zoneScript->ProcessEvent(this, (Player*)user, info->capturePoint.winEventID2);
+                                // if zone script fails send to scriptMgr
+                                else if (!sScriptMgr.OnProcessEvent(info->capturePoint.winEventID2, user, this, true))
+                                    GetMap()->ScriptsStart(sEventScripts, info->capturePoint.winEventID2, user, this);
+                            }
+
+                            SetGoArtKit(1);
 
                             m_captureState = CAPTURE_STATE_WIN_H;
                         }
@@ -1704,8 +1759,20 @@ void GameObject::Use(Unit* user)
                     case CAPTURE_STATE_NEUTRAL:
                         if (m_captureTicks < (50.0f-float(info->capturePoint.neutralPercent)/2.0f))
                         {
-                            if (info->capturePoint.progressEventID2 && !sScriptMgr.OnProcessEvent(info->capturePoint.progressEventID2, user, this, true))
-                                GetMap()->ScriptsStart(sEventScripts, info->capturePoint.progressEventID2, user, this);
+                            if (info->capturePoint.progressEventID2)
+                            {
+                                // send zone script
+                                if (m_zoneScript)
+                                    m_zoneScript->ProcessEvent(this, (Player*)user, info->capturePoint.progressEventID2);
+                                // if zone script fails send to scriptMgr
+                                else if (!sScriptMgr.OnProcessEvent(info->capturePoint.progressEventID2, user, this, true))
+                                    GetMap()->ScriptsStart(sEventScripts, info->capturePoint.progressEventID2, user, this);
+
+                                // handle objective complete
+                                sWorldPvPMgr.HandleObjectiveComplete(m_HordePlayersSet, info->capturePoint.progressEventID2);
+                            }
+
+                            SetGoArtKit(1);
 
                             m_captureState = CAPTURE_STATE_PROGRESS_H;
                         }
@@ -1714,8 +1781,17 @@ void GameObject::Use(Unit* user)
                     case CAPTURE_STATE_CONTEST_A:
                         if (m_captureTicks < (50.0f+float(info->capturePoint.neutralPercent)/2.0f))
                         {
-                            if (info->capturePoint.neutralEventID1 && !sScriptMgr.OnProcessEvent(info->capturePoint.neutralEventID1, user, this, true))
-                                GetMap()->ScriptsStart(sEventScripts, info->capturePoint.neutralEventID1, user, this);
+                            if (info->capturePoint.neutralEventID1)
+                            {
+                                // send zone script
+                                if (m_zoneScript)
+                                    m_zoneScript->ProcessEvent(this, (Player*)user, info->capturePoint.neutralEventID1);
+                                // if zone script fails send to scriptMgr
+                                else if (!sScriptMgr.OnProcessEvent(info->capturePoint.neutralEventID1, user, this, true))
+                                    GetMap()->ScriptsStart(sEventScripts, info->capturePoint.neutralEventID1, user, this);
+                            }
+
+                            SetGoArtKit(21);
 
                             m_captureState = CAPTURE_STATE_NEUTRAL;
                         }
@@ -1723,127 +1799,23 @@ void GameObject::Use(Unit* user)
                     case CAPTURE_STATE_WIN_A:
                         if (m_captureTicks < CAPTURE_SLIDER_ALLIANCE)
                         {
-                            if (info->capturePoint.contestedEventID1 && !sScriptMgr.OnProcessEvent(info->capturePoint.contestedEventID1, user, this, true))
-                                GetMap()->ScriptsStart(sEventScripts, info->capturePoint.contestedEventID1, user, this);
+                            if (info->capturePoint.contestedEventID1)
+                            {
+                                // send zone script
+                                if (m_zoneScript)
+                                    m_zoneScript->ProcessEvent(this, (Player*)user, info->capturePoint.contestedEventID1);
+                                // if zone script fails send to scriptMgr
+                                else if (!sScriptMgr.OnProcessEvent(info->capturePoint.contestedEventID1, user, this, true))
+                                    GetMap()->ScriptsStart(sEventScripts, info->capturePoint.contestedEventID1, user, this);
+                            }
+
+                            SetGoArtKit(2);
 
                             m_captureState = CAPTURE_STATE_CONTEST_A;
                         }
                         break;
                 }
             }
-/*
-            // win event ally
-            // ally wins tower with max points
-            if ((uint32)m_captureTicks == CAPTURE_SLIDER_ALLIANCE && m_captureState == CAPTURE_STATE_PROGRESS)            
-            {
-                if (info->capturePoint.winEventID1)
-                {
-                    if (!sScriptMgr.OnProcessEvent(info->capturePoint.winEventID1, user, this, true))
-                        GetMap()->ScriptsStart(sEventScripts, info->capturePoint.winEventID1, user, this);
-
-                    m_captureState = CAPTURE_STATE_WIN;
-                }
-            }
-            // win event horde
-            // horde wins a tower with max points
-            else if ((uint32)m_captureTicks == CAPTURE_SLIDER_HORDE && m_captureState == CAPTURE_STATE_PROGRESS)
-            {
-                if (info->capturePoint.winEventID2)
-                {
-                    if (!sScriptMgr.OnProcessEvent(info->capturePoint.winEventID2, user, this, true))
-                        GetMap()->ScriptsStart(sEventScripts, info->capturePoint.winEventID2, user, this);
-
-                    m_captureState = CAPTURE_STATE_WIN;
-                }
-            }
-
-            // contest event can happen when a player succeeds in attacking a tower which belongs to the opposite faction; owner doesn't change
-
-            // contest event aly
-            // horde attack tower which is in progress or is won by alliance
-            if (m_ownerFaction == ALLIANCE && m_progressFaction == HORDE && m_captureState != CAPTURE_STATE_CONTEST && (m_captureState == CAPTURE_STATE_PROGRESS || m_captureState == CAPTURE_STATE_WIN))
-            {
-                if (info->capturePoint.contestedEventID1)
-                {
-                    if (!sScriptMgr.OnProcessEvent(info->capturePoint.contestedEventID1, user, this, true))
-                        GetMap()->ScriptsStart(sEventScripts, info->capturePoint.contestedEventID1, user, this);
-
-                    m_captureState = CAPTURE_STATE_CONTEST;
-                }
-            }
-            // contest event horde
-            // alliance attack tower which is in progress or is won by horde
-            else if (m_ownerFaction == HORDE && m_progressFaction == ALLIANCE && m_captureState != CAPTURE_STATE_CONTEST && (m_captureState == CAPTURE_STATE_PROGRESS || m_captureState == CAPTURE_STATE_WIN))
-            {
-                if (info->capturePoint.contestedEventID2)
-                {
-                    if (!sScriptMgr.OnProcessEvent(info->capturePoint.contestedEventID2, user, this, true))
-                        GetMap()->ScriptsStart(sEventScripts, info->capturePoint.contestedEventID2, user, this);
-
-                    m_captureState = CAPTURE_STATE_CONTEST;
-                }
-            }
-
-            // the progress event can be achieved when a faction passes on its color on the slider or retakes the tower from a contested state
-
-            // progress event aly
-            // alliance takes the tower from neutral to alliance OR alliance takes the tower from contested to allaince
-            if ((uint32)m_captureTicks == CAPTURE_SLIDER_NEUTRAL + m_neutralPercent/2 + 1 && ((m_captureState == CAPTURE_STATE_NEUTRAL && m_progressFaction == ALLIANCE) || (m_captureState == CAPTURE_STATE_CONTEST && m_progressFaction == ALLIANCE)))
-            {
-                if (info->capturePoint.progressEventID1)
-                {
-                    if (!sScriptMgr.OnProcessEvent(info->capturePoint.progressEventID1, user, this, true))
-                        GetMap()->ScriptsStart(sEventScripts, info->capturePoint.progressEventID1, user, this);
-
-                    // set capture state to aly
-                    m_captureState = CAPTURE_STATE_PROGRESS;
-                    m_ownerFaction = ALLIANCE;
-                }
-            }
-            // progress event horde
-            // horde takes the tower from neutral to horde OR horde takes the tower from contested to horde
-            else if ((uint32)m_captureTicks == CAPTURE_SLIDER_NEUTRAL - m_neutralPercent/2 - 1 && ((m_captureState == CAPTURE_STATE_NEUTRAL && m_progressFaction == HORDE) || (m_captureState == CAPTURE_STATE_CONTEST && player->GetTeam() == HORDE)))
-            {
-                if (info->capturePoint.progressEventID2)
-                {
-                    if (!sScriptMgr.OnProcessEvent(info->capturePoint.progressEventID2, user, this, true))
-                        GetMap()->ScriptsStart(sEventScripts, info->capturePoint.progressEventID2, user, this);
-
-                    // set capture state to horde
-                    m_captureState = CAPTURE_STATE_PROGRESS;
-                    m_ownerFaction = HORDE;
-                }
-            }
-
-            // neutral event can happen when one faction takes the tower from the opposite faction and makes it neutral
-
-            // neutral event aly
-            // horde takes the tower from alliance to neutral
-            if ((uint32)m_captureTicks == CAPTURE_SLIDER_NEUTRAL + m_neutralPercent/2 && m_captureState == CAPTURE_STATE_CONTEST && m_progressFaction == HORDE)
-            {
-                if (info->capturePoint.neutralEventID1)
-                {
-                    if (!sScriptMgr.OnProcessEvent(info->capturePoint.neutralEventID1, user, this, true))
-                        GetMap()->ScriptsStart(sEventScripts, info->capturePoint.neutralEventID1, user, this);
-
-                    m_captureState = CAPTURE_STATE_NEUTRAL;
-                    m_ownerFaction = TEAM_NONE;
-                }
-            }
-            // neutral event horde
-            // alliance takes the tower from horde to neutral
-            else if ((uint32)m_captureTicks == CAPTURE_SLIDER_NEUTRAL - m_neutralPercent/2 && m_captureState == CAPTURE_STATE_CONTEST && m_progressFaction == ALLIANCE)
-            {
-                if (info->capturePoint.neutralEventID2)
-                {
-                    if (!sScriptMgr.OnProcessEvent(info->capturePoint.neutralEventID2, user, this, true))
-                        GetMap()->ScriptsStart(sEventScripts, info->capturePoint.neutralEventID2, user, this);
-
-                    m_captureState = CAPTURE_STATE_NEUTRAL;
-                    m_ownerFaction = TEAM_NONE;
-                }
-            }
-            */
 
             // Some has spell, need to process those further.
             return;

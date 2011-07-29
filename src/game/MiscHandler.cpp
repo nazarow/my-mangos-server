@@ -38,6 +38,7 @@
 #include "ObjectAccessor.h"
 #include "Object.h"
 #include "BattleGround.h"
+#include "WorldPvP.h"
 #include "SpellAuras.h"
 #include "Pet.h"
 #include "SocialMgr.h"
@@ -750,6 +751,12 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket & recv_data)
         if (BattleGround* bg = pl->GetBattleGround())
             bg->HandleAreaTrigger(pl, Trigger_ID);
         return;
+    }
+
+    if (WorldPvP* pOutdoorBg = GetPlayer()->GetWorldPvP())
+    {
+        if (pOutdoorBg->HandleAreaTrigger(pl, Trigger_ID))
+            return;
     }
 
     // NULL if all values default (non teleport trigger)
