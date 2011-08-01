@@ -822,33 +822,33 @@ bool Player::Create( uint32 guidlow, const std::string& name, uint8 race, uint8 
     // bags and main-hand weapon must equipped at this moment
     // now second pass for not equipped (offhand weapon/shield if it attempt equipped before main-hand weapon)
     // or ammo not equipped in special bag
-    for(int i = INVENTORY_SLOT_ITEM_START; i < INVENTORY_SLOT_ITEM_END; ++i)
+    for (int i = INVENTORY_SLOT_ITEM_START; i < INVENTORY_SLOT_ITEM_END; ++i)
     {
-        if(Item* pItem = GetItemByPos( INVENTORY_SLOT_BAG_0, i ))
+        if (Item* pItem = GetItemByPos(INVENTORY_SLOT_BAG_0, i))
         {
             uint16 eDest;
             // equip offhand weapon/shield if it attempt equipped before main-hand weapon
-            uint8 msg = CanEquipItem( NULL_SLOT, eDest, pItem, false );
-            if( msg == EQUIP_ERR_OK )
+            InventoryResult msg = CanEquipItem(NULL_SLOT, eDest, pItem, false);
+            if (msg == EQUIP_ERR_OK)
             {
-                RemoveItem(INVENTORY_SLOT_BAG_0, i,true);
-                EquipItem( eDest, pItem, true);
+                RemoveItem(INVENTORY_SLOT_BAG_0, i, true);
+                EquipItem(eDest, pItem, true);
             }
             // move other items to more appropriate slots (ammo not equipped in special bag)
             else
             {
                 ItemPosCountVec sDest;
-                msg = CanStoreItem( NULL_BAG, NULL_SLOT, sDest, pItem, false );
-                if( msg == EQUIP_ERR_OK )
+                msg = CanStoreItem(NULL_BAG, NULL_SLOT, sDest, pItem, false);
+                if (msg == EQUIP_ERR_OK)
                 {
                     RemoveItem(INVENTORY_SLOT_BAG_0, i,true);
                     pItem = StoreItem( sDest, pItem, true);
                 }
 
                 // if  this is ammo then use it
-                msg = CanUseAmmo( pItem->GetEntry() );
-                if( msg == EQUIP_ERR_OK )
-                    SetAmmo( pItem->GetEntry() );
+                msg = CanUseAmmo(pItem->GetEntry());
+                if (msg == EQUIP_ERR_OK)
+                    SetAmmo(pItem->GetEntry());
             }
         }
     }
@@ -3445,7 +3445,8 @@ void Player::removeSpell(uint32 spell_id, bool disabled, bool learn_low_rank, bo
     if(sSpellMgr.IsPrimaryProfessionFirstRankSpell(spell_id))
     {
         uint32 freeProfs = GetFreePrimaryProfessionPoints()+1;
-        if(freeProfs <= sWorld.getConfig(CONFIG_UINT32_MAX_PRIMARY_TRADE_SKILL))
+        uint32 maxProfs = GetSession()->GetSecurity() < AccountTypes(sWorld.getConfig(CONFIG_UINT32_TRADE_SKILL_GMIGNORE_MAX_PRIMARY_COUNT)) ? sWorld.getConfig(CONFIG_UINT32_MAX_PRIMARY_TRADE_SKILL) : 10;
+        if(freeProfs <= maxProfs)
             SetFreePrimaryProfessions(freeProfs);
     }
 
@@ -4028,16 +4029,19 @@ TrainerSpellState Player::GetTrainerSpellState(TrainerSpell const* trainer_spell
         return TRAINER_SPELL_RED;
 
     // known spell
-    if(HasSpell(trainer_spell->spell))
+    if (HasSpell(trainer_spell->spell))
         return TRAINER_SPELL_GRAY;
 
     // check race/class requirement
-    if(!IsSpellFitByClassAndRace(trainer_spell->spell))
+    if (!IsSpellFitByClassAndRace(trainer_spell->spell))
         return TRAINER_SPELL_RED;
 
+    bool prof = SpellMgr::IsProfessionSpell(trainer_spell->spell);
+
     // check level requirement
-    if(getLevel() < trainer_spell->reqLevel)
-        return TRAINER_SPELL_RED;
+    if (!prof || GetSession()->GetSecurity() < AccountTypes(sWorld.getConfig(CONFIG_UINT32_TRADE_SKILL_GMIGNORE_LEVEL)))
+        if (getLevel() < trainer_spell->reqLevel)
+            return TRAINER_SPELL_RED;
 
     if(SpellChainNode const* spell_chain = sSpellMgr.GetSpellChainNode(trainer_spell->spell))
     {
@@ -4051,8 +4055,9 @@ TrainerSpellState Player::GetTrainerSpellState(TrainerSpell const* trainer_spell
     }
 
     // check skill requirement
-    if(trainer_spell->reqSkill && GetBaseSkillValue(trainer_spell->reqSkill) < trainer_spell->reqSkillValue)
-        return TRAINER_SPELL_RED;
+    if (!prof || GetSession()->GetSecurity() < AccountTypes(sWorld.getConfig(CONFIG_UINT32_TRADE_SKILL_GMIGNORE_SKILL)))
+        if (trainer_spell->reqSkill && GetBaseSkillValue(trainer_spell->reqSkill) < trainer_spell->reqSkillValue)
+            return TRAINER_SPELL_RED;
 
     // exist, already checked at loading
     SpellEntry const* spell = sSpellStore.LookupEntry(trainer_spell->spell);
@@ -7316,6 +7321,77 @@ void Player::UpdateEquipSpellsAtFormChange()
     }
 }
 
+/**
+ * (un-)Apply item spells triggered at adding item to inventory ITEM_SPELLTRIGGER_ON_STORE
+ *
+ * @param item  added/removed item to/from inventory
+ * @param apply (un-)apply spell affects.
+ *
+ * Note: item moved from slot to slot in 2 steps RemoveItem and StoreItem/EquipItem
+ * In result function not called in RemoveItem for prevent unexpected re-apply auras from related spells
+ * with duration reset and etc. Instead unapply done in StoreItem/EquipItem and in specialized
+ * functions for item final remove/destroy from inventory. If new RemoveItem calls added need be sure that
+ * function will call after it in some way if need.
+ */
+
+void Player::ApplyItemOnStoreSpell(Item *item, bool apply)
+{
+    if (!item)
+        return;
+
+    ItemPrototype const *proto = item->GetProto();
+    if (!proto)
+        return;
+
+    for (int i = 0; i < MAX_ITEM_PROTO_SPELLS; ++i)
+    {
+        _Spell const& spellData = proto->Spells[i];
+
+        // no spell
+        if (!spellData.SpellId)
+            continue;
+
+        // apply/unapply only at-store spells
+        if (spellData.SpellTrigger != ITEM_SPELLTRIGGER_ON_STORE)
+            continue;
+
+        if (apply)
+        {
+            // can be attempt re-applied at move in inventory slots
+            if (!HasAura(spellData.SpellId))
+                CastSpell(this, spellData.SpellId, true, item);
+        }
+        else
+            RemoveAurasDueToItemSpell(item, spellData.SpellId);
+    }
+}
+
+void Player::DestroyItemWithOnStoreSpell(Item* item)
+{
+    if (!item)
+        return;
+
+    ItemPrototype const *proto = item->GetProto();
+    if (!proto)
+        return;
+
+    for (int i = 0; i < MAX_ITEM_PROTO_SPELLS; ++i)
+    {
+        _Spell const& spellData = proto->Spells[i];
+
+        // no spell
+        if (!spellData.SpellId)
+            continue;
+
+        // apply/unapply only at-store spells
+        if (spellData.SpellTrigger != ITEM_SPELLTRIGGER_ON_STORE)
+            continue;
+
+        DestroyItem(item->GetBagSlot(), item->GetSlot(), true);
+        break;
+    }
+}
+
 void Player::CastItemCombatSpell(Unit* Target, WeaponAttackType attType)
 {
     Item *item = GetWeaponForAttack(attType, true, true);
@@ -7429,7 +7505,7 @@ void Player::CastItemUseSpell(Item *item,SpellCastTargets const& targets,uint8 c
 {
     ItemPrototype const* proto = item->GetProto();
     // special learning case
-    if(proto->Spells[0].SpellId==SPELL_ID_GENERIC_LEARN)
+    if (proto->Spells[0].SpellId==SPELL_ID_GENERIC_LEARN)
     {
         uint32 learn_spell_id = proto->Spells[0].SpellId;
         uint32 learning_spell_id = proto->Spells[1].SpellId;
@@ -7459,15 +7535,15 @@ void Player::CastItemUseSpell(Item *item,SpellCastTargets const& targets,uint8 c
         _Spell const& spellData = proto->Spells[i];
 
         // no spell
-        if(!spellData.SpellId)
+        if (!spellData.SpellId)
             continue;
 
         // wrong triggering type
-        if( spellData.SpellTrigger != ITEM_SPELLTRIGGER_ON_USE && spellData.SpellTrigger != ITEM_SPELLTRIGGER_ON_NO_DELAY_USE)
+        if (spellData.SpellTrigger != ITEM_SPELLTRIGGER_ON_USE)
             continue;
 
         SpellEntry const *spellInfo = sSpellStore.LookupEntry(spellData.SpellId);
-        if(!spellInfo)
+        if (!spellInfo)
         {
             sLog.outError("Player::CastItemUseSpell: Item (Entry: %u) in have wrong spell id %u, ignoring",proto->ItemId, spellData.SpellId);
             continue;
@@ -10063,7 +10139,7 @@ InventoryResult Player::CanEquipNewItem( uint8 slot, uint16 &dest, uint32 item, 
     return EQUIP_ERR_ITEM_NOT_FOUND;
 }
 
-InventoryResult Player::CanEquipItem( uint8 slot, uint16 &dest, Item *pItem, bool swap, bool not_loading ) const
+InventoryResult Player::CanEquipItem( uint8 slot, uint16 &dest, Item *pItem, bool swap, bool direct_action ) const
 {
     dest = 0;
     if (pItem)
@@ -10089,7 +10165,7 @@ InventoryResult Player::CanEquipItem( uint8 slot, uint16 &dest, Item *pItem, boo
                 return res;
 
             // check this only in game
-            if (not_loading)
+            if (direct_action)
             {
                 // May be here should be more stronger checks; STUNNED checked
                 // ROOT, CONFUSED, DISTRACTED, FLEEING this needs to be checked.
@@ -10101,7 +10177,7 @@ InventoryResult Player::CanEquipItem( uint8 slot, uint16 &dest, Item *pItem, boo
                 // - in-progress arenas
                 if (!pProto->CanChangeEquipStateInCombat())
                 {
-                    if( isInCombat() )
+                    if (isInCombat())
                         return EQUIP_ERR_NOT_IN_COMBAT;
 
                     if (BattleGround* bg = GetBattleGround())
@@ -10124,7 +10200,7 @@ InventoryResult Player::CanEquipItem( uint8 slot, uint16 &dest, Item *pItem, boo
             if (eslot == NULL_SLOT)
                 return EQUIP_ERR_ITEM_CANT_BE_EQUIPPED;
 
-            InventoryResult msg = CanUseItem(pItem , not_loading);
+            InventoryResult msg = CanUseItem(pItem , direct_action);
             if (msg != EQUIP_ERR_OK)
                 return msg;
             if (!swap && GetItemByPos(INVENTORY_SLOT_BAG_0, eslot))
@@ -10137,7 +10213,7 @@ InventoryResult Player::CanEquipItem( uint8 slot, uint16 &dest, Item *pItem, boo
             // check unique-equipped special item classes
             if (pProto->Class == ITEM_CLASS_QUIVER)
             {
-                for(int i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
+                for (int i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
                 {
                     if (Item* pBag = GetItemByPos(INVENTORY_SLOT_BAG_0, i))
                     {
@@ -10182,7 +10258,7 @@ InventoryResult Player::CanEquipItem( uint8 slot, uint16 &dest, Item *pItem, boo
                 // offhand item must can be stored in inventory for offhand item and it also must be unequipped
                 Item *offItem = GetItemByPos( INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND );
                 ItemPosCountVec off_dest;
-                if (offItem && (!not_loading ||
+                if (offItem && (!direct_action ||
                     CanUnequipItem(uint16(INVENTORY_SLOT_BAG_0) << 8 | EQUIPMENT_SLOT_OFFHAND,false) !=  EQUIP_ERR_OK ||
                     CanStoreItem( NULL_BAG, NULL_SLOT, off_dest, offItem, false ) !=  EQUIP_ERR_OK ))
                     return swap ? EQUIP_ERR_ITEMS_CANT_BE_SWAPPED : EQUIP_ERR_INVENTORY_FULL;
@@ -10422,13 +10498,13 @@ InventoryResult Player::CanBankItem( uint8 bag, uint8 slot, ItemPosCountVec &des
     return EQUIP_ERR_BANK_FULL;
 }
 
-InventoryResult Player::CanUseItem( Item *pItem, bool not_loading ) const
+InventoryResult Player::CanUseItem(Item *pItem, bool direct_action) const
 {
     if (pItem)
     {
         DEBUG_LOG( "STORAGE: CanUseItem item = %u", pItem->GetEntry());
 
-        if (!isAlive() && not_loading)
+        if (!isAlive() && direct_action)
             return EQUIP_ERR_YOU_ARE_DEAD;
 
         //if (isStunned())
@@ -10659,6 +10735,9 @@ Item* Player::_StoreItem( uint16 pos, Item *pItem, uint32 count, bool clone, boo
 
 		sLog.outItems( "STORAGE: for %s StoreItem bag = %u, slot = %u, item = %u:%u, count = %u", GetName(), bag, slot, pItem->GetGUIDLow(), pItem->GetEntry(), count);
 
+        // at place into not appropriate slot (bank, for example) remove aura
+        ApplyItemOnStoreSpell(pItem, IsEquipmentPos(pItem->GetBagSlot(), pItem->GetSlot()) || IsInventoryPos(pItem->GetBagSlot(), pItem->GetSlot()));
+
         return pItem;
     }
     else
@@ -10666,7 +10745,7 @@ Item* Player::_StoreItem( uint16 pos, Item *pItem, uint32 count, bool clone, boo
         if (pItem2->GetProto()->Bonding == BIND_WHEN_PICKED_UP ||
             pItem2->GetProto()->Bonding == BIND_QUEST_ITEM ||
             (pItem2->GetProto()->Bonding == BIND_WHEN_EQUIPPED && IsBagPos(pos)))
-            pItem2->SetBinding( true );
+            pItem2->SetBinding(true);
 
         pItem2->SetCount( pItem2->GetCount() + count );
         if (IsInWorld() && update)
@@ -10718,21 +10797,22 @@ Item* Player::EquipItem( uint16 pos, Item *pItem, bool update )
     uint8 bag = pos >> 8;
     uint8 slot = pos & 255;
 
-    Item *pItem2 = GetItemByPos( bag, slot );
-
-    if( !pItem2 )
+    Item *pItem2 = GetItemByPos(bag, slot);
+    if (!pItem2)
     {
         VisualizeItem( slot, pItem);
 
-        if(isAlive())
+        if (isAlive())
         {
             ItemPrototype const *pProto = pItem->GetProto();
 
             // item set bonuses applied only at equip and removed at unequip, and still active for broken items
-            if(pProto && pProto->ItemSet)
+            if (pProto && pProto->ItemSet)
                 AddItemsSetItem(this, pItem);
 
             _ApplyItemMods(pItem, slot, true);
+
+            ApplyItemOnStoreSpell(pItem, true);
 
             // Weapons and also Totem/Relic/Sigil/etc
             if (pProto && isInCombat() && (pProto->Class == ITEM_CLASS_WEAPON || pProto->InventoryType == INVTYPE_RELIC) && m_weaponChangeTimer == 0)
@@ -10808,6 +10888,7 @@ void Player::QuickEquipItem( uint16 pos, Item *pItem)
     {
         AddEnchantmentDurations(pItem);
         AddItemDurations(pItem);
+        ApplyItemOnStoreSpell(pItem, true);
 
         uint8 slot = pos & 255;
         VisualizeItem( slot, pItem);
@@ -10882,8 +10963,7 @@ void Player::RemoveItem( uint8 bag, uint8 slot, bool update )
     // note2: if removeitem is to be used for delinking
     // the item must be removed from the player's updatequeue
 
-    Item *pItem = GetItemByPos( bag, slot );
-    if( pItem )
+    if (Item *pItem = GetItemByPos(bag, slot))
     {
 		sLog.outItems( "STORAGE: for %s RemoveItem bag = %u, slot = %u, item = %u:%u", GetName(), bag, slot, pItem->GetGUIDLow(), pItem->GetEntry());
         DEBUG_LOG( "STORAGE: RemoveItem bag = %u, slot = %u, item = %u", bag, slot, pItem->GetEntry());
@@ -10944,7 +11024,10 @@ void Player::RemoveItem( uint8 bag, uint8 slot, bool update )
         pItem->SetGuidValue(ITEM_FIELD_CONTAINED, ObjectGuid());
         // pItem->SetGuidValue(ITEM_FIELD_OWNER, ObjectGuid()); not clear owner at remove (it will be set at store). This used in mail and auction code
         pItem->SetSlot( NULL_SLOT );
-        if( IsInWorld() && update )
+
+        //ApplyItemOnStoreSpell, for avoid re-apply will remove at _adding_ to not appropriate slot
+
+        if (IsInWorld() && update)
             pItem->SendCreateUpdateToPlayer( this );
     }
 }
@@ -10956,6 +11039,11 @@ void Player::MoveItemFromInventory(uint8 bag, uint8 slot, bool update)
     {
         ItemRemovedQuestCheck(it->GetEntry(), it->GetCount());
         RemoveItem(bag, slot, update);
+
+        // item atStore spell not removed in RemoveItem (for avoid reappaly in slots changes), so do it directly
+        if (IsEquipmentPos(bag, slot) || IsInventoryPos(bag, slot))
+            ApplyItemOnStoreSpell(it, false);
+
         it->RemoveFromUpdateQueueOf(this);
         if(it->IsInWorld())
         {
@@ -11012,6 +11100,9 @@ void Player::DestroyItem( uint8 bag, uint8 slot, bool update )
 
         RemoveEnchantmentDurations(pItem);
         RemoveItemDurations(pItem);
+
+        if (IsEquipmentPos(bag, slot) || IsInventoryPos(bag, slot))
+            ApplyItemOnStoreSpell(pItem, false);
 
         ItemRemovedQuestCheck( pItem->GetEntry(), pItem->GetCount() );
 
@@ -13398,13 +13489,13 @@ void Player::RewardQuest(Quest const *pQuest, uint32 reward, Object* questGiver,
 
     QuestStatusData& q_status = mQuestStatus[quest_id];
 
-    // Not give XP in case already completed once repeatable quest
-    uint32 XP = q_status.m_rewarded ? 0 : uint32(pQuest->XPValue(this)*sWorld.getConfig(CONFIG_FLOAT_RATE_XP_QUEST));
+    // Used for client inform but rewarded only in case not max level
+    uint32 xp = uint32(pQuest->XPValue(this) * sWorld.getConfig(CONFIG_FLOAT_RATE_XP_QUEST));
 
     if (getLevel() < sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL))
-        GiveXP(XP , NULL);
+        GiveXP(xp , NULL);
     else
-		ModifyMoney( int32(pQuest->GetRewMoneyMaxLevel() * sWorld.getConfig(CONFIG_FLOAT_RATE_DROP_MONEY)), "Quest_rew", pQuest->GetQuestId());
+        ModifyMoney(int32(pQuest->GetRewMoneyMaxLevel() * sWorld.getConfig(CONFIG_FLOAT_RATE_DROP_MONEY)), "Quest_rew", pQuest->GetQuestId());
 
     // Give player extra money if GetRewOrReqMoney > 0 and get ReqMoney if negative
 	ModifyMoney(pQuest->GetRewOrReqMoney(), "quest_rew", pQuest->GetQuestId());
@@ -13437,7 +13528,7 @@ void Player::RewardQuest(Quest const *pQuest, uint32 reward, Object* questGiver,
         q_status.uState = QUEST_CHANGED;
 
     if (announce)
-        SendQuestReward(pQuest, XP, questGiver);
+        SendQuestReward(pQuest, xp, questGiver);
 
     bool handled = false;
 
@@ -19046,35 +19137,28 @@ void Player::ReportedAfkBy(Player* reporter)
 bool Player::IsVisibleInGridForPlayer( Player* pl ) const
 {
     // gamemaster in GM mode see all, including ghosts
-    if(pl->isGameMaster() && GetSession()->GetSecurity() <= pl->GetSession()->GetSecurity())
+    if (pl->isGameMaster() && GetSession()->GetSecurity() <= pl->GetSession()->GetSecurity())
         return true;
 
-    // It seems in battleground everyone sees everyone, except the enemy-faction ghosts
-    if (InBattleGround())
-    {
-        if (!(isAlive() || m_deathTimer > 0) && !IsFriendlyTo(pl) )
-            return false;
+    // player see dead player/ghost from own group/raid
+    if (IsInSameRaidWith(pl))
         return true;
-    }
 
     // Live player see live player or dead player with not realized corpse
-    if(pl->isAlive() || pl->m_deathTimer > 0)
-    {
+    if (pl->isAlive() || pl->m_deathTimer > 0)
         return isAlive() || m_deathTimer > 0;
-    }
 
     // Ghost see other friendly ghosts, that's for sure
-    if(!(isAlive() || m_deathTimer > 0) && IsFriendlyTo(pl))
+    if (!(isAlive() || m_deathTimer > 0) && IsFriendlyTo(pl))
         return true;
 
     // Dead player see live players near own corpse
-    if(isAlive())
+    if (isAlive())
     {
-        Corpse *corpse = pl->GetCorpse();
-        if(corpse)
+        if (Corpse *corpse = pl->GetCorpse())
         {
             // 20 - aggro distance for same level, 25 - max additional distance if player level less that creature level
-            if(corpse->IsWithinDistInMap(this,(20+25)*sWorld.getConfig(CONFIG_FLOAT_RATE_CREATURE_AGGRO)))
+            if (corpse->IsWithinDistInMap(this, (20 + 25) * sWorld.getConfig(CONFIG_FLOAT_RATE_CREATURE_AGGRO)))
                 return true;
         }
     }
@@ -19092,7 +19176,7 @@ WorldLocation Player::GetStartPosition() const
 
 bool Player::IsVisibleGloballyFor( Player* u ) const
 {
-    if(!u)
+    if (!u)
         return false;
 
     // Always can see self
@@ -19216,7 +19300,9 @@ template void Player::UpdateVisibilityOf(WorldObject const* viewPoint, DynamicOb
 
 void Player::InitPrimaryProfessions()
 {
-    SetFreePrimaryProfessions(sWorld.getConfig(CONFIG_UINT32_MAX_PRIMARY_TRADE_SKILL));
+    uint32 maxProfs = GetSession()->GetSecurity() < AccountTypes(sWorld.getConfig(CONFIG_UINT32_TRADE_SKILL_GMIGNORE_MAX_PRIMARY_COUNT))
+        ? sWorld.getConfig(CONFIG_UINT32_MAX_PRIMARY_TRADE_SKILL) : 10;
+    SetFreePrimaryProfessions(maxProfs);
 }
 
 void Player::SendComboPoints()
@@ -20607,6 +20693,70 @@ void Player::AutoStoreLoot(Loot& loot, bool broadcast, uint8 bag, uint8 slot)
         SendNewItem(pItem, lootItem->count, false, false, broadcast);
 		sLog.outItems("Storage::AutoStoreLoot %u,%u for %s", lootItem->itemid, lootItem->count, GetName());
     }
+}
+
+Item* Player::ConvertItem(Item* item, uint32 newItemId)
+{
+    uint16 pos = item->GetPos();
+
+    Item *pNewItem = Item::CreateItem(newItemId, 1, this);
+    if (!pNewItem)
+        return NULL;
+
+    // copy enchantments
+    for (uint8 j= PERM_ENCHANTMENT_SLOT; j<=TEMP_ENCHANTMENT_SLOT; ++j)
+    {
+        if (item->GetEnchantmentId(EnchantmentSlot(j)))
+            pNewItem->SetEnchantment(EnchantmentSlot(j), item->GetEnchantmentId(EnchantmentSlot(j)),
+                item->GetEnchantmentDuration(EnchantmentSlot(j)), item->GetEnchantmentCharges(EnchantmentSlot(j)));
+    }
+
+    // copy durability
+    if (item->GetUInt32Value(ITEM_FIELD_DURABILITY) < item->GetUInt32Value(ITEM_FIELD_MAXDURABILITY))
+    {
+        double loosePercent = 1 - item->GetUInt32Value(ITEM_FIELD_DURABILITY) / double(item->GetUInt32Value(ITEM_FIELD_MAXDURABILITY));
+        DurabilityLoss(pNewItem, loosePercent);
+    }
+
+    if (IsInventoryPos(pos))
+    {
+        ItemPosCountVec dest;
+        InventoryResult msg = CanStoreItem(item->GetBagSlot(), item->GetSlot(), dest, pNewItem, true);
+        // ignore cast/combat time restriction
+        if (msg == EQUIP_ERR_OK)
+        {
+            DestroyItem(item->GetBagSlot(), item->GetSlot(), true);
+            return StoreItem( dest, pNewItem, true);
+        }
+    }
+    else if (IsBankPos(pos))
+    {
+        ItemPosCountVec dest;
+        InventoryResult msg = CanBankItem(item->GetBagSlot(), item->GetSlot(), dest, pNewItem, true);
+        // ignore cast/combat time restriction
+        if (msg == EQUIP_ERR_OK)
+        {
+            DestroyItem(item->GetBagSlot(), item->GetSlot(), true);
+            return BankItem(dest, pNewItem, true);
+        }
+    }
+    else if (IsEquipmentPos (pos))
+    {
+        uint16 dest;
+        InventoryResult msg = CanEquipItem(item->GetSlot(), dest, pNewItem, true, false);
+        // ignore cast/combat time restriction
+        if (msg == EQUIP_ERR_OK)
+        {
+            DestroyItem(item->GetBagSlot(), item->GetSlot(), true);
+            pNewItem = EquipItem(dest, pNewItem, true);
+            AutoUnequipOffhandIfNeed();
+            return pNewItem;
+        }
+    }
+
+    // fail
+    delete pNewItem;
+    return NULL;
 }
 
 uint32 Player::CalculateTalentsPoints() const

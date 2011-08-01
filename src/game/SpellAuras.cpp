@@ -1061,8 +1061,27 @@ void Aura::TriggerSpell()
 //                    case 24379: break;
 //                    // Happy Pet
 //                    case 24716: break;
-//                    // Dream Fog
-//                    case 24780: break;
+                    case 24780:                             // Dream Fog
+                    {
+                        // Note: In 1.12 triggered spell 24781 still exists, need to script dummy effect for this spell then
+                        // Select an unfriendly enemy in 100y range and attack it
+                        if (target->GetTypeId() != TYPEID_UNIT)
+                            return;
+
+                        ThreatList const& tList = target->getThreatManager().getThreatList();
+                        for (ThreatList::const_iterator itr = tList.begin();itr != tList.end(); ++itr)
+                        {
+                            Unit* pUnit = target->GetMap()->GetUnit((*itr)->getUnitGuid());
+
+                            if (pUnit && target->getThreatManager().getThreat(pUnit))
+                                target->getThreatManager().modifyThreatPercent(pUnit, -100);
+                        }
+
+                        if (Unit* pEnemy = target->SelectRandomUnfriendlyTarget(target->getVictim(), 100.0f))
+                            ((Creature*)target)->AI()->AttackStart(pEnemy);
+
+                        return;
+                    }
 //                    // Cannon Prep
 //                    case 24832: break;
                     case 24834:                             // Shadow Bolt Whirl
@@ -6735,6 +6754,29 @@ void Aura::HandleManaShield(bool apply, bool Real)
     }
 }
 
+void Aura::HandleArenaPreparation(bool apply, bool Real)
+{
+    if(!Real)
+        return;
+
+    Unit* target = GetTarget();
+
+    target->ApplyModFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PREPARATION, apply);
+
+    if (apply)
+    {
+        // max regen powers at start preparation
+        target->SetHealth(target->GetMaxHealth());
+        target->SetPower(POWER_MANA, target->GetMaxPower(POWER_MANA));
+        target->SetPower(POWER_ENERGY, target->GetMaxPower(POWER_ENERGY));
+    }
+    else
+    {
+        // reset originally 0 powers at start/leave
+        target->SetPower(POWER_RAGE, 0);
+    }
+}
+
 void Aura::HandleAuraMirrorImage(bool apply, bool Real)
 {
     if (!Real)
@@ -6771,6 +6813,15 @@ void Aura::HandleAuraMirrorImage(bool apply, bool Real)
 
         pCreature->SetDisplayId(pCreature->GetNativeDisplayId());
     }
+}
+
+void Aura::HandleAuraSafeFall( bool Apply, bool Real )
+{
+    // implemented in WorldSession::HandleMovementOpcodes
+
+    // only special case
+    if(Apply && Real && GetId() == 32474 && GetTarget()->GetTypeId() == TYPEID_PLAYER)
+        ((Player*)GetTarget())->ActivateTaxiPathTo(506, GetId());
 }
 
 bool Aura::IsLastAuraOnHolder()
@@ -6969,12 +7020,15 @@ void SpellAuraHolder::_RemoveSpellAuraHolder()
 
     Unit* caster = GetCaster();
 
-    if(caster && IsPersistent())
-    {
-        DynamicObject *dynObj = caster->GetDynObject(GetId());
-        if (dynObj)
+    if (caster && IsPersistent())
+        if (DynamicObject *dynObj = caster->GetDynObject(GetId()))
             dynObj->RemoveAffected(m_target);
-    }
+
+    // remove at-store spell cast items (for all remove modes?)
+    if (m_target->GetTypeId() == TYPEID_PLAYER && m_removeMode != AURA_REMOVE_BY_DEFAULT && m_removeMode != AURA_REMOVE_BY_DELETE)
+        if (ObjectGuid castItemGuid = GetCastItemGuid())
+            if (Item* castItem = ((Player*)m_target)->GetItemByGuid(castItemGuid))
+                ((Player*)m_target)->DestroyItemWithOnStoreSpell(castItem);
 
     //passive auras do not get put in slots
     // Note: but totem can be not accessible for aura target in time remove (to far for find in grid)
@@ -7333,26 +7387,6 @@ void SpellAuraHolder::HandleSpellSpecificBoosts(bool apply)
     }
 
     SetInUse(false);
-}
-
-void Aura::HandleArenaPreparation(bool apply, bool Real)
-{
-    if(!Real)
-        return;
-
-    if(apply)
-        GetTarget()->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PREPARATION);
-    else
-        GetTarget()->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PREPARATION);
-}
-
-void Aura::HandleAuraSafeFall( bool Apply, bool Real )
-{
-    // implemented in WorldSession::HandleMovementOpcodes
-
-    // only special case
-    if(Apply && Real && GetId() == 32474 && GetTarget()->GetTypeId() == TYPEID_PLAYER)
-        ((Player*)GetTarget())->ActivateTaxiPathTo(506, GetId());
 }
 
 SpellAuraHolder::~SpellAuraHolder()

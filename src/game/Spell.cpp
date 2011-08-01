@@ -1460,6 +1460,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                 case 802:                                   // Mutate Bug
                 case 804:                                   // Explode Bug
                 case 23138:                                 // Gate of Shazzrah
+                case 28560:                                 // Summon Blizzard
                 case 31347:                                 // Doom TODO: exclude top threat target from target selection
                 case 33711:                                 // Murmur's Touch
                 case 38794:                                 // Murmur's Touch (h)
@@ -6074,6 +6075,14 @@ bool Spell::CheckTarget( Unit* target, SpellEffectIndex eff )
                     if (!target->IsWithinLOSInMap(caster))
                         return false;
             break;
+    }
+
+    switch (m_spellInfo->Id)
+    {
+        case 37433:                                         // Spout (The Lurker Below), only players affected if its not in water
+            if (target->GetTypeId() != TYPEID_PLAYER || target->IsInWater())
+                return false;
+        default: break;
     }
 
     return true;
