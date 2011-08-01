@@ -225,7 +225,7 @@ class WorldPvPEP : public WorldPvP
     public:
         WorldPvPEP();
 
-        bool InitOutdoorPvPArea();
+        bool InitWorldPvPArea();
 
         //void OnCreatureCreate(Creature* pCreature);
         void OnGameObjectCreate(GameObject* pGo);
@@ -281,6 +281,10 @@ class WorldPvPEP : public WorldPvP
         ObjectGuid m_uiFlightMasterGUID;
         ObjectGuid m_uiLordaeronShrineAlyGUID;
         ObjectGuid m_uiLordaeronShrineHordeGUID;
+
+        uint32 m_uiEPController[MAX_TOWERS];
+        uint32 m_uiEPState[MAX_TOWERS];
+        ObjectGuid m_EPTowerPointGuid[MAX_TOWERS];
 
         std::list<ObjectGuid> m_lSoldiersGuids;
 

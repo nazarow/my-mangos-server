@@ -53,6 +53,8 @@ enum CaptureState
     WIN_A
 };
 
+const uint8 GO_ARTKIT_BANNER[3] = {2, 21, 1};
+
 // Used to define the various summons
 struct sSpawnLocations
 {
@@ -106,6 +108,17 @@ class WorldPvP : public ZoneScript
 
         // Get a Player from the zone
         Player* GetPlayerInZone(bool bOnlyAlive = false, bool bCanBeGamemaster = true);
+
+        uint8 CaptureSt(uint8 st)
+        {
+            if (st == NEUTRAL) return 1;
+            if (st > NEUTRAL) return 0;
+            return 2;
+        }
+
+        uint32 GetGoTowerPos(ObjectGuid og);
+        uint32 GetGoTowerState(ObjectGuid og);
+
     protected:
         virtual void HandlePlayerEnterZone(Player* pPlayer);
         virtual void HandlePlayerLeaveZone(Player* pPlayer);

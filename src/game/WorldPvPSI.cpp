@@ -25,7 +25,7 @@ WorldPvPSI::WorldPvPSI() : WorldPvP(), m_uiResourcesAly(0), m_uiResourcesHorde(0
 }
 
 // Init outdoor pvp zones
-bool WorldPvPSI::InitOutdoorPvPArea()
+bool WorldPvPSI::InitWorldPvPArea()
 {
     RegisterZone(ZONE_ID_SILITHUS);
     RegisterZone(ZONE_ID_TEMPLE_OF_AQ);

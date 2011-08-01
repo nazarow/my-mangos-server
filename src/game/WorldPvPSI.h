@@ -73,7 +73,7 @@ class WorldPvPSI : public WorldPvP
     public:
         WorldPvPSI();
 
-        bool InitOutdoorPvPArea();
+        bool InitWorldPvPArea();
 
         void HandlePlayerEnterZone(Player* pPlayer);
         void HandlePlayerLeaveZone(Player* pPlayer);

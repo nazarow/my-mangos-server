@@ -138,3 +138,29 @@ Player* WorldPvP::GetPlayerInZone(bool bOnlyAlive /*=false*/, bool bCanBeGamemas
 
     return NULL;
 }
+
+uint32 WorldPvP::GetGoTowerState(ObjectGuid og)
+{
+    // neet to use a player as anchor for the map
+    Player* pPlayer = GetPlayerInZone();
+    if (!pPlayer)
+        return NEUTRAL;
+
+    if (GameObject* pBanner = pPlayer->GetMap()->GetGameObject(og))
+        return pBanner->GetCaptureState();
+
+    return NEUTRAL;
+}
+
+uint32 WorldPvP::GetGoTowerPos(ObjectGuid og)
+{
+    // neet to use a player as anchor for the map
+    Player* pPlayer = GetPlayerInZone();
+    if (!pPlayer)
+        return 50;
+
+    if (GameObject* pBanner = pPlayer->GetMap()->GetGameObject(og))
+        return pBanner->GetCaptureTicks();
+
+    return 50;
+}

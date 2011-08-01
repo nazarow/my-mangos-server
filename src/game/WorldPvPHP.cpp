@@ -220,7 +220,6 @@ void WorldPvPHP::SetData(uint32 uiType, uint32 uiData)
 
             // set artkit
             SetBannerArtKit(m_HPTowerBannerGuid[uiType], GO_ARTKIT_HP[uiType][0]);
-            //SetBannerArtKit(m_HPTowerPointGuid[uiType], GO_ARTKIT_BANNER_ALLIANCE);
         } else
         if ((m_uiHPState[uiType]>NEUTRAL) && (uiData==NEUTRAL))
         {
@@ -229,7 +228,6 @@ void WorldPvPHP::SetData(uint32 uiType, uint32 uiData)
 
             // set artkit
             SetBannerArtKit(m_HPTowerBannerGuid[uiType], GO_ARTKIT_HP[uiType][1]);
-            //SetBannerArtKit(m_HPTowerPointGuid[uiType], GO_ARTKIT_BANNER_NEUTRAL);
         } else 
         if ((m_uiHPState[uiType]==NEUTRAL) && (uiData==PROGRESS_H))
         {
@@ -251,6 +249,7 @@ void WorldPvPHP::SetData(uint32 uiType, uint32 uiData)
         SendUpdateWorldState(m_uiHPWorldState[uiType], 1);
 
         m_uiHPState[uiType] = uiData;
+        m_uiHPController[uiType] = WorldPvP::GetGoTowerPos(m_HPTowerBannerGuid[uiType]);
     } else return;
 
     // buff alliance

@@ -44,9 +44,16 @@ WorldPvPEP::WorldPvPEP() : WorldPvP(),
     m_uiFlightMasterGUID.Clear();
     m_uiLordaeronShrineAlyGUID.Clear();
     m_uiLordaeronShrineHordeGUID.Clear();
+
+    for (uint8 i=0; i<MAX_TOWERS; i++)
+    {
+        m_uiEPController[i] = 50;
+        m_uiEPState[i] = NEUTRAL;
+        m_EPTowerPointGuid[i].Clear();
+    }
 }
 
-bool WorldPvPEP::InitOutdoorPvPArea()
+bool WorldPvPEP::InitWorldPvPArea()
 {
     RegisterZone(ZONE_ID_EASTERN_PLAGUELANDS);
     RegisterZone(ZONE_ID_STRATHOLME);
@@ -125,21 +132,47 @@ void WorldPvPEP::OnGameObjectCreate(GameObject* pGo)
     switch (pGo->GetEntry())
     {
         case GO_BATTLEFIELD_BANNER_PLAGUELANDS_1:
+            pGo->SetCapture(m_uiEPController[0], CapturePointState(m_uiEPState[0]));
+            pGo->SetGoArtKit(GO_ARTKIT_BANNER[CaptureSt(m_uiEPState[0])]);
+            m_EPTowerPointGuid[0] = pGo->GetObjectGuid();
+            break;
         case GO_BATTLEFIELD_BANNER_PLAGUELANDS_2:
+            pGo->SetCapture(m_uiEPController[1], CapturePointState(m_uiEPState[1]));
+            pGo->SetGoArtKit(GO_ARTKIT_BANNER[CaptureSt(m_uiEPState[1])]);
+            m_EPTowerPointGuid[1] = pGo->GetObjectGuid();
+            break;
         case GO_BATTLEFIELD_BANNER_PLAGUELANDS_3:
+            pGo->SetCapture(m_uiEPController[2], CapturePointState(m_uiEPState[2]));
+            pGo->SetGoArtKit(GO_ARTKIT_BANNER[CaptureSt(m_uiEPState[2])]);
+            m_EPTowerPointGuid[2] = pGo->GetObjectGuid();
+            break;
         case GO_BATTLEFIELD_BANNER_PLAGUELANDS_4:
+            pGo->SetCapture(m_uiEPController[3], CapturePointState(m_uiEPState[3]));
+            pGo->SetGoArtKit(GO_ARTKIT_BANNER[CaptureSt(m_uiEPState[3])]);
+            m_EPTowerPointGuid[3] = pGo->GetObjectGuid();
+            break;
         case GO_TOWER_BANNER:
             // sort banners
             if (pGo->IsWithinDist2d(m_aTowersSpawnLocs[0].m_fX, m_aTowersSpawnLocs[0].m_fY, 50.0f))
+            {
                 m_lNorthpassTowerBanners.push_back(pGo->GetObjectGuid());
+                pGo->SetGoArtKit(GO_ARTKIT_BANNER[CaptureSt(m_uiEPState[0])]);
+            }
             else if (pGo->IsWithinDist2d(m_aTowersSpawnLocs[1].m_fX, m_aTowersSpawnLocs[1].m_fY, 50.0f))
+            {
                 m_lCrownguardTowerBanners.push_back(pGo->GetObjectGuid());
+                pGo->SetGoArtKit(GO_ARTKIT_BANNER[CaptureSt(m_uiEPState[1])]);
+            }
             else if (pGo->IsWithinDist2d(m_aTowersSpawnLocs[2].m_fX, m_aTowersSpawnLocs[2].m_fY, 50.0f))
+            {
                 m_lEastwallTowerBanners.push_back(pGo->GetObjectGuid());
+                pGo->SetGoArtKit(GO_ARTKIT_BANNER[CaptureSt(m_uiEPState[2])]);
+            }
             else if (pGo->IsWithinDist2d(m_aTowersSpawnLocs[3].m_fX, m_aTowersSpawnLocs[3].m_fY, 50.0f))
+            {
                 m_lPlaguewoodTowerBanners.push_back(pGo->GetObjectGuid());
-            // set artkit to neutral
-            pGo->SetGoArtKit(GO_ARTKIT_BANNER_NEUTRAL);
+                pGo->SetGoArtKit(GO_ARTKIT_BANNER[CaptureSt(m_uiEPState[3])]);
+            }
             break;
         case GO_LORDAERON_SHRINE_ALY:
             m_uiLordaeronShrineAlyGUID = pGo->GetObjectGuid();
@@ -646,15 +679,23 @@ void WorldPvPEP::SetData(uint32 uiType, uint32 uiData)
             break;
         case TYPE_CROWNGUARD_STATE:
             m_uiCrownguardState = uiData;
+            m_uiEPState[0] = GetGoTowerState(m_EPTowerPointGuid[0]);
+            m_uiEPController[0] = GetGoTowerPos(m_EPTowerPointGuid[0]);
             return;
         case TYPE_EASTWALL_STATE:
             m_uiEastwallState = uiData;
+            m_uiEPState[1] = GetGoTowerState(m_EPTowerPointGuid[1]);
+            m_uiEPController[1] = GetGoTowerPos(m_EPTowerPointGuid[1]);
             return;
         case TYPE_NORTHPASS_STATE:
             m_uiNorthpassState = uiData;
+            m_uiEPState[2] = GetGoTowerState(m_EPTowerPointGuid[2]);
+            m_uiEPController[2] = GetGoTowerPos(m_EPTowerPointGuid[2]);
             return;
         case TYPE_PLAGUEWOOD_STATE:
             m_uiPlaguewoodState = uiData;
+            m_uiEPState[3] = GetGoTowerState(m_EPTowerPointGuid[3]);
+            m_uiEPController[3] = GetGoTowerPos(m_EPTowerPointGuid[3]);
             return;
     }
 

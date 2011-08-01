@@ -469,7 +469,7 @@ void Creature::Update(uint32 update_diff, uint32 diff)
             break;
         case DEAD:
         {
-            if( m_respawnTime <= time(NULL) )
+            if (m_respawnTime <= time(NULL) && HasStaticDBSpawnData())   // kia not respawn temp summon
             {
 				if (uint32 spawner = sObjectMgr.GetUnitOwner(GetGUIDLow()))	//kia not spawn without spawner
 					if (GetMap()->GetPersistentState()->GetCreatureRespawnTime(spawner)) 

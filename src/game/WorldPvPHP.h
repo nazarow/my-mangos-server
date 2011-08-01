@@ -125,8 +125,6 @@ const uint32 EVENT_HP[3][8] = {
 
 const uint8 GO_ARTKIT_HP[3][3] = {{62, 63, 61}, {67, 69, 68}, {65, 66, 64}};
 
-const uint8 GO_ARTKIT_BANNER[3] = {2, 21, 1};
-
 const uint32 WORLD_STATE_HP[3][3] = {{WORLD_STATE_OVERLOOK_ALY, WORLD_STATE_OVERLOOK_NEUTRAL, WORLD_STATE_OVERLOOK_HORDE},
                                    {WORLD_STATE_STADIUM_ALY, WORLD_STATE_STADIUM_NEUTRAL, WORLD_STATE_STADIUM_HORDE},
                                    {WORLD_STATE_BROKEN_HILL_ALY, WORLD_STATE_BROKEN_HILL_NEUTRAL, WORLD_STATE_BROKEN_HILL_HORDE}};
@@ -154,13 +152,6 @@ class WorldPvPHP : public WorldPvP
         void UpdateWorldState();
 
         void SetBannerArtKit(ObjectGuid BannerGuid, uint32 uiArtkit);
-
-        uint8 CaptureSt(uint8 st)
-        {
-            if (st == NEUTRAL) return 1;
-            if (st > NEUTRAL) return 0;
-            return 2;
-        }
 
     protected:
 
