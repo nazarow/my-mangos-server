@@ -207,6 +207,8 @@ class MANGOS_DLL_SPEC ChatHandler
         bool HandleDebugSendSpellFailCommand(char* args);
 		bool HandleDebugModItemVisualCommand(char* args);
 
+        bool HandleDebugInfoCommand(char* args);    //kia
+
         bool HandleEventListCommand(char* args);
         bool HandleEventStartCommand(char* args);
         bool HandleEventStopCommand(char* args);

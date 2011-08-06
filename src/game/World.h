@@ -579,6 +579,7 @@ class World
 
 		void RecordTimeDiff(const char * text, ...);
 		uint32 TargetGuid;
+        uint32 CmdInfo[2000];
 
     protected:
         void _UpdateGameTime();

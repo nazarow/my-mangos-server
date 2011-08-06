@@ -201,6 +201,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { "target",         SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugTargetGuid,                 "", NULL },
         { "threatlist",     SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugThreatList,                 "", NULL },
         { "hostilerefs",    SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugHostileRefList,             "", NULL },
+        { "info",           SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleDebugInfoCommand,                "", NULL },
         { NULL,             0,                  false, NULL,                                                "", NULL }
     };
 

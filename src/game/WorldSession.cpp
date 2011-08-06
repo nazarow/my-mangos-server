@@ -38,6 +38,7 @@
 #include "Chat.h"
 #include "MapManager.h"
 #include "SocialMgr.h"
+#include "World.h"
 
 // select opcodes appropriate for processing in Map::Update context for current session state
 static bool MapSessionFilterHelper(WorldSession* session, OpcodeHandler const& opHandle)
@@ -222,6 +223,8 @@ bool WorldSession::Update(PacketFilter& updater)
                         packet->GetOpcode());
         #endif*/
 
+        time_t tWorkTime = time(NULL);  //kia
+
         OpcodeHandler const& opHandle = opcodeTable[packet->GetOpcode()];
         try
         {
@@ -306,6 +309,10 @@ bool WorldSession::Update(PacketFilter& updater)
                 KickPlayer();
             }
         }
+
+        tWorkTime =- time(NULL);                                    // kia
+        if (packet && (sWorld.CmdInfo[packet->GetOpcode()]<tWorkTime))
+            sWorld.CmdInfo[packet->GetOpcode()] = tWorkTime;
 
         delete packet;
     }

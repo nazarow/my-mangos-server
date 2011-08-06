@@ -398,7 +398,8 @@ Weather* World::AddWeather(uint32 zone_id)
 /// Initialize config values
 void World::LoadConfigSettings(bool reload)
 {
-	TargetGuid=0;
+    TargetGuid=0;   //kia
+    memset(&CmdInfo, 0, sizeof(CmdInfo));   //kia
 
     if (reload)
     {

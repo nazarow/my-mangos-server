@@ -1179,3 +1179,19 @@ bool ChatHandler::HandleDebugHostileRefList(char* args)
     SendSysMessage("End of hostil reference list.");
     return true;
 }
+
+bool ChatHandler::HandleDebugInfoCommand(char* args)
+{
+    uint32 j = 0;
+    sLog.outMy("> - Start Info Command");
+    for (uint32 i=0; i<NUM_MSG_TYPES; i++)
+    {
+        if (sWorld.CmdInfo[i])
+        {
+            j++;
+            sLog.outMyInLine("%03X:%03X%s", i, sWorld.CmdInfo[i], ((j%10)==0)?"\n":" ");
+        }
+    }
+    sLog.outMy("\n< - Stop Info Command");
+    return true;
+}
