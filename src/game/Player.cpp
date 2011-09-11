@@ -1110,9 +1110,7 @@ void Player::HandleDrowning(uint32 time_diff)
                 uint32 damage = urand(600, 700);
                 if (m_MirrorTimerFlags&UNDERWATER_INLAVA)
                     EnvironmentalDamage(DAMAGE_LAVA, damage);
-                // need to skip Slime damage in Undercity,
-                // maybe someone can find better way to handle environmental damage
-                else if (m_zoneUpdateId != 1497)
+                else
                     EnvironmentalDamage(DAMAGE_SLIME, damage);
             }
         }
@@ -10635,12 +10633,10 @@ Item* Player::StoreNewItem( ItemPosCountVec const& dest, uint32 item, bool updat
     for(ItemPosCountVec::const_iterator itr = dest.begin(); itr != dest.end(); ++itr)
         count += itr->count;
 
-    Item *pItem = Item::CreateItem( item, count, this );
-    if( pItem )
+    Item *pItem = Item::CreateItem(item, count, this, randomPropertyId);
+    if (pItem)
     {
         ItemAddedQuestCheck( item, count );
-        if(randomPropertyId)
-            pItem->SetItemRandomProperties(randomPropertyId);
         pItem = StoreItem( dest, pItem, update );
     }
     return pItem;
@@ -10780,7 +10776,7 @@ Item* Player::_StoreItem( uint16 pos, Item *pItem, uint32 count, bool clone, boo
 
 Item* Player::EquipNewItem( uint16 pos, uint32 item, bool update )
 {
-    if (Item *pItem = Item::CreateItem( item, 1, this ))
+    if (Item *pItem = Item::CreateItem(item, 1, this))
     {
         ItemAddedQuestCheck( item, 1 );
         return EquipItem( pos, pItem, update );
@@ -12987,36 +12983,13 @@ void Player::SendPreparedQuest(ObjectGuid guid)
             {
                 qe = gossiptext->Options[0].Emotes[0];
 
-                if(!gossiptext->Options[0].Text_0.empty())
-                {
-                    title = gossiptext->Options[0].Text_0;
+                int loc_idx = GetSession()->GetSessionDbLocaleIndex();
 
-                    int loc_idx = GetSession()->GetSessionDbLocaleIndex();
-                    if (loc_idx >= 0)
-                    {
-                        NpcTextLocale const *nl = sObjectMgr.GetNpcTextLocale(textid);
-                        if (nl)
-                        {
-                            if ((int32)nl->Text_0[0].size() > loc_idx && !nl->Text_0[0][loc_idx].empty())
-                                title = nl->Text_0[0][loc_idx];
-                        }
-                    }
-                }
-                else
-                {
-                    title = gossiptext->Options[0].Text_1;
+                std::string title0 = gossiptext->Options[0].Text_0;
+                std::string title1 = gossiptext->Options[0].Text_1;
+                sObjectMgr.GetNpcTextLocaleStrings0(textid, loc_idx, &title0, &title1);
 
-                    int loc_idx = GetSession()->GetSessionDbLocaleIndex();
-                    if (loc_idx >= 0)
-                    {
-                        NpcTextLocale const *nl = sObjectMgr.GetNpcTextLocale(textid);
-                        if (nl)
-                        {
-                            if ((int32)nl->Text_1[0].size() > loc_idx && !nl->Text_1[0][loc_idx].empty())
-                                title = nl->Text_1[0][loc_idx];
-                        }
-                    }
-                }
+                title = !title0.empty() ? title0 : title1;
             }
         }
         PlayerTalkClass->SendQuestGiverQuestList(qe, title, guid);
@@ -13080,7 +13053,7 @@ bool Player::CanSeeStartQuest(Quest const *pQuest) const
         SatisfyQuestPrevChain(pQuest, false) && SatisfyQuestDay(pQuest, false) &&
         pQuest->IsActive())
     {
-        return getLevel() + sWorld.getConfig(CONFIG_UINT32_QUEST_HIGH_LEVEL_HIDE_DIFF) >= pQuest->GetMinLevel();
+        return int32(getLevel()) + sWorld.getConfig(CONFIG_INT32_QUEST_HIGH_LEVEL_HIDE_DIFF) >= int32(pQuest->GetMinLevel());
     }
 
     return false;
@@ -14636,22 +14609,13 @@ void Player::SendQuestConfirmAccept(const Quest* pQuest, Player* pReceiver)
 {
     if (pReceiver)
     {
-        std::string strTitle = pQuest->GetTitle();
-
         int loc_idx = pReceiver->GetSession()->GetSessionDbLocaleIndex();
+        std::string title = pQuest->GetTitle();
+        sObjectMgr.GetQuestLocaleStrings(pQuest->GetQuestId(), loc_idx, &title);
 
-        if (loc_idx >= 0)
-        {
-            if (const QuestLocale* pLocale = sObjectMgr.GetQuestLocale(pQuest->GetQuestId()))
-            {
-                if ((int32)pLocale->Title.size() > loc_idx && !pLocale->Title[loc_idx].empty())
-                    strTitle = pLocale->Title[loc_idx];
-            }
-        }
-
-        WorldPacket data(SMSG_QUEST_CONFIRM_ACCEPT, (4 + strTitle.size() + 8));
+        WorldPacket data(SMSG_QUEST_CONFIRM_ACCEPT, (4 + title.size() + 8));
         data << uint32(pQuest->GetQuestId());
-        data << strTitle;
+        data << title;
         data << GetObjectGuid();
         pReceiver->GetSession()->SendPacket(&data);
 
