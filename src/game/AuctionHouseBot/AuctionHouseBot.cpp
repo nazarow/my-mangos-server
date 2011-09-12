@@ -1576,6 +1576,7 @@ void AuctionBotSeller::addNewAuctions(AHB_Seller_Config& config)
             sLog.outError("AHBot: Item::CreateItem() returned NULL for item %u (stack: %u)", itemID, stackCount);
             return;
         }
+        sLog.outItems("AHBot: Create item %u:%u[%s]", itemID, stackCount, item->GetObjectGuid().GetString().c_str());
 
         uint32 buyoutPrice;
         uint32 bidPrice = 0;
