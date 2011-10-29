@@ -398,8 +398,6 @@ Unit *caster, Item* castItem) : Aura(spellproto, eff, currentBasePoints, holder,
     {
         case SPELL_EFFECT_APPLY_AREA_AURA_PARTY:
             m_areaAuraType = AREA_AURA_PARTY;
-            if (target->GetTypeId() == TYPEID_UNIT && ((Creature*)target)->IsTotem())
-                m_modifier.m_auraname = SPELL_AURA_NONE;
             break;
         case SPELL_EFFECT_APPLY_AREA_AURA_FRIEND:
             m_areaAuraType = AREA_AURA_FRIEND;
@@ -422,6 +420,10 @@ Unit *caster, Item* castItem) : Aura(spellproto, eff, currentBasePoints, holder,
             MANGOS_ASSERT(false);
             break;
     }
+
+    // totems are immune to any kind of area auras
+    if (target->GetTypeId() == TYPEID_UNIT && ((Creature*)target)->IsTotem())
+        m_modifier.m_auraname = SPELL_AURA_NONE;
 }
 
 AreaAura::~AreaAura()
@@ -967,18 +969,11 @@ void Aura::TriggerSpell()
                     {
                         trigger_spell_id = 25779;           // Mana Burn
 
-                        // expected selection current fight target
-                        triggerTarget = GetTarget()->getVictim();
-                        if (!triggerTarget || triggerTarget->GetMaxPower(POWER_MANA) <= 0)
+                        if (GetTarget()->GetTypeId() != TYPEID_UNIT)
                             return;
 
-                        triggeredSpellInfo = sSpellStore.LookupEntry(trigger_spell_id);
-                        if (!triggeredSpellInfo)
-                            return;
-
-                        SpellRangeEntry const* srange = sSpellRangeStore.LookupEntry(triggeredSpellInfo->rangeIndex);
-                        float max_range = GetSpellMaxRange(srange);
-                        if (!triggerTarget->IsWithinDist(GetTarget(),max_range))
+                        triggerTarget = ((Creature*)GetTarget())->SelectAttackingTarget(ATTACKING_TARGET_TOPAGGRO, 0, trigger_spell_id, SELECT_FLAG_POWER_MANA);
+                        if (!triggerTarget)
                             return;
 
                         break;
@@ -1141,14 +1136,46 @@ void Aura::TriggerSpell()
 //                    case 27819: break;
 //                    // Controller Timer
 //                    case 28095: break;
-//                    // Stalagg Chain
-//                    case 28096: break;
-//                    // Stalagg Tesla Passive
-//                    case 28097: break;
-//                    // Feugen Tesla Passive
-//                    case 28109: break;
-//                    // Feugen Chain
-//                    case 28111: break;
+                    // Stalagg Chain and Feugen Chain
+                    case 28096:
+                    case 28111:
+                    {
+                        // X-Chain is casted by Tesla to X, so: caster == Tesla, target = X
+                        Unit* pCaster = GetCaster();
+                        if (pCaster && pCaster->GetTypeId() == TYPEID_UNIT && !pCaster->IsWithinDistInMap(target, 60.0f))
+                        {
+                            pCaster->InterruptNonMeleeSpells(true);
+                            ((Creature*)pCaster)->SetInCombatWithZone();
+                            // Stalagg Tesla Passive or Feugen Tesla Passive
+                            pCaster->CastSpell(pCaster, auraId == 28096 ? 28097 : 28109, true, NULL, NULL, target->GetObjectGuid());
+                        }
+                        return;
+                    }
+                    // Stalagg Tesla Passive and Feugen Tesla Passive
+                    case 28097:
+                    case 28109:
+                    {
+                        // X-Tesla-Passive is casted by Tesla on Tesla with original caster X, so: caster = X, target = Tesla
+                        Unit* pCaster = GetCaster();
+                        if (pCaster && pCaster->GetTypeId() == TYPEID_UNIT)
+                        {
+                            if (pCaster->getVictim() && !pCaster->IsWithinDistInMap(target, 60.0f))
+                            {
+                                if (Unit* pTarget = ((Creature*)pCaster)->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0))
+                                    target->CastSpell(pTarget, 28099, false);// Shock
+                            }
+                            else
+                            {
+                                // "Evade"
+                                target->RemoveAurasDueToSpell(auraId);
+                                target->DeleteThreatList();
+                                target->CombatStop(true);
+                                // Recast chain (Stalagg Chain or Feugen Chain
+                                target->CastSpell(pCaster, auraId == 28097 ? 28096 : 28111, false);
+                            }
+                        }
+                        return;
+                    }
 //                    // Mark of Didier
 //                    case 28114: break;
 //                    // Communique Timer, camp
@@ -3432,7 +3459,6 @@ void Aura::HandleModPossessPet(bool apply, bool Real)
         else
         {
             pet->GetMotionMaster()->MoveFollow(caster, PET_FOLLOW_DIST, PET_FOLLOW_ANGLE);
-            pet->AddSplineFlag(SPLINEFLAG_WALKMODE);
         }
     }
 }
@@ -3645,7 +3671,7 @@ void Aura::HandleAuraModStun(bool apply, bool Real)
         {
             GameObject* pObj = new GameObject;
             if(pObj->Create(target->GetMap()->GenerateLocalLowGuid(HIGHGUID_GAMEOBJECT), 185584, target->GetMap(),
-                target->GetPositionX(), target->GetPositionY(), target->GetPositionZ(), target->GetOrientation(), 0.0f, 0.0f, 0.0f, 0.0f, GO_ANIMPROGRESS_DEFAULT, GO_STATE_READY))
+                target->GetPositionX(), target->GetPositionY(), target->GetPositionZ(), target->GetOrientation()))
             {
                 pObj->SetRespawnTime(GetAuraDuration()/IN_MILLISECONDS);
                 pObj->SetSpellId(GetId());
@@ -7033,7 +7059,7 @@ void SpellAuraHolder::_RemoveSpellAuraHolder()
     if (m_target->GetTypeId() == TYPEID_PLAYER && m_removeMode != AURA_REMOVE_BY_DEFAULT && m_removeMode != AURA_REMOVE_BY_DELETE)
         if (ObjectGuid castItemGuid = GetCastItemGuid())
             if (Item* castItem = ((Player*)m_target)->GetItemByGuid(castItemGuid))
-                ((Player*)m_target)->DestroyItemWithOnStoreSpell(castItem);
+                ((Player*)m_target)->DestroyItemWithOnStoreSpell(castItem, GetId());
 
     //passive auras do not get put in slots
     // Note: but totem can be not accessible for aura target in time remove (to far for find in grid)

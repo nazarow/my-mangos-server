@@ -1820,6 +1820,7 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
 
     // reset movement flags at teleport, because player will continue move with these flags after teleport
     m_movementInfo.SetMovementFlags(MOVEFLAG_NONE);
+    DisableSpline();
 
     if ((GetMapId() == mapid) && (!m_transport))
     {
@@ -7061,7 +7062,20 @@ void Player::_ApplyItemBonuses(ItemPrototype const *proto,uint8 slot,bool apply)
         armor += uint32(proto->ArmorDamageModifier);
 
     if (armor)
-        HandleStatModifier(UNIT_MOD_ARMOR, BASE_VALUE, float(armor), apply);
+    {
+        switch(proto->InventoryType)
+        {
+            case INVTYPE_TRINKET:
+            case INVTYPE_NECK:
+            case INVTYPE_CLOAK:
+            case INVTYPE_FINGER:
+                HandleStatModifier(UNIT_MOD_ARMOR, TOTAL_VALUE, float(armor), apply);
+                break;
+            default:
+                HandleStatModifier(UNIT_MOD_ARMOR, BASE_VALUE, float(armor), apply);
+                break;
+        }
+    }
 
     if (proto->Block)
         HandleBaseModValue(SHIELD_BLOCK_VALUE, FLAT_MOD, float(proto->Block), apply);
@@ -7364,7 +7378,7 @@ void Player::ApplyItemOnStoreSpell(Item *item, bool apply)
     }
 }
 
-void Player::DestroyItemWithOnStoreSpell(Item* item)
+void Player::DestroyItemWithOnStoreSpell(Item* item, uint32 spellId)
 {
     if (!item)
         return;
@@ -7377,8 +7391,7 @@ void Player::DestroyItemWithOnStoreSpell(Item* item)
     {
         _Spell const& spellData = proto->Spells[i];
 
-        // no spell
-        if (!spellData.SpellId)
+        if (spellData.SpellId != spellId)
             continue;
 
         // apply/unapply only at-store spells
@@ -17912,10 +17925,10 @@ SpellModifier* Player::GetSpellMod(SpellModOp op, uint32 spellId) const
 
 void Player::RemoveSpellMods(Spell const* spell)
 {
-    if(!spell || (m_SpellModRemoveCount == 0))
+    if (!spell || (m_SpellModRemoveCount == 0))
         return;
 
-    for(int i=0;i<MAX_SPELLMOD;++i)
+    for(int i = 0; i < MAX_SPELLMOD; ++i)
     {
         for (SpellModList::const_iterator itr = m_spellMods[i].begin(); itr != m_spellMods[i].end();)
         {
@@ -17930,6 +17943,31 @@ void Player::RemoveSpellMods(Spell const* spell)
                 else
                     itr = m_spellMods[i].begin();
             }
+        }
+    }
+}
+
+void Player::ResetSpellModsDueToCanceledSpell (Spell const* spell)
+{
+    for(int i = 0; i < MAX_SPELLMOD; ++i )
+    {
+        for (SpellModList::const_iterator itr = m_spellMods[i].begin(); itr != m_spellMods[i].end(); ++itr)
+        {
+            SpellModifier *mod = *itr;
+
+            if (mod->lastAffected != spell)
+                continue;
+
+            mod->lastAffected = NULL;
+
+            if (mod->charges == -1)
+            {
+                mod->charges = 1;
+                if (m_SpellModRemoveCount > 0)
+                    --m_SpellModRemoveCount;
+            }
+            else if (mod->charges > 0)
+                ++mod->charges;
         }
     }
 }
@@ -19206,9 +19244,6 @@ void Player::UpdateVisibilityOf(WorldObject const* viewPoint, WorldObject* targe
             // send data at target visibility change (adding to client)
             if(target!=this && target->isType(TYPEMASK_UNIT))
                 SendAuraDurationsForTarget((Unit*)target);
-
-            if(target->GetTypeId()==TYPEID_UNIT && ((Creature*)target)->isAlive())
-                ((Creature*)target)->SendMonsterMoveWithSpeedToCurrentDestination(this);
         }
     }
 }

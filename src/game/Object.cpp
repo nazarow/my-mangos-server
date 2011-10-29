@@ -37,11 +37,10 @@
 #include "CellImpl.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
-
 #include "ObjectPosSelector.h"
-
 #include "TemporarySummon.h"
 #include "WorldPvPMgr.h"
+#include "movement/packet_builder.h"
 
 Object::Object( )
 {
@@ -189,7 +188,7 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData *data, Player *target) c
     //DEBUG_LOG("BuildCreateUpdate: update-type: %u, object-type: %u got updateFlags: %X", updatetype, m_objectTypeId, updateFlags);
 
     ByteBuffer buf(500);
-    buf << (uint8)updatetype;
+    buf << uint8(updatetype);
     buf << GetPackGUID();
     buf << uint8(m_objectTypeId);
 
@@ -245,49 +244,43 @@ void Object::DestroyForPlayer( Player *target ) const
 
 void Object::BuildMovementUpdate(ByteBuffer * data, uint8 updateFlags) const
 {
-    uint32 moveFlags = MOVEFLAG_NONE;
-
     *data << uint8(updateFlags);                            // update flags
 
+    // 0x20
     if (updateFlags & UPDATEFLAG_LIVING)
     {
-        switch(GetTypeId())
+        Unit *unit = ((Unit*)this);
+
+        if (GetTypeId() == TYPEID_PLAYER)
         {
-            case TYPEID_UNIT:
-            {
-                moveFlags = ((Creature*)this)->CanFly() ? (MOVEFLAG_FORWARD | MOVEFLAG_LEVITATING) : MOVEFLAG_NONE;
-            }
-            break;
-            case TYPEID_PLAYER:
-            {
-                Player *player = ((Player*)this);
-
-                moveFlags = player->m_movementInfo.GetMovementFlags();
-
-                if(player->GetTransport())
-                    moveFlags |= MOVEFLAG_ONTRANSPORT;
-                else
-                    moveFlags &= ~MOVEFLAG_ONTRANSPORT;
-
-                // remove unknown, unused etc flags for now
-                moveFlags &= ~MOVEFLAG_SPLINE_ENABLED;      // will be set manually
-
-                if(player->IsTaxiFlying())
-                {
-                    MANGOS_ASSERT(player->GetMotionMaster()->GetCurrentMovementGeneratorType() == FLIGHT_MOTION_TYPE);
-                    moveFlags = (MOVEFLAG_FORWARD | MOVEFLAG_SPLINE_ENABLED);
-                }
-            }
-            break;
+            Player *player = ((Player*)unit);
+            if(player->GetTransport())
+                player->m_movementInfo.AddMovementFlag(MOVEFLAG_ONTRANSPORT);
+            else
+                player->m_movementInfo.RemoveMovementFlag(MOVEFLAG_ONTRANSPORT);
         }
 
-        *data << uint32(moveFlags);                         // movement flags
-        *data << uint8(0);                                  // moveFlags2
-        *data << uint32(WorldTimer::getMSTime());           // time (in milliseconds)
-    }
+        // Update movement info time
+        unit->m_movementInfo.UpdateTime(WorldTimer::getMSTime());
+        // Write movement info
+        unit->m_movementInfo.Write(*data);
 
+        // Unit speeds
+        *data << float(unit->GetSpeed(MOVE_WALK));
+        *data << float(unit->GetSpeed(MOVE_RUN));
+        *data << float(unit->GetSpeed(MOVE_RUN_BACK));
+        *data << float(unit->GetSpeed(MOVE_SWIM));
+        *data << float(unit->GetSpeed(MOVE_SWIM_BACK));
+        *data << float(unit->GetSpeed(MOVE_FLIGHT));
+        *data << float(unit->GetSpeed(MOVE_FLIGHT_BACK));
+        *data << float(unit->GetSpeed(MOVE_TURN_RATE));
+
+        // 0x08000000
+        if (unit->m_movementInfo.GetMovementFlags() & MOVEFLAG_SPLINE_ENABLED)
+            Movement::PacketBuilder::WriteCreate(*unit->movespline, *data);
+    }
     // 0x40
-    if (updateFlags & UPDATEFLAG_HAS_POSITION)
+    else if (updateFlags & UPDATEFLAG_HAS_POSITION)
     {
         // 0x02
         if (updateFlags & UPDATEFLAG_TRANSPORT && ((GameObject*)this)->GetGoType() == GAMEOBJECT_TYPE_MO_TRANSPORT)
@@ -303,148 +296,6 @@ void Object::BuildMovementUpdate(ByteBuffer * data, uint8 updateFlags) const
             *data << float(((WorldObject*)this)->GetPositionY());
             *data << float(((WorldObject*)this)->GetPositionZ());
             *data << float(((WorldObject*)this)->GetOrientation());
-        }
-    }
-
-    // 0x20
-    if(updateFlags & UPDATEFLAG_LIVING)
-    {
-        Unit *unit = ((Unit*)this);
-
-        // 0x00000200
-        if(moveFlags & MOVEFLAG_ONTRANSPORT)
-        {
-            if(GetTypeId() == TYPEID_PLAYER)
-            {
-                *data << ObjectGuid(((Player*)this)->GetTransport()->GetObjectGuid());
-                *data << float(((Player*)this)->GetTransOffsetX());
-                *data << float(((Player*)this)->GetTransOffsetY());
-                *data << float(((Player*)this)->GetTransOffsetZ());
-                *data << float(((Player*)this)->GetTransOffsetO());
-                *data << uint32(((Player*)this)->GetTransTime());
-            }
-            //MaNGOS currently not have support for other than player on transport
-        }
-
-        // 0x02200000
-        if(moveFlags & (MOVEFLAG_SWIMMING | MOVEFLAG_FLYING2))
-        {
-            if(GetTypeId() == TYPEID_PLAYER)
-                *data << float(((Player*)this)->m_movementInfo.s_pitch);
-            else
-                *data << float(0);                          // is't part of movement packet, we must store and send it...
-        }
-
-        if(GetTypeId() == TYPEID_PLAYER)
-            *data << uint32(((Player*)this)->m_movementInfo.GetFallTime());
-        else
-            *data << uint32(0);                             // last fall time
-
-        // 0x00001000
-        if(moveFlags & MOVEFLAG_FALLING)
-        {
-            if(GetTypeId() == TYPEID_PLAYER)
-            {
-                *data << float(((Player*)this)->m_movementInfo.GetJumpInfo().velocity);
-                *data << float(((Player*)this)->m_movementInfo.GetJumpInfo().sinAngle);
-                *data << float(((Player*)this)->m_movementInfo.GetJumpInfo().cosAngle);
-                *data << float(((Player*)this)->m_movementInfo.GetJumpInfo().xyspeed);
-            }
-            else
-            {
-                *data << float(0);
-                *data << float(0);
-                *data << float(0);
-                *data << float(0);
-            }
-        }
-
-        // 0x04000000
-        if(moveFlags & MOVEFLAG_SPLINE_ELEVATION)
-        {
-            if(GetTypeId() == TYPEID_PLAYER)
-                *data << float(((Player*)this)->m_movementInfo.u_unk1);
-            else
-                *data << float(0);
-        }
-
-        // Unit speeds
-        *data << float(unit->GetSpeed(MOVE_WALK));
-        *data << float(unit->GetSpeed(MOVE_RUN));
-        *data << float(unit->GetSpeed(MOVE_SWIM_BACK));
-        *data << float(unit->GetSpeed(MOVE_SWIM));
-        *data << float(unit->GetSpeed(MOVE_RUN_BACK));
-        *data << float(unit->GetSpeed(MOVE_FLIGHT));
-        *data << float(unit->GetSpeed(MOVE_FLIGHT_BACK));
-        *data << float(unit->GetSpeed(MOVE_TURN_RATE));
-
-        // 0x08000000
-        if(moveFlags & MOVEFLAG_SPLINE_ENABLED)
-        {
-            if(GetTypeId() != TYPEID_PLAYER)
-            {
-                DEBUG_LOG("_BuildMovementUpdate: MOVEFLAG_SPLINE_ENABLED for non-player");
-                return;
-            }
-
-            Player *player = ((Player*)unit);
-
-            if(!player->IsTaxiFlying())
-            {
-                DEBUG_LOG("_BuildMovementUpdate: MOVEFLAG_SPLINE_ENABLED but not in flight");
-                return;
-            }
-
-            MANGOS_ASSERT(player->GetMotionMaster()->GetCurrentMovementGeneratorType() == FLIGHT_MOTION_TYPE);
-
-            FlightPathMovementGenerator *fmg = (FlightPathMovementGenerator*)(player->GetMotionMaster()->top());
-
-            uint32 flags3 = 0x00000300;
-
-            *data << uint32(flags3);                        // splines flag?
-
-            if(flags3 & 0x10000)                            // probably x,y,z coords there
-            {
-                *data << (float)0;
-                *data << (float)0;
-                *data << (float)0;
-            }
-
-            if(flags3 & 0x20000)                            // probably guid there
-            {
-                *data << uint64(0);
-            }
-
-            if(flags3 & 0x40000)                            // may be orientation
-            {
-                *data << (float)0;
-            }
-
-            TaxiPathNodeList const& path = fmg->GetPath();
-
-            float x, y, z;
-            player->GetPosition(x, y, z);
-
-            uint32 inflighttime = uint32(path.GetPassedLength(fmg->GetCurrentNode(), x, y, z) * 32);
-            uint32 traveltime = uint32(path.GetTotalLength() * 32);
-
-            *data << uint32(inflighttime);                  // passed move time?
-            *data << uint32(traveltime);                    // full move time?
-            *data << uint32(0);                             // sequenceId
-
-            uint32 poscount = uint32(path.size());
-            *data << uint32(poscount);                      // points count
-
-            for(uint32 i = 0; i < poscount; ++i)
-            {
-                *data << float(path[i].x);
-                *data << float(path[i].y);
-                *data << float(path[i].z);
-            }
-
-            *data << float(path[poscount-1].x);
-            *data << float(path[poscount-1].y);
-            *data << float(path[poscount-1].z);
         }
     }
 
@@ -632,9 +483,9 @@ void Object::BuildValuesUpdate(uint8 updatetype, ByteBuffer * data, UpdateMask *
                 else if (index == UNIT_DYNAMIC_FLAGS && GetTypeId() == TYPEID_UNIT)
                 {
                     if (!target->isAllowedToLoot((Creature*)this))
-                        *data << (m_uint32Values[ index ] & ~UNIT_DYNFLAG_LOOTABLE);
+                        *data << (m_uint32Values[index] & ~UNIT_DYNFLAG_LOOTABLE);
                     else
-                        *data << (m_uint32Values[ index ] & ~UNIT_DYNFLAG_TAPPED);
+                        *data << (m_uint32Values[index] & ~UNIT_DYNFLAG_TAPPED);
                 }
                 else
                 {
@@ -651,7 +502,7 @@ void Object::BuildValuesUpdate(uint8 updatetype, ByteBuffer * data, UpdateMask *
             if (updateMask->GetBit(index))
             {
                 // send in current format (float as float, uint32 as uint32)
-                if ( index == GAMEOBJECT_DYN_FLAGS )
+                if (index == GAMEOBJECT_DYN_FLAGS)
                 {
                     // GAMEOBJECT_TYPE_DUNGEON_DIFFICULTY can have lo flag = 2
                     //      most likely related to "can enter map" and then should be 0 if can not enter
@@ -1037,8 +888,8 @@ void WorldObject::Relocate(float x, float y, float z, float orientation)
     m_position.z = z;
     m_position.o = orientation;
 
-    if(GetTypeId()==TYPEID_PLAYER)
-        ((Player*)this)->m_movementInfo.ChangePosition(x, y, z, orientation);
+    if (isType(TYPEMASK_UNIT))
+        ((Unit*)this)->m_movementInfo.ChangePosition(x, y, z, orientation);
 }
 
 void WorldObject::Relocate(float x, float y, float z)
@@ -1047,16 +898,16 @@ void WorldObject::Relocate(float x, float y, float z)
     m_position.y = y;
     m_position.z = z;
 
-    if(GetTypeId()==TYPEID_PLAYER)
-        ((Player*)this)->m_movementInfo.ChangePosition(x, y, z, GetOrientation());
+    if (isType(TYPEMASK_UNIT))
+        ((Unit*)this)->m_movementInfo.ChangePosition(x, y, z, GetOrientation());
 }
 
 void WorldObject::SetOrientation(float orientation)
 {
     m_position.o = orientation;
 
-    if(GetTypeId() == TYPEID_PLAYER)                        //FIXME: to Unit at move moveinfor to Unit
-        ((Player*)this)->m_movementInfo.ChangeOrientation(orientation);
+    if (isType(TYPEMASK_UNIT))
+        ((Unit*)this)->m_movementInfo.ChangeOrientation(orientation);
 }
 
 uint32 WorldObject::GetZoneId() const
@@ -1564,9 +1415,9 @@ void WorldObject::BuildMonsterChat(WorldPacket *data, ObjectGuid senderGuid, uin
         *data << uint32(strlen(targetName)+1);              // target name length
         *data << targetName;                                // target name
     }
-    *data << (uint32)(strlen(text)+1);
+    *data << uint32(strlen(text)+1);
     *data << text;
-    *data << (uint8)0;                                      // ChatTag
+    *data << uint8(0);                                      // ChatTag
 }
 
 void WorldObject::SendMessageToSet(WorldPacket *data, bool /*bToSelf*/)

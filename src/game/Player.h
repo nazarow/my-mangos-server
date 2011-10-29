@@ -131,7 +131,7 @@ struct SpellModifier
     int32 value;
     ClassFamilyMask mask;
     uint32 spellId;
-    Spell const* lastAffected;
+    Spell const* lastAffected;                              // mark last charge user, used for cleanup delayed remove spellmods at spell success or restore charges at cast fail (Is one pointer only need for cases mixed castes?)
 };
 
 typedef std::list<SpellModifier*> SpellModList;
@@ -1484,6 +1484,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         template <class T> T ApplySpellMod(uint32 spellId, SpellModOp op, T &basevalue, Spell const* spell = NULL);
         SpellModifier* GetSpellMod(SpellModOp op, uint32 spellId) const;
         void RemoveSpellMods(Spell const* spell);
+        void ResetSpellModsDueToCanceledSpell (Spell const* spell);
 
         static uint32 const infinityCooldownDelay = MONTH;  // used for set "infinity cooldowns" for spells and check
         static uint32 const infinityCooldownDelayCheck = MONTH/2;
@@ -1851,7 +1852,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         void CastItemUseSpell(Item *item,SpellCastTargets const& targets,uint8 cast_count);
 
         void ApplyItemOnStoreSpell(Item *item, bool apply);
-        void DestroyItemWithOnStoreSpell(Item* item);
+        void DestroyItemWithOnStoreSpell(Item* item, uint32 spellId);
 
         void SendInitWorldStates(uint32 zone, uint32 area);
         void SendUpdateWorldState(uint32 Field, uint32 Value);
@@ -2014,7 +2015,6 @@ class MANGOS_DLL_SPEC Player : public Unit
         /*********************************************************/
         /***                 VARIOUS SYSTEMS                   ***/
         /*********************************************************/
-        MovementInfo m_movementInfo;
         bool HasMovementFlag(MovementFlags f) const;        // for script access to m_movementInfo.HasMovementFlag
         void UpdateFallInformationIfNeed(MovementInfo const& minfo,uint16 opcode);
         void SetFallInformation(uint32 time, float z)
@@ -2518,16 +2518,23 @@ template <class T> T Player::ApplySpellMod(uint32 spellId, SpellModOp op, T &bas
             totalpct += mod->value;
         }
 
-        if (mod->charges > 0 )
+        if (mod->charges > 0)
         {
-            --mod->charges;
-            if (mod->charges == 0)
+            if (!spell)
+                spell = FindCurrentSpellBySpellId(spellId);
+
+            // avoid double use spellmod charge by same spell
+            if (!mod->lastAffected || mod->lastAffected != spell)
             {
-                mod->charges = -1;
+                --mod->charges;
+
+                if (mod->charges == 0)
+                {
+                    mod->charges = -1;
+                    ++m_SpellModRemoveCount;
+                }
+
                 mod->lastAffected = spell;
-                if(!mod->lastAffected)
-                    mod->lastAffected = FindCurrentSpellBySpellId(spellId);
-                ++m_SpellModRemoveCount;
             }
         }
     }

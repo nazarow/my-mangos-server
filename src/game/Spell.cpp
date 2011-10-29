@@ -295,7 +295,7 @@ Spell::Spell( Unit* caster, SpellEntry const *info, bool triggered, ObjectGuid o
     for(int i = 0; i < MAX_EFFECT_INDEX; ++i)
         m_currentBasePoints[i] = m_spellInfo->CalculateSimpleValue(SpellEffectIndex(i));
 
-    m_spellState = SPELL_STATE_NULL;
+    m_spellState = SPELL_STATE_PREPARING;
 
     m_castPositionX = m_castPositionY = m_castPositionZ = 0;
     m_TriggerSpells.clear();
@@ -3164,11 +3164,20 @@ void Spell::update(uint32 difftime)
 
 void Spell::finish(bool ok)
 {
-    if(!m_caster)
+    if (!m_caster)
         return;
 
-    if(m_spellState == SPELL_STATE_FINISHED)
+    if (m_spellState == SPELL_STATE_FINISHED)
         return;
+
+    // remove/restore spell mods before m_spellState update
+    if (Player* modOwner = m_caster->GetSpellModOwner())
+    {
+        if (ok || m_spellState != SPELL_STATE_PREPARING)    // fail after start channeling or throw to target not affect spell mods
+            modOwner->RemoveSpellMods(this);
+        else
+            modOwner->ResetSpellModsDueToCanceledSpell(this);
+    }
 
     m_spellState = SPELL_STATE_FINISHED;
 
@@ -3176,12 +3185,8 @@ void Spell::finish(bool ok)
         m_caster->clearUnitState(UNIT_STAT_CASTING);		//kia
 
     // other code related only to successfully finished spells
-    if(!ok)
+    if (!ok)
         return;
-
-    // remove spell mods
-    if (m_caster->GetTypeId() == TYPEID_PLAYER)
-        ((Player*)m_caster)->RemoveSpellMods(this);
 
     // handle SPELL_AURA_ADD_TARGET_TRIGGER auras
     Unit::AuraList const& targetTriggers = m_caster->GetAurasByType(SPELL_AURA_ADD_TARGET_TRIGGER);
@@ -4087,6 +4092,14 @@ SpellCastResult Spell::CheckCast(bool strict)
 
         if (!m_IsTriggeredSpell && IsDeathOnlySpell(m_spellInfo) && target->isAlive())
             return SPELL_FAILED_TARGET_NOT_DEAD;
+
+        // totem immunity for channeled spells(needs to be before spell cast)
+        // spell attribs for player channeled spells
+        if ((m_spellInfo->AttributesEx & SPELL_ATTR_EX_UNK14)
+            && (m_spellInfo->AttributesEx5 & SPELL_ATTR_EX5_UNK13)
+            && target->GetTypeId() == TYPEID_UNIT
+            && ((Creature*)target)->IsTotem())
+            return SPELL_FAILED_IMMUNE;
 
         bool non_caster_target = target != m_caster && !IsSpellWithCasterSourceTargetsOnly(m_spellInfo);
 
@@ -5323,7 +5336,9 @@ SpellCastResult Spell::CheckRange(bool strict)
     switch(m_spellInfo->rangeIndex)
     {
         // self cast doesn't need range checking -- also for Starshards fix
+        // spells that can be cast anywhere also need no check
         case SPELL_RANGE_IDX_SELF_ONLY:
+        case SPELL_RANGE_IDX_ANYWHERE:
             return SPELL_CAST_OK;
         // combat range spells are treated differently
         case SPELL_RANGE_IDX_COMBAT:
@@ -6056,7 +6071,7 @@ bool Spell::CheckTarget( Unit* target, SpellEffectIndex eff )
             // player far away, maybe his corpse near?
             if(target != m_caster && !target->IsWithinLOSInMap(m_caster))
             {
-                if (m_targets.getCorpseTargetGuid())
+                if (!m_targets.getCorpseTargetGuid())
                     return false;
 
                 Corpse *corpse = m_caster->GetMap()->GetCorpse(m_targets.getCorpseTargetGuid());

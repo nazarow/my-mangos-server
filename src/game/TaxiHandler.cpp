@@ -27,8 +27,8 @@
 #include "UpdateMask.h"
 #include "Path.h"
 #include "WaypointMovementGenerator.h"
-#include "DestinationHolderImp.h"
-#include "World.h"
+//#include "DestinationHolderImp.h"
+//#include "World.h"
 
 void WorldSession::HandleTaxiNodeStatusQueryOpcode( WorldPacket & recv_data )
 {
@@ -230,11 +230,11 @@ void WorldSession::HandleMoveSplineDoneOpcode(WorldPacket& recv_data)
 
         int32 timedelta = 0;
         if (GetPlayer()->m_anti_lastmovetime !=0){
-            timedelta = movementInfo.time - GetPlayer()->m_anti_lastmovetime;
+            timedelta = movementInfo.GetTime() - GetPlayer()->m_anti_lastmovetime;
             GetPlayer()->m_anti_deltamovetime += timedelta;
-            GetPlayer()->m_anti_lastmovetime = movementInfo.time;
+            GetPlayer()->m_anti_lastmovetime = movementInfo.GetTime();
         } else {
-            GetPlayer()->m_anti_lastmovetime = movementInfo.time;
+            GetPlayer()->m_anti_lastmovetime = movementInfo.GetTime();
         }
 
         uint32 CurTime = WorldTimer::getMSTime();
@@ -274,11 +274,11 @@ void WorldSession::HandleMoveSplineDoneOpcode(WorldPacket& recv_data)
     GetPlayer()->SetPosition(movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z, movementInfo.GetPos()->o);
     int32 timedelta = 0;
     if (GetPlayer()->m_anti_lastmovetime !=0){
-        timedelta = movementInfo.time - GetPlayer()->m_anti_lastmovetime;
+        timedelta = movementInfo.GetTime() - GetPlayer()->m_anti_lastmovetime;
         GetPlayer()->m_anti_deltamovetime += timedelta;
-        GetPlayer()->m_anti_lastmovetime = movementInfo.time;
+        GetPlayer()->m_anti_lastmovetime = movementInfo.GetTime();
     } else {
-        GetPlayer()->m_anti_lastmovetime = movementInfo.time;
+        GetPlayer()->m_anti_lastmovetime = movementInfo.GetTime();
     }
 
     uint32 CurTime = WorldTimer::getMSTime();

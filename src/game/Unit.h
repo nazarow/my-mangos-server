@@ -626,14 +626,14 @@ MovementFlags const movementOrTurningFlagsMask = MovementFlags(
 // only some values known as correct for 2.4.3
 enum SplineFlags
 {
-    SPLINEFLAG_NONE           = 0x00000000,
-    SPLINEFLAG_WALKMODE       = 0x00000100,
-    SPLINEFLAG_FLYING         = 0x00000200,
+    SPLINEFLAG_NONE         = 0x00000000,
+    SPLINEFLAG_WALKMODE     = 0x00000100,
+    SPLINEFLAG_FLYING       = 0x00000200,
     // backported flag to preserve compatibility not confirmed by data, but causes no problems
-    SPLINEFLAG_NO_SPLINE      = 0x00000400,               // former: SPLINEFLAG_LEVITATING
-    SPLINEFLAG_FALLING        = 0x00001000,
-    SPLINEFLAG_UNKNOWN7       = 0x02000000,               // swimming/flying (depends on mob?)
-    SPLINEFLAG_SPLINE         = 0x00002000,               // spline n*(float x,y,z)
+    SPLINEFLAG_NO_SPLINE    = 0x00000400,               // former: SPLINEFLAG_LEVITATING
+    SPLINEFLAG_FALLING      = 0x00001000,
+    SPLINEFLAG_SPLINE       = 0x00002000,               // spline n*(float x,y,z)
+    SPLINEFLAG_UNKNOWN7     = 0x02000000,               // swimming/flying (depends on mob?)
 };
 
 enum SplineType
@@ -697,24 +697,25 @@ class MovementInfo
         };
 
         JumpInfo const& GetJumpInfo() const { return jump; }
-    //private:
+        uint32 GetTime() const { return time; }
+    private:
         // common
-        uint32  moveFlags;                                  // see enum MovementFlags
-        uint8   moveFlags2;
-        uint32  time;
+        uint32   moveFlags;                                 // see enum MovementFlags
+        uint8    moveFlags2;
+        uint32   time;
         Position pos;
         // transport
         ObjectGuid t_guid;
         Position t_pos;
-        uint32  t_time;
+        uint32   t_time;
         // swimming and unknown
-        float   s_pitch;
+        float    s_pitch;
         // last fall time
-        uint32  fallTime;
+        uint32   fallTime;
         // jumping
         JumpInfo jump;
         // spline
-        float   u_unk1;
+        float    u_unk1;
 };
 
 inline ByteBuffer& operator<< (ByteBuffer& buf, MovementInfo const& mi)
@@ -727,6 +728,10 @@ inline ByteBuffer& operator>> (ByteBuffer& buf, MovementInfo& mi)
 {
     mi.Read(buf);
     return buf;
+}
+
+namespace Movement{
+    class MoveSpline;
 }
 
 enum DiminishingLevels
@@ -1246,7 +1251,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         float  MeleeSpellMissChance(Unit *pVictim, WeaponAttackType attType, int32 skillDiff, SpellEntry const *spell);
         SpellMissInfo MeleeSpellHitResult(Unit *pVictim, SpellEntry const *spell);
-
         SpellMissInfo MagicSpellHitResult(Unit *pVictim, SpellEntry const *spell);
         SpellMissInfo SpellHitResult(Unit *pVictim, SpellEntry const *spell, bool canReflect = false);
 
@@ -1347,7 +1351,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void DeMorph();
 
         void SendAttackStateUpdate(CalcDamageInfo *damageInfo);
-
         void SendAttackStateUpdate(uint32 HitInfo, Unit *target, uint8 SwingType, SpellSchoolMask damageSchoolMask, uint32 Damage, uint32 AbsorbDamage, uint32 Resist, VictimState TargetState, uint32 BlockedAmount);
         void SendSpellNonMeleeDamageLog(SpellNonMeleeDamage *log);
         void SendSpellNonMeleeDamageLog(Unit *target,uint32 SpellID, uint32 Damage, SpellSchoolMask damageSchoolMask, uint32 AbsorbedDamage, uint32 Resist, bool PhysicalDamage, uint32 Blocked, bool CriticalHit = false);
@@ -1355,19 +1358,16 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void SendSpellMiss(Unit *target, uint32 spellID, SpellMissInfo missInfo);
 
         void NearTeleportTo(float x, float y, float z, float orientation, bool casting = false);
-
-        void MonsterMove(float x, float y, float z, uint32 transitTime);
-        void MonsterMoveWithSpeed(float x, float y, float z, uint32 transitTime = 0);
-
+        void MonsterMoveWithSpeed(float x, float y, float z, float speed);
         // recommend use MonsterMove/MonsterMoveWithSpeed for most case that correctly work with movegens
         // if used additional args in ... part then floats must explicitly casted to double
-        void SendMonsterMove(float x, float y, float z, SplineType type, SplineFlags flags, uint32 Time, Player* player = NULL, ...);
-        void SendMonsterMoveWithSpeed(float x, float y, float z, uint32 transitTime = 0, Player* player = NULL);
+        void SendHeartBeat();
+        bool IsLevitating() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_LEVITATING);}
+        bool IsWalking() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_WALK_MODE);}
 
-        template<typename PathElem, typename PathNode>
-        void SendMonsterMoveByPath(Path<PathElem,PathNode> const& path, uint32 start, uint32 end, SplineFlags flags);
-
-        void SendHeartBeat(bool toSelf);
+        void SetInFront(Unit const* target);
+        void SetFacingTo(float ori);
+        void SetFacingToObject(WorldObject* pObject);
 
         virtual void MoveOutOfRange(Player &) {  };
 
@@ -1586,10 +1586,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         float GetWeaponDamageRange(WeaponAttackType attType ,WeaponDamageRange type) const;
         void SetBaseWeaponDamage(WeaponAttackType attType ,WeaponDamageRange damageRange, float value) { m_weaponDamage[attType][damageRange] = value; }
 
-        void SetInFront(Unit const* target);
-        void SetFacingTo(float ori, bool bToSelf = false);
-        void SetFacingToObject(WorldObject* pObject);
-
         // Visibility system
         UnitVisibility GetVisibility() const { return m_Visibility; }
         void SetVisibility(UnitVisibility x);
@@ -1748,7 +1744,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void CalculateDamageAbsorbAndResist(Unit *pCaster, SpellSchoolMask schoolMask, DamageEffectType damagetype, const uint32 damage, uint32 *absorb, uint32 *resist, bool canReflect = false);
         void CalculateAbsorbResistBlock(Unit *pCaster, SpellNonMeleeDamage *damageInfo, SpellEntry const* spellProto, WeaponAttackType attType = BASE_ATTACK);
 
-        void  UpdateWalkMode(Unit* source, bool self = true);
         void  UpdateSpeed(UnitMoveType mtype, bool forced, float ratio = 1.0f);
         float GetSpeed( UnitMoveType mtype ) const;
         float GetSpeedRate( UnitMoveType mtype ) const { return m_speed_rate[mtype]; }
@@ -1816,7 +1811,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 		void ShowMovementInfo(const uint32 pl, MovementInfo const& movementInfo, const char *opcode);
 
         // Movement info
-        //MovementInfo m_movementInfo; -- BIG TODO backport
+        MovementInfo m_movementInfo;
+        Movement::MoveSpline * movespline;
 
         void ScheduleAINotify(uint32 delay);
         bool IsAINotifyScheduled() const { return m_AINotifyScheduled;}
@@ -1827,7 +1823,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         explicit Unit ();
 
         void _UpdateSpells(uint32 time);
-
         void _UpdateAutoRepeatSpell();
         bool m_AutoRepeatFirstCast;
 
@@ -1877,8 +1872,10 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 		int32 m_playersDamage;
         uint32 m_lastManaUseTimer;
 
+        void DisableSpline();
     private:
         void CleanupDeletedAuras();
+        void UpdateSplineMovement(uint32 t_diff);
 
         Unit* _GetTotem(TotemSlot slot) const;              // for templated function without include need
         Pet* _GetPet(ObjectGuid guid) const;                // for templated function without include need
@@ -1892,6 +1889,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         UnitVisibility m_Visibility;
         Position m_last_notified_position;
         bool m_AINotifyScheduled;
+        ShortTimeTracker m_movesplineTimer;
 
         Diminishing m_Diminishing;
         // Manage all Units threatening us
@@ -1993,34 +1991,6 @@ bool Unit::CheckAllControlledUnits(Func const& func, uint32 controlledMask) cons
                 return true;
 
     return false;
-}
-
-template<typename Elem, typename Node>
-inline void Unit::SendMonsterMoveByPath(Path<Elem,Node> const& path, uint32 start, uint32 end, SplineFlags flags)
-{
-    uint32 traveltime = uint32(path.GetTotalLength(start, end) * 32);
-
-    uint32 pathSize = end - start;
-
-    WorldPacket data( SMSG_MONSTER_MOVE, (GetPackGUID().size()+1+4+4+4+4+1+4+4+4+pathSize*4*3) );
-    data << GetPackGUID();
-    data << GetPositionX();
-    data << GetPositionY();
-    data << GetPositionZ();
-    data << uint32(WorldTimer::getMSTime());
-    data << uint8(SPLINETYPE_NORMAL);
-    data << uint32(flags);
-    data << uint32(traveltime);
-    data << uint32(pathSize);
-
-    for(uint32 i = start; i < end; ++i)
-    {
-        data << float(path[i].x);
-        data << float(path[i].y);
-        data << float(path[i].z);
-    }
-
-    SendMessageToSet(&data, true);
 }
 
 #endif

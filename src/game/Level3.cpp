@@ -1166,7 +1166,12 @@ bool ChatHandler::HandleAccountSetPasswordCommand(char* args)
             return false;
     }
 
-    return true;
+    // OK, but avoid normal report for hide passwords, but log use command for anyone
+    char msg[100];
+    snprintf( msg, 100, ".account set password %s *** ***", account_name.c_str());
+    LogCommand(msg);
+    SetSentErrorMessage(true);
+    return false;
 }
 
 bool ChatHandler::HandleMaxSkillCommand(char* /*args*/)
@@ -5649,6 +5654,8 @@ bool ChatHandler::HandleMovegensCommand(char* /*args*/)
     PSendSysMessage(LANG_MOVEGENS_LIST,(unit->GetTypeId()==TYPEID_PLAYER ? "Player" : "Creature" ),unit->GetGUIDLow());
 
     MotionMaster* mm = unit->GetMotionMaster();
+    float x,y,z;
+    mm->GetDestination(x,y,z);
     for(MotionMaster::const_iterator itr = mm->begin(); itr != mm->end(); ++itr)
     {
         switch((*itr)->GetMovementGeneratorType())
@@ -5693,8 +5700,6 @@ bool ChatHandler::HandleMovegensCommand(char* /*args*/)
             case HOME_MOTION_TYPE:
                 if(unit->GetTypeId()==TYPEID_UNIT)
                 {
-                    float x,y,z;
-                    (*itr)->GetDestination(x,y,z);
                     PSendSysMessage(LANG_MOVEGENS_HOME_CREATURE,x,y,z);
                 }
                 else
@@ -5703,8 +5708,6 @@ bool ChatHandler::HandleMovegensCommand(char* /*args*/)
             case FLIGHT_MOTION_TYPE:   SendSysMessage(LANG_MOVEGENS_FLIGHT);  break;
             case POINT_MOTION_TYPE:
             {
-                float x,y,z;
-                (*itr)->GetDestination(x,y,z);
                 PSendSysMessage(LANG_MOVEGENS_POINT,x,y,z);
                 break;
             }
@@ -5923,12 +5926,6 @@ bool ChatHandler::HandleComeToMeCommand(char *args)
         SetSentErrorMessage(true);
         return false;
     }
-
-    uint32 newFlags;
-    if (!ExtractUInt32(&args, newFlags))
-        return false;
-
-    caster->SetSplineFlags(SplineFlags(newFlags));
 
     Player* pl = m_session->GetPlayer();
 

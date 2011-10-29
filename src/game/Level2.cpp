@@ -998,7 +998,7 @@ bool ChatHandler::HandleGameObjectMoveCommand(char* args)
         return false;
     }
 
-    if (!args)
+    if (!*args)
     {
         Player *chr = m_session->GetPlayer();
 
@@ -1103,7 +1103,7 @@ bool ChatHandler::HandleGameObjectAddCommand(char* args)
         return false;
     }
 
-    if (!pGameObj->Create(db_lowGUID, gInfo->id, map, x, y, z, o, 0.0f, 0.0f, 0.0f, 0.0f, GO_ANIMPROGRESS_DEFAULT, GO_STATE_READY))
+    if (!pGameObj->Create(db_lowGUID, gInfo->id, map, x, y, z, o))
     {
         delete pGameObj;
         return false;

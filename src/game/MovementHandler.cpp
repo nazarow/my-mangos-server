@@ -306,7 +306,7 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
 		}
 
 		//if passenger on transport and transport changed - remove it
-        if (plMover && plMover->m_transport && plMover->m_transport->GetObjectGuid().GetRawValue() != movementInfo.t_guid.GetRawValue())
+        if (plMover && plMover->m_transport && plMover->m_transport->GetObjectGuid().GetRawValue() != movementInfo.GetTransportGuid().GetRawValue())
 		{
             plMover->m_transport->RemovePassenger(GetPlayer());
             plMover->m_transport = NULL;
@@ -333,11 +333,11 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
             }
             ///GetPlayer()->m_anti_transportGUID = GUID_LOPART(movementInfo.t_guid);
             //Correct finding GO guid in DB (thanks to GriffonHeart)
-			GameObject *obj = plMover->GetMap()?plMover->GetMap()->GetGameObject(movementInfo.t_guid):NULL;//ObjectAccessor::GetGameObjectInWorld(movementInfo.t_guid.GetRawValue());
+            GameObject *obj = plMover->GetMap()?plMover->GetMap()->GetGameObject(movementInfo.GetTransportGuid()):NULL;//ObjectAccessor::GetGameObjectInWorld(movementInfo.t_guid.GetRawValue());
             if(obj)
                 plMover->m_anti_transportGUID = obj->GetGUIDLow();
             else
-                plMover->m_anti_transportGUID = movementInfo.t_guid.GetCounter();
+                plMover->m_anti_transportGUID = movementInfo.GetTransportGuid().GetCounter();
         }
     }
     else if (plMover && (plMover->m_anti_transportGUID != 0))
@@ -367,11 +367,11 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
     //calc time deltas
     int32 timedelta = 1500;
     if (plMover->m_anti_lastmovetime !=0){
-        timedelta = movementInfo.time - plMover->m_anti_lastmovetime;
+        timedelta = movementInfo.GetTime() - plMover->m_anti_lastmovetime;
         plMover->m_anti_deltamovetime += timedelta;
-        plMover->m_anti_lastmovetime = movementInfo.time;
+        plMover->m_anti_lastmovetime = movementInfo.GetTime();
     } else {
-        plMover->m_anti_lastmovetime = movementInfo.time;
+        plMover->m_anti_lastmovetime = movementInfo.GetTime();
     }
 
     uint32 CurrentMStime = WorldTimer::getMSTime();
@@ -459,7 +459,7 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
 		{
 			sLog.outBasic("dtime: %d, allow: %f speed: %f lastHspd: %f lastHPspd: %f", timedelta, allowed_delta, current_speed, plMover->GetSpeed(move_type), plMover->m_movementInfo.GetJumpInfo().xyspeed);
             static char const* move_type_name[MAX_MOVE_TYPE] = {  "Walk", "Run", "Walkback", "Swim", "Swimback", "Turn", "Fly", "Flyback" };
-            sLog.outBasic("%s newcoord: tm:%d ftm:%d | %f,%f,%fo(%f) [%s]$%s",GetPlayer()->GetName(),movementInfo.time,movementInfo.fallTime,movementInfo.GetPos()->x,movementInfo.GetPos()->y,movementInfo.GetPos()->z,movementInfo.GetPos()->o,LookupOpcodeName(opcode),move_type_name[move_type]);
+            sLog.outBasic("%s newcoord: tm:%d ftm:%d | %f,%f,%fo(%f) [%s]$%s",GetPlayer()->GetName(),movementInfo.GetTime(),movementInfo.GetFallTime(),movementInfo.GetPos()->x,movementInfo.GetPos()->y,movementInfo.GetPos()->z,movementInfo.GetPos()->o,LookupOpcodeName(opcode),move_type_name[move_type]);
 			sLog.outBasic("%f",tg_z);
 		}
 
@@ -669,10 +669,6 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
     if (plMover)
         plMover->UpdateFallInformationIfNeed(movementInfo, opcode);
 
-    // after move info set
-    if (opcode == MSG_MOVE_SET_WALK_MODE || opcode == MSG_MOVE_SET_RUN_MODE)
-        mover->UpdateWalkMode(mover, false);
-
     WorldPacket data(opcode, recv_data.size());
     data << mover->GetPackGUID();             // write guid
     movementInfo.Write(data);                               // write data
@@ -880,15 +876,15 @@ void WorldSession::HandleMoveKnockBackAck( WorldPacket & recv_data )
 
     //Save movement flags
 
-	if (GetPlayer()->GetMover()->GetTypeId() == TYPEID_PLAYER)
-	{
-		((Player*)GetPlayer()->GetMover())->m_movementInfo = movementInfo;
-		((Player*)GetPlayer()->GetMover())->SetPosition(movementInfo.GetPos()->x,movementInfo.GetPos()->y,movementInfo.GetPos()->z,movementInfo.GetPos()->o);
-		((Player*)GetPlayer()->GetMover())->m_anti_last_vspeed = movementInfo.GetJumpInfo().velocity < 3.2f ? movementInfo.GetJumpInfo().velocity - 1.0f : 3.2f;
-		((Player*)GetPlayer()->GetMover())->m_anti_lastspeed_changetime = movementInfo.time + 1750;
-	}
-	else
-		((Creature*)GetPlayer()->GetMover())->Relocate(movementInfo.GetPos()->x,movementInfo.GetPos()->y,movementInfo.GetPos()->z,movementInfo.GetPos()->o);
+    if (GetPlayer()->GetMover()->GetTypeId() == TYPEID_PLAYER)
+    {
+        ((Player*)GetPlayer()->GetMover())->m_movementInfo = movementInfo;
+        ((Player*)GetPlayer()->GetMover())->SetPosition(movementInfo.GetPos()->x,movementInfo.GetPos()->y,movementInfo.GetPos()->z,movementInfo.GetPos()->o);
+        ((Player*)GetPlayer()->GetMover())->m_anti_last_vspeed = movementInfo.GetJumpInfo().velocity < 3.2f ? movementInfo.GetJumpInfo().velocity - 1.0f : 3.2f;
+        ((Player*)GetPlayer()->GetMover())->m_anti_lastspeed_changetime = movementInfo.GetTime() + 1750;
+    }
+    else
+        ((Creature*)GetPlayer()->GetMover())->Relocate(movementInfo.GetPos()->x,movementInfo.GetPos()->y,movementInfo.GetPos()->z,movementInfo.GetPos()->o);
 }
 
 void WorldSession::HandleMoveHoverAck( WorldPacket& recv_data )

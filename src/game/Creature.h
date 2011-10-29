@@ -282,11 +282,16 @@ enum AttackingTarget
     ATTACKING_TARGET_RANDOM = 0,                            //Just selects a random target
     ATTACKING_TARGET_TOPAGGRO,                              //Selects targes from top aggro to bottom
     ATTACKING_TARGET_BOTTOMAGGRO,                           //Selects targets from bottom aggro to top
-    /* not implemented
-    ATTACKING_TARGET_RANDOM_PLAYER,                         //Just selects a random target (player only)
-    ATTACKING_TARGET_TOPAGGRO_PLAYER,                       //Selects targes from top aggro to bottom (player only)
-    ATTACKING_TARGET_BOTTOMAGGRO_PLAYER,                    //Selects targets from bottom aggro to top (player only)
-    */
+};
+
+enum SelectFlags
+{
+    SELECT_FLAG_IN_LOS          = 0x001,                    // Default Selection Requirement for Spell-targets
+    SELECT_FLAG_PLAYER          = 0x002,
+    SELECT_FLAG_POWER_MANA      = 0x004,                    // For Energy based spells, like manaburn
+    SELECT_FLAG_POWER_RAGE      = 0x008,
+    SELECT_FLAG_POWER_ENERGY    = 0x010,
+    SELECT_FLAG_IN_MELEE_RANGE  = 0x040,
 };
 
 // Vendors
@@ -513,50 +518,11 @@ class MANGOS_DLL_SPEC Creature : public Unit
         bool IsInEvadeMode() const;
 
         bool AIM_Initialize();
-		void AIM_Release();
 
         CreatureAI* AI() { return i_AI; }
 
-        void AddSplineFlag(SplineFlags f)
-        {
-            bool need_walk_sync = (f & SPLINEFLAG_WALKMODE) != (m_splineFlags & SPLINEFLAG_WALKMODE);
-            m_splineFlags = SplineFlags(m_splineFlags | f);
-            if (need_walk_sync)
-                UpdateWalkMode(this, false);
-        }
-        void RemoveSplineFlag(SplineFlags f)
-        {
-            bool need_walk_sync = (f & SPLINEFLAG_WALKMODE) != (m_splineFlags & SPLINEFLAG_WALKMODE);
-            m_splineFlags = SplineFlags(m_splineFlags & ~f);
-            if (need_walk_sync)
-                UpdateWalkMode(this, false);
-        }
-        bool HasSplineFlag(SplineFlags f) const { return m_splineFlags & f; }
-        SplineFlags GetSplineFlags() const { return m_splineFlags; }
-        void SetSplineFlags(SplineFlags f)
-        {
-            bool need_walk_sync = (f & SPLINEFLAG_WALKMODE) != (m_splineFlags & SPLINEFLAG_WALKMODE);
-            m_splineFlags = f;                              // need set before
-            if (need_walk_sync)
-                UpdateWalkMode(this, false);
-        }
-
-        void SetWalk(bool walk)
-        {
-            walk ? AddSplineFlag(SPLINEFLAG_WALKMODE) : RemoveSplineFlag(SPLINEFLAG_WALKMODE);
-        }
-
-        bool IsLevitating(void)
-        {
-            return HasSplineFlag(SPLINEFLAG_FLYING);
-        }
-
-        void SetLevitate(bool levitate)
-        {
-            levitate ? AddSplineFlag(SPLINEFLAG_FLYING) : RemoveSplineFlag(SPLINEFLAG_FLYING);
-        }
-
-        void SendMonsterMoveWithSpeedToCurrentDestination(Player* player = NULL);
+        void SetWalk(bool enable);
+        void SetLevitate(bool enable);
 
         uint32 GetShieldBlockValue() const                  // dunno mob block value
         {
@@ -691,7 +657,8 @@ class MANGOS_DLL_SPEC Creature : public Unit
 
         void SetInCombatWithZone();
 
-        Unit* SelectAttackingTarget(AttackingTarget target, uint32 position) const;
+        Unit* SelectAttackingTarget(AttackingTarget target, uint32 position, uint32 uiSpellEntry, uint32 selectFlags = 0) const;
+        Unit* SelectAttackingTarget(AttackingTarget target, uint32 position, SpellEntry const* pSpellInfo = NULL, uint32 selectFlags = 0) const;
 
         bool HasQuest(uint32 quest_id) const;
         bool HasInvolvedQuest(uint32 quest_id)  const;
@@ -730,6 +697,8 @@ class MANGOS_DLL_SPEC Creature : public Unit
         void SetVirtualItemRaw(VirtualItemSlot slot, uint32 display_id, uint32 info0, uint32 info1);
     protected:
         uint32 m_spellId;
+        bool MeetsSelectAttackingRequirement(Unit* pTarget, SpellEntry const* pSpellInfo, uint32 selectFlags) const;
+
         bool CreateFromProto(uint32 guidlow, CreatureInfo const* cinfo, Team team, const CreatureData *data = NULL, GameEventCreatureData const* eventData =NULL);
         bool InitEntry(uint32 entry, const CreatureData* data = NULL, GameEventCreatureData const* eventData = NULL);
 
@@ -785,7 +754,6 @@ class MANGOS_DLL_SPEC Creature : public Unit
     private:
         GridReference<Creature> m_gridRef;
         CreatureInfo const* m_creatureInfo;                 // in heroic mode can different from sObjectMgr::GetCreatureTemplate(GetEntry())
-        SplineFlags m_splineFlags;
 };
 
 class AssistDelayEvent : public BasicEvent
