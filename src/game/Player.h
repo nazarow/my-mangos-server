@@ -971,13 +971,12 @@ class MANGOS_DLL_SPEC Player : public Unit
         Creature* GetNPCIfCanInteractWith(ObjectGuid guid, uint32 npcflagmask);
         GameObject* GetGameObjectIfCanInteractWith(ObjectGuid guid, uint32 gameobject_type = MAX_GAMEOBJECT_TYPE) const;
 
-        bool ToggleAFK();
-        bool ToggleDND();
+        void ToggleAFK();
+        void ToggleDND();
         bool isAFK() const { return HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_AFK); }
         bool isDND() const { return HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_DND); }
         uint8 chatTag() const;
-        std::string afkMsg;
-        std::string dndMsg;
+        std::string autoReplyMsg;
 
         PlayerSocial *GetSocial() { return m_social; }
 
@@ -1221,7 +1220,13 @@ class MANGOS_DLL_SPEC Player : public Unit
         void PrepareQuestMenu(ObjectGuid guid );
         void SendPreparedQuest(ObjectGuid guid);
         bool IsActiveQuest( uint32 quest_id ) const;        // can be taken or taken
-        bool IsCurrentQuest( uint32 quest_id ) const;       // taken and not yet rewarded
+
+        // Quest is taken and not yet rewarded
+        // if completed_or_not = 0 (or any other value except 1 or 2) - returns true, if quest is taken and doesn't depend if quest is completed or not
+        // if completed_or_not = 1 - returns true, if quest is taken but not completed
+        // if completed_or_not = 2 - returns true, if quest is taken and already completed
+        bool IsCurrentQuest(uint32 quest_id, uint8 completed_or_not = 0) const; // taken and not yet rewarded
+
         Quest const *GetNextQuest(ObjectGuid guid, Quest const *pQuest );
         bool CanSeeStartQuest( Quest const *pQuest ) const;
         bool CanTakeQuest( Quest const *pQuest, bool msg ) const;
@@ -1450,6 +1455,8 @@ class MANGOS_DLL_SPEC Player : public Unit
         bool IsNeedCastPassiveLikeSpellAtLearn(SpellEntry const* spellInfo) const;
         bool IsImmuneToSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex index) const;
 
+        void KnockBackFrom(Unit* target, float horizontalSpeed, float verticalSpeed);
+
         void SendProficiency(ItemClass itemClass, uint32 itemSubclassMask);
         void SendInitialSpells();
         bool addSpell(uint32 spell_id, bool active, bool learning, bool dependent, bool disabled);
@@ -1677,6 +1684,9 @@ class MANGOS_DLL_SPEC Player : public Unit
         void BuildCreateUpdateBlockForPlayer( UpdateData *data, Player *target ) const;
         void DestroyForPlayer( Player *target ) const;
         void SendLogXPGain(uint32 GivenXP,Unit* victim,uint32 RestXP);
+
+        uint8 LastSwingErrorMsg() const { return m_swingErrorMsg; }
+        void SwingErrorMsg(uint8 val) { m_swingErrorMsg = val; }
 
         // notifiers
         void SendAttackSwingCantAttack();

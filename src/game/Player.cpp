@@ -406,7 +406,7 @@ Player::Player (WorldSession *session): Unit(), m_mover(this), m_camera(this), m
 
     m_valuesCount = PLAYER_END;
 
-    m_isActiveObject = true;                                // player is always active object
+    SetActiveObjectState(true);                                // player is always active object
 
     m_session = session;
 
@@ -1318,71 +1318,11 @@ void Player::Update( uint32 update_diff, uint32 p_time )
 
     if (hasUnitState(UNIT_STAT_MELEE_ATTACKING) && !hasUnitState(UNIT_STAT_CASTING))
     {
+        UpdateMeleeAttackingState();
+
         Unit *pVictim = getVictim();
         if (pVictim && !IsNonMeleeSpellCasted(false))
         {
-            // default combat reach 10
-            // TODO add weapon,skill check
-
-            if (isAttackReady(BASE_ATTACK))
-            {
-                if (!CanReachWithMeleeAttack(pVictim))
-                {
-                    setAttackTimer(BASE_ATTACK,100);
-                    if (m_swingErrorMsg != 1)               // send single time (client auto repeat)
-                    {
-                        SendAttackSwingNotInRange();
-                        m_swingErrorMsg = 1;
-                    }
-                }
-                //120 degrees of radiant range
-                else if (!HasInArc(2*M_PI_F/3, pVictim))
-                {
-                    setAttackTimer(BASE_ATTACK,100);
-                    if (m_swingErrorMsg != 2)               // send single time (client auto repeat)
-                    {
-                        SendAttackSwingBadFacingAttack();
-                        m_swingErrorMsg = 2;
-                    }
-                }
-                else
-                {
-                    m_swingErrorMsg = 0;                    // reset swing error state
-
-                    // prevent base and off attack in same time, delay attack at 0.2 sec
-                    if (haveOffhandWeapon())
-                    {
-                        uint32 off_att = getAttackTimer(OFF_ATTACK);
-                        if(off_att < ATTACK_DISPLAY_DELAY)
-                            setAttackTimer(OFF_ATTACK,ATTACK_DISPLAY_DELAY);
-                    }
-                    AttackerStateUpdate(pVictim, BASE_ATTACK);
-                    resetAttackTimer(BASE_ATTACK);
-                }
-            }
-
-            if (haveOffhandWeapon() && isAttackReady(OFF_ATTACK))
-            {
-                if (!CanReachWithMeleeAttack(pVictim))
-                {
-                    setAttackTimer(OFF_ATTACK,100);
-                }
-                else if (!HasInArc(2*M_PI_F/3, pVictim))
-                {
-                    setAttackTimer(OFF_ATTACK,100);
-                }
-                else
-                {
-                    // prevent base and off attack in same time, delay attack at 0.2 sec
-                    uint32 base_att = getAttackTimer(BASE_ATTACK);
-                    if(base_att < ATTACK_DISPLAY_DELAY)
-                        setAttackTimer(BASE_ATTACK,ATTACK_DISPLAY_DELAY);
-                    // do attack
-                    AttackerStateUpdate(pVictim, OFF_ATTACK);
-                    resetAttackTimer(OFF_ATTACK);
-                }
-            }
-
             Player *vOwner = pVictim->GetCharmerOrOwnerPlayerOrPlayerItself();
             if (vOwner && vOwner->IsPvP() && !IsInDuelWith(vOwner))
             {
@@ -1730,41 +1670,37 @@ bool Player::BuildEnumData( QueryResult * result, WorldPacket * p_data )
     return true;
 }
 
-bool Player::ToggleAFK()
+void Player::ToggleAFK()
 {
     ToggleFlag(PLAYER_FLAGS, PLAYER_FLAGS_AFK);
 
-    bool state = HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_AFK);
-
     // afk player not allowed in battleground
-    if (state && InBattleGround() && !InArena())
+    if (isAFK() && InBattleGround() && !InArena())
         LeaveBattleground();
-
-    return state;
 }
 
-bool Player::ToggleDND()
+void Player::ToggleDND()
 {
     ToggleFlag(PLAYER_FLAGS, PLAYER_FLAGS_DND);
-
-    return HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_DND);
 }
 
 uint8 Player::chatTag() const
 {
     // it's bitmask
-    // 0x8 - ??
-    // 0x4 - gm
-    // 0x2 - dnd
     // 0x1 - afk
-    if(isGMChat())
+    // 0x2 - dnd
+    // 0x4 - gm
+    // 0x8 - ??
+
+    if (isGMChat())                                         // Always show GM icons if activated
         return 4;
-    else if(isDND())
-        return 3;
-    if(isAFK())
+
+    if (isAFK())
         return 1;
-    else
-        return 0;
+    if (isDND())
+        return 3;
+
+    return 0;
 }
 
 bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientation, uint32 options)
@@ -6328,7 +6264,7 @@ void Player::RewardReputation(Quest const *pQuest)
         if (!pQuest->RewRepFaction[i])
             continue;
 
-        if (pQuest->RewRepValue[i])           
+        if (pQuest->RewRepValue[i])
         {
             int32 rep = CalculateReputationGain(REPUTATION_SOURCE_QUEST,  pQuest->RewRepValue[i], pQuest->RewRepFaction[i], GetQuestLevelForPlayer(pQuest));
 
@@ -10251,7 +10187,7 @@ InventoryResult Player::CanEquipItem( uint8 slot, uint16 &dest, Item *pItem, boo
                     if (!CanDualWield())
                         return EQUIP_ERR_CANT_DUAL_WIELD;
                 }
-                else if (type == INVTYPE_2HWEAPON) 
+                else if (type == INVTYPE_2HWEAPON)
                 {
                     return EQUIP_ERR_CANT_DUAL_WIELD;
                 }
@@ -13016,13 +12952,21 @@ bool Player::IsActiveQuest( uint32 quest_id ) const
     return itr != mQuestStatus.end() && itr->second.m_status != QUEST_STATUS_NONE;
 }
 
-bool Player::IsCurrentQuest( uint32 quest_id ) const
+bool Player::IsCurrentQuest(uint32 quest_id, uint8 completed_or_not) const
 {
     QuestStatusMap::const_iterator itr = mQuestStatus.find(quest_id);
     if (itr == mQuestStatus.end())
         return false;
 
-    return itr->second.m_status == QUEST_STATUS_INCOMPLETE || (itr->second.m_status == QUEST_STATUS_COMPLETE && !itr->second.m_rewarded);
+    switch (completed_or_not)
+    {
+        case 1:
+            return itr->second.m_status == QUEST_STATUS_INCOMPLETE;
+        case 2:
+            return itr->second.m_status == QUEST_STATUS_COMPLETE && !itr->second.m_rewarded;
+        default:
+            return itr->second.m_status == QUEST_STATUS_INCOMPLETE || (itr->second.m_status == QUEST_STATUS_COMPLETE && !itr->second.m_rewarded);
+    }
 }
 
 Quest const* Player::GetNextQuest(ObjectGuid guid, Quest const *pQuest)
@@ -17598,41 +17542,30 @@ void Player::Whisper(const std::string& text, uint32 language, ObjectGuid receiv
 
     Player *rPlayer = sObjectMgr.GetPlayer(receiver);
 
-    // when player you are whispering to is dnd, he cannot receive your message, unless you are in gm mode
-    if(!rPlayer->isDND() || isGameMaster())
-    {
-        WorldPacket data(SMSG_MESSAGECHAT, 200);
-        BuildPlayerChat(&data, CHAT_MSG_WHISPER, text, language);
-        rPlayer->GetSession()->SendPacket(&data);
-        rPlayer->HandleChatSpyMessage(text, CHAT_MSG_WHISPER, language, this);
+    WorldPacket data(SMSG_MESSAGECHAT, 200);
+    BuildPlayerChat(&data, CHAT_MSG_WHISPER, text, language);
+    rPlayer->GetSession()->SendPacket(&data);
+    rPlayer->HandleChatSpyMessage(text, CHAT_MSG_WHISPER, language, this);
 
-        // not send confirmation for addon messages
-        if (language != LANG_ADDON)
-        {
-            data.Initialize(SMSG_MESSAGECHAT, 200);
-            rPlayer->BuildPlayerChat(&data, CHAT_MSG_REPLY, text, language);
-            GetSession()->SendPacket(&data);
-        }
-    }
-    else
+    // not send confirmation for addon messages
+    if (language != LANG_ADDON)
     {
-        // announce to player that player he is whispering to is dnd and cannot receive his message
-        ChatHandler(this).PSendSysMessage(LANG_PLAYER_DND, rPlayer->GetName(), rPlayer->dndMsg.c_str());
+        data.Initialize(SMSG_MESSAGECHAT, 200);
+        rPlayer->BuildPlayerChat(&data, CHAT_MSG_REPLY, text, language);
+        GetSession()->SendPacket(&data);
     }
 
-    if(!isAcceptWhispers())
+    if (!isAcceptWhispers())
     {
         SetAcceptWhispers(true);
         ChatHandler(this).SendSysMessage(LANG_COMMAND_WHISPERON);
     }
 
-    // announce to player that player he is whispering to is afk
-    if(rPlayer->isAFK())
-        ChatHandler(this).PSendSysMessage(LANG_PLAYER_AFK, rPlayer->GetName(), rPlayer->afkMsg.c_str());
-
-    // if player whisper someone, auto turn of dnd to be able to receive an answer
-    if(isDND() && !rPlayer->isGameMaster())
-        ToggleDND();
+    // announce afk or dnd message
+    if (rPlayer->isAFK())
+        ChatHandler(this).PSendSysMessage(LANG_PLAYER_AFK, rPlayer->GetName(), rPlayer->autoReplyMsg.c_str());
+    else if (rPlayer->isDND())
+        ChatHandler(this).PSendSysMessage(LANG_PLAYER_DND, rPlayer->GetName(), rPlayer->autoReplyMsg.c_str());
 }
 
 void Player::HandleChatSpyMessage(const std::string& msg, uint8 type, uint32 lang, Player* sender, std::string special)
@@ -21272,4 +21205,20 @@ bool Player::IsImmuneToSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex
             break;
     }
     return Unit::IsImmuneToSpellEffect(spellInfo, index);
+}
+
+void Player::KnockBackFrom(Unit* target, float horizontalSpeed, float verticalSpeed)
+{
+    float angle = this == target ? GetOrientation() + M_PI_F : target->GetAngle(this);
+    float vsin = sin(angle);
+    float vcos = cos(angle);
+
+    WorldPacket data(SMSG_MOVE_KNOCK_BACK, 9+4+4+4+4+4);
+    data << GetPackGUID();
+    data << uint32(0);                                  // Sequence
+    data << float(vcos);                                // x direction
+    data << float(vsin);                                // y direction
+    data << float(horizontalSpeed);                     // Horizontal speed
+    data << float(-verticalSpeed);                      // Z Movement speed (vertical)
+    GetSession()->SendPacket(&data);
 }

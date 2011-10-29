@@ -49,6 +49,7 @@
 #include "MovementGenerator.h"
 #include "movement/MoveSplineInit.h"
 #include "movement/MoveSpline.h"
+#include "CreatureLinkingMgr.h"
 
 #include <math.h>
 #include <stdarg.h>
@@ -198,12 +199,8 @@ Unit::Unit()
 
     m_castCounter = 0;
 
-    m_addDmgOnce = 0;
     m_playersDamage = 0;
 
-    //m_Aura = NULL;
-    //m_AurasCheck = 2000;
-    //m_removeAuraTimer = 4;
     m_spellAuraHoldersUpdateIterator = m_spellAuraHolders.end();
     m_AuraFlags = 0;
 
@@ -224,7 +221,8 @@ Unit::Unit()
         m_auraModifiersGroup[i][TOTAL_VALUE] = 0.0f;
         m_auraModifiersGroup[i][TOTAL_PCT] = 1.0f;
     }
-                                                            // implement 50% base damage from offhand
+
+    // implement 50% base damage from offhand
     m_auraModifiersGroup[UNIT_MOD_DAMAGE_OFFHAND][TOTAL_PCT] = 0.5f;
 
     for (int i = 0; i < MAX_ATTACK; ++i)
@@ -256,7 +254,11 @@ Unit::Unit()
     // remove aurastates allowing special moves
     for(int i=0; i < MAX_REACTIVE; ++i)
         m_reactiveTimer[i] = 0;
+
     m_used = false;
+
+    m_isCreatureLinkingTrigger = false;
+    m_isSpawningLinked = false;
 }
 
 Unit::~Unit()
@@ -336,6 +338,11 @@ void Unit::Update( uint32 update_diff, uint32 p_time )
         setAttackTimer(BASE_ATTACK, (update_diff >= base_att ? 0 : base_att - update_diff) );
     }
 
+    if (uint32 base_att = getAttackTimer(OFF_ATTACK))
+    {
+        setAttackTimer(OFF_ATTACK, (update_diff >= base_att ? 0 : base_att - update_diff) );
+    }
+
     // update abilities available only for fraction of time
     UpdateReactives( update_diff );
 
@@ -343,6 +350,67 @@ void Unit::Update( uint32 update_diff, uint32 p_time )
     ModifyAuraState(AURA_STATE_HEALTHLESS_35_PERCENT, GetHealth() < GetMaxHealth()*0.35f);
     UpdateSplineMovement(p_time);
     i_motionMaster.UpdateMotion(p_time);
+}
+
+bool Unit::UpdateMeleeAttackingState()
+{
+    Unit *victim = getVictim();
+    if (!victim || IsNonMeleeSpellCasted(false))
+        return false;
+
+    if (!isAttackReady(BASE_ATTACK) && !(isAttackReady(OFF_ATTACK) && haveOffhandWeapon()))
+        return false;
+
+    uint8 swingError = 0;
+    if (!CanReachWithMeleeAttack(victim))
+    {
+        setAttackTimer(BASE_ATTACK,100);
+        setAttackTimer(OFF_ATTACK,100);
+        swingError = 1;
+    }
+    //120 degrees of radiant range
+    else if (!HasInArc(2*M_PI_F/3, victim))
+    {
+        setAttackTimer(BASE_ATTACK,100);
+        setAttackTimer(OFF_ATTACK,100);
+        swingError = 2;
+    }
+    else
+    {
+        if (isAttackReady(BASE_ATTACK))
+        {
+            // prevent base and off attack in same time, delay attack at 0.2 sec
+            if (haveOffhandWeapon())
+            {
+                if (getAttackTimer(OFF_ATTACK) < ATTACK_DISPLAY_DELAY)
+                    setAttackTimer(OFF_ATTACK,ATTACK_DISPLAY_DELAY);
+            }
+            AttackerStateUpdate(victim, BASE_ATTACK);
+            resetAttackTimer(BASE_ATTACK);
+        }
+        if (haveOffhandWeapon() && isAttackReady(OFF_ATTACK))
+        {
+            // prevent base and off attack in same time, delay attack at 0.2 sec
+            uint32 base_att = getAttackTimer(BASE_ATTACK);
+            if (base_att < ATTACK_DISPLAY_DELAY)
+                setAttackTimer(BASE_ATTACK,ATTACK_DISPLAY_DELAY);
+            // do attack
+            AttackerStateUpdate(victim, OFF_ATTACK);
+            resetAttackTimer(OFF_ATTACK);
+        }
+    }
+
+    Player* player = (GetTypeId() == TYPEID_PLAYER ? (Player*)this : NULL);
+    if (player && swingError != player->LastSwingErrorMsg())
+    {
+        if (swingError == 1)
+            player->SendAttackSwingNotInRange();
+        else if (swingError == 2)
+            player->SendAttackSwingBadFacingAttack();
+        player->SwingErrorMsg(swingError);
+    }
+
+    return swingError == 0;
 }
 
 bool Unit::haveOffhandWeapon() const
@@ -353,7 +421,13 @@ bool Unit::haveOffhandWeapon() const
     if(GetTypeId() == TYPEID_PLAYER)
         return ((Player*)this)->GetWeaponForAttack(OFF_ATTACK,true,true);
     else
+    {
+        uint8 itemClass = GetByteValue(UNIT_VIRTUAL_ITEM_INFO + (1 * 2) + 0, VIRTUAL_ITEM_INFO_0_OFFSET_CLASS);
+        if (itemClass == ITEM_CLASS_WEAPON)
+            return true;
+
         return false;
+    }
 }
 
 void Unit::SendHeartBeat()
@@ -795,6 +869,9 @@ uint32 Unit::DealDamage(Unit *pVictim, uint32 damage, CleanDamage const* cleanDa
 
             if (InstanceData* mapInstance = cVictim->GetInstanceData())
                 mapInstance->OnCreatureDeath(cVictim);
+
+            if (cVictim->IsLinkingEventTrigger())
+                cVictim->GetMap()->GetCreatureLinkingHolder()->DoCreatureLinkingEvent(LINKING_EVENT_DIE, cVictim);
 
             // Dungeon specific stuff, only applies to players killing creatures
             if(cVictim->GetInstanceId())
@@ -5981,7 +6058,7 @@ bool Unit::IsSpellCrit(Unit *pVictim, SpellEntry const *spellProto, SpellSchoolM
                         continue;
                     switch((*i)->GetModifier()->m_miscvalue)
                     {
-                        // Shatter 
+                        // Shatter
                         case 849: if (pVictim->isFrozen()) crit_chance+= 10.0f; break;
                         case 910: if (pVictim->isFrozen()) crit_chance+= 20.0f; break;
                         case 911: if (pVictim->isFrozen()) crit_chance+= 30.0f; break;
@@ -6817,6 +6894,9 @@ void Unit::SetInCombatState(bool PvP, Unit* enemy)
 
         if (InstanceData* mapInstance = GetInstanceData())
             mapInstance->OnCreatureEnterCombat(pCreature);
+
+        if (m_isCreatureLinkingTrigger)
+            GetMap()->GetCreatureLinkingHolder()->DoCreatureLinkingEvent(LINKING_EVENT_AGGRO, pCreature, enemy);
     }
 }
 
@@ -7434,8 +7514,9 @@ void Unit::SetDeathState(DeathState s)
         RemoveGuardians();
         UnsummonAllTotems();
 
+        i_motionMaster.Clear(false,true);
+        i_motionMaster.MoveIdle();
         StopMoving();
-        DisableSpline();
 
         ModifyAuraState(AURA_STATE_HEALTHLESS_20_PERCENT, false);
         ModifyAuraState(AURA_STATE_HEALTHLESS_35_PERCENT, false);
@@ -7568,6 +7649,9 @@ void Unit::TauntFadeOut(Unit *taunter)
         if (InstanceData* mapInstance = GetInstanceData())
             mapInstance->OnCreatureEvade((Creature*)this);
 
+        if (m_isCreatureLinkingTrigger)
+            GetMap()->GetCreatureLinkingHolder()->DoCreatureLinkingEvent(LINKING_EVENT_EVADE, (Creature*)this);
+
         return;
     }
 
@@ -7667,6 +7751,9 @@ bool Unit::SelectHostileTarget()
 
     if (InstanceData* mapInstance = GetInstanceData())
         mapInstance->OnCreatureEvade((Creature*)this);
+
+    if (m_isCreatureLinkingTrigger)
+        GetMap()->GetCreatureLinkingHolder()->DoCreatureLinkingEvent(LINKING_EVENT_EVADE, (Creature*)this);
 
     return false;
 }
@@ -9447,51 +9534,6 @@ void Unit::SetPvP( bool state )
         RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP);
 
     CallForAllControlledUnits(SetPvPHelper(state), CONTROLLED_PET|CONTROLLED_TOTEMS|CONTROLLED_GUARDIANS|CONTROLLED_CHARM);
-}
-
-void Unit::KnockBackFrom(Unit* target, float horizontalSpeed, float verticalSpeed)
-{
-    float angle = this == target ? GetOrientation() + M_PI_F : target->GetAngle(this);
-    float vsin = sin(angle);
-    float vcos = cos(angle);
-
-    // Effect properly implemented only for players
-    if(GetTypeId()==TYPEID_PLAYER)
-    {
-        WorldPacket data(SMSG_MOVE_KNOCK_BACK, 8+4+4+4+4+4);
-        data << GetPackGUID();
-        data << uint32(0);                                  // Sequence
-        data << float(vcos);                                // x direction
-        data << float(vsin);                                // y direction
-        data << float(horizontalSpeed);                     // Horizontal speed
-        data << float(-verticalSpeed);                      // Z Movement speed (vertical)
-        ((Player*)this)->GetSession()->SendPacket(&data);
-    }
-    else
-    {
-        float dis = horizontalSpeed;
-
-        float ox, oy, oz;
-        GetPosition(ox, oy, oz);
-
-        float fx = ox + dis * vcos;
-        float fy = oy + dis * vsin;
-        float fz = oz;
-
-        float fx2, fy2, fz2;                                // getObjectHitPos overwrite last args in any result case
-        if(VMAP::VMapFactory::createOrGetVMapManager()->getObjectHitPos(GetMapId(), ox,oy,oz+0.5f, fx,fy,oz+0.5f,fx2,fy2,fz2, -0.5f))
-        {
-            fx = fx2;
-            fy = fy2;
-            fz = fz2;
-        }
-
-        UpdateAllowedPositionZ(fx, fy, fz);
-
-        //FIXME: this mostly hack, must exist some packet for proper creature move at client side
-        //       with CreatureRelocation at server side
-        NearTeleportTo(fx, fy, fz, GetOrientation(), this == target);
-    }
 }
 
 bool Unit::IsCastingSpell() const

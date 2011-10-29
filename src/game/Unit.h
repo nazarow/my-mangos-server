@@ -363,7 +363,6 @@ enum DeathState
     CORPSE         = 2,                                     // corpse state, for player this also meaning that player not leave corpse
     DEAD           = 3,                                     // for creature despawned state (corpse despawned), for player CORPSE/DEAD not clear way switches (FIXME), and use m_deathtimer > 0 check for real corpse state
     JUST_ALIVED    = 4,                                     // temporary state at resurrection, for creature auto converted to ALIVE, for player at next update call
-    CORPSE_FALLING = 5                                      // corpse state in case when corpse still falling to ground
 };
 
 // internal state flags for some auras and movement generators, other.
@@ -621,29 +620,6 @@ MovementFlags const movementFlagsMask = MovementFlags(
 MovementFlags const movementOrTurningFlagsMask = MovementFlags(
     movementFlagsMask | MOVEFLAG_TURN_LEFT | MOVEFLAG_TURN_RIGHT
 );
-
-// used in SMSG_MONSTER_MOVE
-// only some values known as correct for 2.4.3
-enum SplineFlags
-{
-    SPLINEFLAG_NONE         = 0x00000000,
-    SPLINEFLAG_WALKMODE     = 0x00000100,
-    SPLINEFLAG_FLYING       = 0x00000200,
-    // backported flag to preserve compatibility not confirmed by data, but causes no problems
-    SPLINEFLAG_NO_SPLINE    = 0x00000400,               // former: SPLINEFLAG_LEVITATING
-    SPLINEFLAG_FALLING      = 0x00001000,
-    SPLINEFLAG_SPLINE       = 0x00002000,               // spline n*(float x,y,z)
-    SPLINEFLAG_UNKNOWN7     = 0x02000000,               // swimming/flying (depends on mob?)
-};
-
-enum SplineType
-{
-    SPLINETYPE_NORMAL       = 0,
-    SPLINETYPE_STOP         = 1,
-    SPLINETYPE_FACINGSPOT   = 2,
-    SPLINETYPE_FACINGTARGET = 3,
-    SPLINETYPE_FACINGANGLE  = 4
-};
 
 class MovementInfo
 {
@@ -1081,6 +1057,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         uint32 getAttackTimer(WeaponAttackType type) const { return m_attackTimer[type]; }
         bool isAttackReady(WeaponAttackType type = BASE_ATTACK) const { return m_attackTimer[type] == 0; }
         bool haveOffhandWeapon() const;
+        bool UpdateMeleeAttackingState();
         bool CanUseEquippedWeapon(WeaponAttackType attackType) const
         {
             if (IsInFeralForm())
@@ -1369,8 +1346,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void SetFacingTo(float ori);
         void SetFacingToObject(WorldObject* pObject);
 
-        virtual void MoveOutOfRange(Player &) {  };
-
         bool isAlive() const { return (m_deathState == ALIVE); };
         bool isDead() const { return ( m_deathState == DEAD || m_deathState == CORPSE ); };
         DeathState getDeathState() const { return m_deathState; };
@@ -1531,7 +1506,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         bool CheckAndIncreaseCastCounter();
         void DecreaseCastCounter() { if (m_castCounter) --m_castCounter; }
 
-        uint32 m_addDmgOnce;
         ObjectGuid m_ObjectSlotGuid[4];
         uint32 m_detectInvisibilityMask;
         uint32 m_invisibilityMask;
@@ -1752,8 +1726,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void SetHover(bool on);
         bool isHover() const { return HasAuraType(SPELL_AURA_HOVER); }
 
-        void KnockBackFrom(Unit* target, float horizontalSpeed, float verticalSpeed);
-
         void _RemoveAllAuraMods();
         void _ApplyAllAuraMods();
 
@@ -1819,6 +1791,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void _SetAINotifyScheduled(bool on) { m_AINotifyScheduled = on;}       // only for call from RelocationNotifyEvent code
         void OnRelocated();
 
+        bool IsLinkingEventTrigger() { return m_isCreatureLinkingTrigger; }
+
     protected:
         explicit Unit ();
 
@@ -1873,6 +1847,9 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         uint32 m_lastManaUseTimer;
 
         void DisableSpline();
+        bool m_isCreatureLinkingTrigger;
+        bool m_isSpawningLinked;
+
     private:
         void CleanupDeletedAuras();
         void UpdateSplineMovement(uint32 t_diff);

@@ -75,7 +75,7 @@ namespace Movement
             moveFlags |= MOVEFLAG_WALK_MODE;
 
         moveFlags |= (MOVEFLAG_SPLINE_ENABLED|MOVEFLAG_FORWARD);
-        
+
         if (args.velocity == 0.f)
             args.velocity = unit.GetSpeed(SelectSpeedType(moveFlags));
 
@@ -102,5 +102,11 @@ namespace Movement
     {
         args.flags.EnableFacingTarget();
         args.facing.target = target->GetObjectGuid().GetRawValue();
+    }
+
+    void MoveSplineInit::SetFacing(float angle)
+    {
+        args.facing.angle = G3D::wrap(angle, 0.f, (float)G3D::twoPi());
+        args.flags.EnableFacingAngle();
     }
 }
