@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2012 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,6 +34,7 @@
 #include "DBCEnums.h"
 #include "MapPersistentStateMgr.h"
 #include "VMapFactory.h"
+#include "MoveMap.h"
 #include "BattleGroundMgr.h"
 
 #define MAX_GRID_LOAD_TIME      50
@@ -53,6 +54,9 @@ Map::~Map()
         delete i_data;
         i_data = NULL;
     }
+
+    // unload instance specific navigation data
+    MMAP::MMapFactory::createOrGetMMapManager()->unloadMapInstance(m_TerrainData->GetMapId(), GetInstanceId());
 
     //release reference count
     if(m_TerrainData->Release())
@@ -336,7 +340,7 @@ Map::Add(T *obj)
     if(obj->isActiveObject())
         AddToActive(obj);
 
-    DEBUG_LOG("%s enters grid[%u,%u]", obj->GetObjectGuid().GetString().c_str(), cell.GridX(), cell.GridY());
+    DEBUG_LOG("%s enters grid[%u,%u]", obj->GetGuidStr().c_str(), cell.GridX(), cell.GridY());
 
     obj->GetViewPoint().Event_AddedToWorld(&(*grid)(cell.CellX(), cell.CellY()));
     UpdateObjectVisibility(obj,cell,p);
@@ -1938,14 +1942,25 @@ void Map::ScriptsProcess()
                     break;
                 }
 
-                Unit * unit = (Unit*)source;
+                Unit* unit = (Unit*)source;
+
+                // Just turn around
+                if (step.script->x == 0.0f && step.script->y == 0.0f && step.script->z == 0.0f ||
+                    // Check point-to-point distance, hence revert effect of bounding radius
+                    unit->IsWithinDist3d(step.script->x, step.script->y, step.script->z, 0.01f - unit->GetObjectBoundingRadius()))
+                {
+                    unit->SetFacingTo(step.script->o);
+                    break;
+                }
+
+
                 if (step.script->moveTo.travelTime != 0)
                 {
                     float speed = unit->GetDistance(step.script->x, step.script->y, step.script->z) / ((float)step.script->moveTo.travelTime * 0.001f);
                     unit->MonsterMoveWithSpeed(step.script->x, step.script->y, step.script->z, speed);
                 }
                 else
-                    unit->NearTeleportTo(step.script->x, step.script->y, step.script->z, unit->GetOrientation());
+                    unit->NearTeleportTo(step.script->x, step.script->y, step.script->z, step.script->o != 0.0f ? step.script->o : unit->GetOrientation());
                 break;
             }
             case SCRIPT_COMMAND_FLAG_SET:
@@ -3001,6 +3016,8 @@ void Map::ScriptsProcess()
                     else
                         pBuddy->SetFlag(UNIT_NPC_FLAGS, step.script->npcFlag.flag);
                 }
+
+                break;
             }
             default:
                 sLog.outError("Unknown SCRIPT_COMMAND_ %u called for script id %u.", step.script->command, step.script->id);
@@ -3183,11 +3200,9 @@ uint32 Map::GenerateLocalLowGuid(HighGuid guidhigh)
         case HIGHGUID_PET:
             return m_PetGuids.Generate();
         default:
-            MANGOS_ASSERT(0);
+            MANGOS_ASSERT(false);
+            return 0;
     }
-
-    MANGOS_ASSERT(0);
-    return 0;
 }
 
 /**

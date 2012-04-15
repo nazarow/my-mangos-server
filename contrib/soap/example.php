@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2012 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,10 +21,18 @@
  * MaNGOSsoap client example
  *
  * a simple example how to invoke commands using SOAP
+ *
+ * Make sure you enabled SOAP in your mangosd.conf!
+ *  SOAP.Enabled = 1
  */
 
+/*
+ * $username and $password MUST be uppercase
+ * account $username needs at least SEC_ADMINISTRATOR
+ */
 $username = 'ADMINISTRATOR';
 $password = 'ADMINISTRATOR';
+
 $host = "localhost";
 $soapport = 7878;
 $command = "server info";

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2009-2012 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -156,7 +156,7 @@ bool CreatureEventAI::ProcessEvent(CreatureEventAIHolder& pHolder, Unit* pAction
             pHolder.UpdateRepeatTimer(m_creature,event.timer.repeatMin,event.timer.repeatMax);
             break;
         case EVENT_T_TIMER_OOC:
-            if (m_creature->isInCombat())
+            if (m_creature->isInCombat() || m_creature->IsInEvadeMode())
                 return false;
 
             //Repeat Timers
@@ -1132,10 +1132,6 @@ void CreatureEventAI::UpdateAI(const uint32 diff)
 {
     //Check if we are in combat (also updates calls threat update code)
     bool Combat = m_creature->SelectHostileTarget() && m_creature->getVictim();
-
-    //Must return if creature isn't alive. Normally select hostil target and get victim prevent this
-    if (!m_creature->isAlive())
-        return;
 
     if (!m_bEmptyList)
     {

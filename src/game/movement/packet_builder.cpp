@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2012 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -49,7 +49,6 @@ namespace Movement
         {
             data.SetOpcode(SMSG_MONSTER_MOVE_TRANSPORT);
             data << mov.GetTransport()->Owner.GetPackGUID();
-            data << int8(mov.m_unused.transport_seat);
         }*/
 
         data << move_spline.spline.getPoint(move_spline.spline.first());

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2012 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -64,7 +64,7 @@ bool Totem::Create(uint32 guidlow, CreatureCreatePos& cPos, CreatureInfo const* 
     if (InstanceData* iData = GetMap()->GetInstanceData())
         iData->OnCreatureCreate(this);
 
-    LoadCreatureAddon();
+    LoadCreatureAddon(false);
 
     return true;
 }
@@ -187,6 +187,18 @@ void Totem::SetTypeBySummonSpell(SpellEntry const * spellProto)
 
 bool Totem::IsImmuneToSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex index) const
 {
+    // Check for Mana Spring & Healing Stream totems
+    switch (spellInfo->SpellFamilyName)
+    {
+        case SPELLFAMILY_SHAMAN:
+            if (spellInfo->IsFitToFamilyMask(UI64LIT(0x00000002000)) ||
+                spellInfo->IsFitToFamilyMask(UI64LIT(0x00000004000)))
+                return false;
+            break;
+        default:
+            break;
+    }
+
     switch(spellInfo->Effect[index])
     {
         case SPELL_EFFECT_ATTACK_ME:

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2012 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -420,7 +420,6 @@ class MANGOS_DLL_SPEC ChatHandler
         bool HandleReloadGameObjectScriptsCommand(char* args);
         bool HandleReloadGameTeleCommand(char* args);
         bool HandleReloadGossipMenuCommand(char* args);
-        bool HandleReloadGossipMenuOptionCommand(char* args);
         bool HandleReloadGossipScriptsCommand(char* args);
         bool HandleReloadGOQuestRelationsCommand(char* args);
         bool HandleReloadGOQuestInvRelationsCommand(char* args);
@@ -596,6 +595,13 @@ class MANGOS_DLL_SPEC ChatHandler
         bool HandleStableCommand(char* args);
         bool HandleWaterwalkCommand(char* args);
         bool HandleQuitCommand(char* args);
+
+        bool HandleMmapPathCommand(char* args);
+        bool HandleMmapLocCommand(char* args);
+        bool HandleMmapLoadedTilesCommand(char* args);
+        bool HandleMmapStatsCommand(char* args);
+        bool HandleMmap(char* args);
+        bool HandleMmapTestArea(char* args);
 
         //! Development Commands
         bool HandleSaveAllCommand(char* args);

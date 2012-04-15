@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2012 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,8 +44,6 @@
 #include "BattleGround.h"
 #include "Util.h"
 #include "Chat.h"
-
-#define SPELL_CHANNEL_UPDATE_INTERVAL (1 * IN_MILLISECONDS)
 
 extern pEffect SpellEffects[TOTAL_SPELL_EFFECTS];
 
@@ -401,11 +399,14 @@ void Spell::FillTargetMap()
         // but need it support in some know cases
         switch(m_spellInfo->EffectImplicitTargetA[i])
         {
-            case 0:
+            case TARGET_NONE:
                 switch(m_spellInfo->EffectImplicitTargetB[i])
                 {
-                    case 0:
-                        SetTargetMap(SpellEffectIndex(i), TARGET_EFFECT_SELECT, tmpUnitMap);
+                    case TARGET_NONE:
+                        if (m_caster->GetObjectGuid().IsPet())
+                            SetTargetMap(SpellEffectIndex(i), TARGET_SELF, tmpUnitMap);
+                        else
+                            SetTargetMap(SpellEffectIndex(i), TARGET_EFFECT_SELECT, tmpUnitMap);
                         break;
                     default:
                         SetTargetMap(SpellEffectIndex(i), m_spellInfo->EffectImplicitTargetB[i], tmpUnitMap);
@@ -415,7 +416,7 @@ void Spell::FillTargetMap()
             case TARGET_SELF:
                 switch(m_spellInfo->EffectImplicitTargetB[i])
                 {
-                    case 0:
+                    case TARGET_NONE:
                     case TARGET_EFFECT_SELECT:
                         SetTargetMap(SpellEffectIndex(i), m_spellInfo->EffectImplicitTargetA[i], tmpUnitMap);
                         break;
@@ -436,7 +437,7 @@ void Spell::FillTargetMap()
             case TARGET_EFFECT_SELECT:
                 switch(m_spellInfo->EffectImplicitTargetB[i])
                 {
-                    case 0:
+                    case TARGET_NONE:
                     case TARGET_EFFECT_SELECT:
                         SetTargetMap(SpellEffectIndex(i), m_spellInfo->EffectImplicitTargetA[i], tmpUnitMap);
                         break;
@@ -1058,6 +1059,8 @@ void Spell::DoAllEffectOnTarget(TargetInfo *target)
     // Call scripted function for AI if this spell is casted by a creature
     if (m_caster->GetTypeId() == TYPEID_UNIT && ((Creature*)m_caster)->AI())
         ((Creature*)m_caster)->AI()->SpellHitTarget(unit, m_spellInfo);
+    if (real_caster && real_caster != m_caster && real_caster->GetTypeId() == TYPEID_UNIT && ((Creature*)real_caster)->AI())
+        ((Creature*)real_caster)->AI()->SpellHitTarget(unit, m_spellInfo);
 }
 
 void Spell::DoSpellHitOnUnit(Unit *unit, uint32 effectMask, bool isReflected)
@@ -1124,7 +1127,7 @@ void Spell::DoSpellHitOnUnit(Unit *unit, uint32 effectMask, bool isReflected)
                     unit->SetStandState(UNIT_STAND_STATE_STAND);
 
                 if (!unit->isInCombat() && unit->GetTypeId() != TYPEID_PLAYER && ((Creature*)unit)->AI())
-                    ((Creature*)unit)->AI()->AttackedBy(realCaster);
+                    unit->AttackedBy(realCaster);
 
                 unit->AddThreat(realCaster);
                 unit->SetInCombatWith(realCaster);
@@ -1468,16 +1471,20 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                 case 31347:                                 // Doom TODO: exclude top threat target from target selection
                 case 33711:                                 // Murmur's Touch
                 case 38794:                                 // Murmur's Touch (h)
+                case 44869:                                 // Spectral Blast
+                case 45976:                                 // Open Portal
                     unMaxTargets = 1;
                     break;
                 case 28542:                                 // Life Drain
                     unMaxTargets = 2;
                     break;
                 case 31298:                                 // Sleep
+                case 39992:                                 // Needle Spine Targeting (BT, Warlord Najentus)
                     unMaxTargets = 3;
                     break;
                 case 30843:                                 // Enfeeble TODO: exclude top threat target from target selection
                 case 42005:                                 // Bloodboil TODO: need to be 5 targets(players) furthest away from caster
+                case 45641:                                 // Fire Bloom (SWP, Kil'jaeden)
                     unMaxTargets = 5;
                     break;
                 case 28796:                                 // Poison Bolt Volley
@@ -1485,6 +1492,9 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                     break;
                 case 25991:                                 // Poison Bolt Volley (Pincess Huhuran)
                     unMaxTargets = 15;
+                    break;
+                case 46771:                                 // Flame Sear (SWP, Grand Warlock Alythess)
+                    unMaxTargets = urand(3, 5);
                     break;
             }
             break;
@@ -1499,13 +1509,15 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
             break;
     }
 
-    switch(targetMode)
+    switch (targetMode)
     {
         case TARGET_RANDOM_NEARBY_LOC:
-            radius *= sqrtf(rand_norm_f()); // Get a random point in circle. Use sqrt(rand) to correct distribution when converting polar to Cartesian coordinates.
-                                         // no 'break' expected since we use code in case TARGET_RANDOM_CIRCUMFERENCE_POINT!!!
+            // Get a random point in circle. Use sqrt(rand) to correct distribution when converting polar to Cartesian coordinates.
+            radius *= sqrtf(rand_norm_f());
+            // no 'break' expected since we use code in case TARGET_RANDOM_CIRCUMFERENCE_POINT!!!
         case TARGET_RANDOM_CIRCUMFERENCE_POINT:
         {
+            // Get a random point AT the circumference
             float angle = 2.0f * M_PI_F * rand_norm_f();
             float dest_x, dest_y, dest_z;
             m_caster->GetClosePoint(dest_x, dest_y, dest_z, 0.0f, radius, angle);
@@ -1516,20 +1528,22 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
         }
         case TARGET_RANDOM_NEARBY_DEST:
         {
-            radius *= sqrtf(rand_norm_f()); // Get a random point in circle. Use sqrt(rand) to correct distribution when converting polar to Cartesian coordinates.
-            float angle = 2.0f * M_PI_F * rand_norm_f();
-            float dest_x = m_targets.m_destX + cos(angle) * radius;
-            float dest_y = m_targets.m_destY + sin(angle) * radius;
-            float dest_z = m_targets.m_destZ;
-            m_caster->UpdateGroundPositionZ(dest_x, dest_y, dest_z);
-            m_targets.setDestination(dest_x, dest_y, dest_z);
-
+            // Get a random point IN the CIRCEL around current M_TARGETS COORDINATES(!).
             if (radius > 0.0f)
             {
-                // caster included here?
-                FillAreaTargets(targetUnitMap, radius, PUSH_DEST_CENTER, SPELL_TARGETS_ALL);
+                // Use sqrt(rand) to correct distribution when converting polar to Cartesian coordinates.
+                radius *= sqrtf(rand_norm_f());
+                float angle = 2.0f * M_PI_F * rand_norm_f();
+                float dest_x = m_targets.m_destX + cos(angle) * radius;
+                float dest_y = m_targets.m_destY + sin(angle) * radius;
+                float dest_z = m_caster->GetPositionZ();
+                m_caster->UpdateGroundPositionZ(dest_x, dest_y, dest_z);
+                m_targets.setDestination(dest_x, dest_y, dest_z);
             }
-            else
+
+            // This targetMode is often used as 'last' implicitTarget for positive spells, that just require coordinates
+            // and no unitTarget (e.g. summon effects). As MaNGOS always needs a unitTarget we add just the caster here.
+            if (IsPositiveSpell(m_spellInfo))
                 targetUnitMap.push_back(m_caster);
 
             break;
@@ -2501,6 +2515,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                                 targetUnitMap.push_back(owner);
                     }
                     break;
+                case SPELL_EFFECT_TELEPORT_UNITS:
                 case SPELL_EFFECT_SUMMON:
                 case SPELL_EFFECT_SUMMON_CHANGE_ITEM:
                 case SPELL_EFFECT_TRANS_DOOR:
@@ -3660,6 +3675,10 @@ void Spell::SendChannelUpdate(uint32 time)
             if (Unit* target = ObjectAccessor::GetUnit(*m_caster, target_guid))
                 target->RemoveAurasByCasterSpell(m_spellInfo->Id, m_caster->GetObjectGuid());
 
+        // Only finish channeling when latest channeled spell finishes
+        if (m_caster->GetUInt32Value(UNIT_CHANNEL_SPELL) != m_spellInfo->Id)
+            return;
+
         m_caster->SetChannelObjectGuid(ObjectGuid());
         m_caster->SetUInt32Value(UNIT_CHANNEL_SPELL, 0);
     }
@@ -4178,10 +4197,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                 else
                     return SPELL_FAILED_BAD_TARGETS;
             }
-        }
 
-        if(non_caster_target)
-        {
             // simple cases
             bool explicit_target_mode = false;
             bool target_hostile = false;

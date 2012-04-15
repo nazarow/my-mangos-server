@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2012 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -2231,15 +2231,8 @@ Creature* Player::GetNPCIfCanInteractWith(ObjectGuid guid, uint32 npcflagmask)
     if (unit->IsHostileTo(this))
         return NULL;
 
-    // not unfriendly
-    if(FactionTemplateEntry const* factionTemplate = sFactionTemplateStore.LookupEntry(unit->getFaction()))
-        if(factionTemplate->faction)
-            if(FactionEntry const* faction = sFactionStore.LookupEntry(factionTemplate->faction))
-                if(faction->reputationListID >= 0 && GetReputationMgr().GetRank(faction) <= REP_UNFRIENDLY)
-                    return NULL;
-
     // not too far
-    if(!unit->IsWithinDistInMap(this,INTERACTION_DISTANCE))
+    if (!unit->IsWithinDistInMap(this, INTERACTION_DISTANCE))
         return NULL;
 
     // not in interactive state
@@ -3955,7 +3948,7 @@ bool Player::HasActiveSpell(uint32 spell) const
         itr->second.active && !itr->second.disabled);
 }
 
-TrainerSpellState Player::GetTrainerSpellState(TrainerSpell const* trainer_spell) const
+TrainerSpellState Player::GetTrainerSpellState(TrainerSpell const* trainer_spell, uint32 reqLevel) const
 {
     if (!trainer_spell)
         return TRAINER_SPELL_RED;
@@ -3975,7 +3968,7 @@ TrainerSpellState Player::GetTrainerSpellState(TrainerSpell const* trainer_spell
 
     // check level requirement
     if (!prof || GetSession()->GetSecurity() < AccountTypes(sWorld.getConfig(CONFIG_UINT32_TRADE_SKILL_GMIGNORE_LEVEL)))
-        if (getLevel() < trainer_spell->reqLevel)
+        if (getLevel() < reqLevel)
             return TRAINER_SPELL_RED;
 
     if(SpellChainNode const* spell_chain = sSpellMgr.GetSpellChainNode(trainer_spell->spell))
@@ -5425,11 +5418,11 @@ bool Player::UpdateSkillPro(uint16 SkillId, int32 Chance, uint32 step)
     return false;
 }
 
-void Player::UpdateWeaponSkill (WeaponAttackType attType)
+void Player::UpdateWeaponSkill(WeaponAttackType attType)
 {
     // no skill gain in pvp
-    Unit *pVictim = getVictim();
-    if(pVictim && pVictim->IsCharmerOrOwnerPlayerOrPlayerItself())
+    Unit* pVictim = getVictim();
+    if (pVictim && pVictim->IsCharmerOrOwnerPlayerOrPlayerItself())
         return;
 
     if (pVictim && pVictim->getFaction()==1703)		        // kia no skill gain on training dummy
@@ -5441,29 +5434,14 @@ void Player::UpdateWeaponSkill (WeaponAttackType attType)
     if (GetShapeshiftForm() == FORM_TREE)
         return;                                             // use weapon but not skill up
 
-    uint32 weapon_skill_gain = sWorld.getConfig(CONFIG_UINT32_SKILL_GAIN_WEAPON);
+    uint32 weaponSkillGain = sWorld.getConfig(CONFIG_UINT32_SKILL_GAIN_WEAPON);
 
-    switch(attType)
-    {
-        case BASE_ATTACK:
-        {
-            Item *tmpitem = GetWeaponForAttack(attType,true,true);
+    Item* pWeapon = GetWeaponForAttack(attType, true, true);
+    if (pWeapon && pWeapon->GetProto()->SubClass != ITEM_SUBCLASS_WEAPON_FISHING_POLE)
+        UpdateSkill(pWeapon->GetSkill(), weaponSkillGain);
+    else if (!pWeapon && attType == BASE_ATTACK)
+        UpdateSkill(SKILL_UNARMED, weaponSkillGain);
 
-            if (!tmpitem)
-                UpdateSkill(SKILL_UNARMED,weapon_skill_gain);
-            else if(tmpitem->GetProto()->SubClass != ITEM_SUBCLASS_WEAPON_FISHING_POLE)
-                UpdateSkill(tmpitem->GetSkill(),weapon_skill_gain);
-            break;
-        }
-        case OFF_ATTACK:
-        case RANGED_ATTACK:
-        {
-            Item *tmpitem = GetWeaponForAttack(attType,true,true);
-            if (tmpitem)
-                UpdateSkill(tmpitem->GetSkill(),weapon_skill_gain);
-            break;
-        }
-    }
     UpdateAllCritPercentages();
 }
 
@@ -7716,7 +7694,7 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
     if (ObjectGuid lootGuid = GetLootGuid())
         m_session->DoLootRelease(lootGuid);
 
-    Loot    *loot = 0;
+    Loot* loot = NULL;
     PermissionTypes permission = ALL_PERMISSION;
 
     DEBUG_LOG("Player::SendLoot");
@@ -7736,6 +7714,13 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
             }
 
             loot = &go->loot;
+
+            Player* recipient = go->GetLootRecipient();
+            if (!recipient)
+            {
+                go->SetLootRecipient(this);
+                recipient = this;
+            }
 
             // generate loot only if ready for open and spawned in world
             if (go->getLootState() == GO_READY && go->isSpawned())
@@ -7760,11 +7745,64 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
                     loot->clear();
                     loot->FillLoot(lootid, LootTemplates_Gameobject, this, false);
                     loot->generateMoneyLoot(go->GetGOInfo()->MinMoneyLoot, go->GetGOInfo()->MaxMoneyLoot);
+
+                    if (go->GetGoType() == GAMEOBJECT_TYPE_CHEST && go->GetGOInfo()->chest.groupLootRules)
+                    {
+                        if (Group* group = go->GetGroupLootRecipient())
+                        {
+                            group->UpdateLooterGuid(go, true);
+
+                            switch (group->GetLootMethod())
+                            {
+                                case GROUP_LOOT:
+                                    // GroupLoot delete items over threshold (threshold even not implemented), and roll them. Items with quality<threshold, round robin
+                                    group->GroupLoot(go, loot);
+                                    permission = GROUP_PERMISSION;
+                                    break;
+                                case NEED_BEFORE_GREED:
+                                    group->NeedBeforeGreed(go, loot);
+                                    permission = GROUP_PERMISSION;
+                                    break;
+                                case MASTER_LOOT:
+                                    group->MasterLoot(go, loot);
+                                    permission = MASTER_PERMISSION;
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
+                    }
                 }
                 else if (loot_type == LOOT_FISHING)
                     go->getFishLoot(loot,this);
 
                 go->SetLootState(GO_ACTIVATED);
+            }
+            if (go->getLootState() == GO_ACTIVATED && go->GetGoType() == GAMEOBJECT_TYPE_CHEST && go->GetGOInfo()->chest.groupLootRules)
+            {
+                if (Group* group = go->GetGroupLootRecipient())
+                {
+                    if (group == GetGroup())
+                    {
+                        if (group->GetLootMethod() == FREE_FOR_ALL)
+                            permission = ALL_PERMISSION;
+                        else if (group->GetLooterGuid() == GetObjectGuid())
+                        {
+                            if (group->GetLootMethod() == MASTER_LOOT)
+                                permission = MASTER_PERMISSION;
+                            else
+                                permission = ALL_PERMISSION;
+                        }
+                        else
+                            permission = GROUP_PERMISSION;
+                    }
+                    else
+                        permission = NONE_PERMISSION;
+                }
+                else if (recipient == this)
+                    permission = ALL_PERMISSION;
+                else
+                    permission = NONE_PERMISSION;
             }
             break;
         }
@@ -12574,7 +12612,7 @@ void Player::PrepareGossipMenu(WorldObject *pSource, uint32 menuId)
 
     if (canTalkToCredit)
     {
-        if (pSource->HasFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP))
+        if (pSource->HasFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP) && !(((Creature*)pSource)->GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_NO_TALKTO_CREDIT))
             TalkedToCreature(pSource->GetEntry(), pSource->GetObjectGuid());
     }
 
@@ -12625,7 +12663,7 @@ void Player::SendPreparedGossip(WorldObject *pSource)
     uint32 textId = GetGossipTextId(pSource);
 
     if (uint32 menuId = PlayerTalkClass->GetGossipMenu().GetMenuId())
-        textId = GetGossipTextId(menuId);
+        textId = GetGossipTextId(menuId, pSource);
 
     PlayerTalkClass->SendGossipMenu(textId, pSource->GetObjectGuid());
 }
@@ -12667,7 +12705,7 @@ void Player::OnGossipSelect(WorldObject* pSource, uint32 gossipListId, uint32 me
 
     GossipMenuItemData pMenuData = gossipmenu.GetItemData(gossipListId);
 
-    switch(gossipOptionId)
+    switch (gossipOptionId)
     {
         case GOSSIP_OPTION_GOSSIP:
         {
@@ -12684,14 +12722,6 @@ void Player::OnGossipSelect(WorldObject* pSource, uint32 gossipListId, uint32 me
             {
                 PlayerTalkClass->CloseGossip();
                 TalkedToCreature(pSource->GetEntry(), pSource->GetObjectGuid());
-            }
-
-            if (pMenuData.m_gAction_script)
-            {
-                if (pSource->GetTypeId() == TYPEID_GAMEOBJECT)
-                    GetMap()->ScriptsStart(sGossipScripts, pMenuData.m_gAction_script, this, pSource);
-                else if (pSource->GetTypeId() == TYPEID_UNIT)
-                    GetMap()->ScriptsStart(sGossipScripts, pMenuData.m_gAction_script, pSource, this);
             }
 
             break;
@@ -12761,6 +12791,14 @@ void Player::OnGossipSelect(WorldObject* pSource, uint32 gossipListId, uint32 me
             break;
         }
     }
+
+    if (pMenuData.m_gAction_script)
+    {
+        if (pSource->GetTypeId() == TYPEID_UNIT)
+            GetMap()->ScriptsStart(sGossipScripts, pMenuData.m_gAction_script, pSource, this);
+        else if (pSource->GetTypeId() == TYPEID_GAMEOBJECT)
+            GetMap()->ScriptsStart(sGossipScripts, pMenuData.m_gAction_script, this, pSource);
+    }
 }
 
 uint32 Player::GetGossipTextId(WorldObject *pSource)
@@ -12774,7 +12812,7 @@ uint32 Player::GetGossipTextId(WorldObject *pSource)
     return DEFAULT_GOSSIP_MESSAGE;
 }
 
-uint32 Player::GetGossipTextId(uint32 menuId)
+uint32 Player::GetGossipTextId(uint32 menuId, WorldObject* pSource)
 {
     uint32 textId = DEFAULT_GOSSIP_MESSAGE;
 
@@ -12788,6 +12826,10 @@ uint32 Player::GetGossipTextId(uint32 menuId)
         if (sObjectMgr.IsPlayerMeetToCondition(this, itr->second.cond_1) && sObjectMgr.IsPlayerMeetToCondition(this, itr->second.cond_2))
         {
             textId = itr->second.text_id;
+
+            // Start related script
+            if (itr->second.script_id)
+                GetMap()->ScriptsStart(sGossipScripts, itr->second.script_id, this, pSource);
             break;
         }
     }
@@ -18466,7 +18508,7 @@ bool Player::BuyItemFromVendor(ObjectGuid vendorGuid, uint32 item, uint8 count, 
     uint32 tCount = tItems ? tItems->GetItemCount() : 0;
 
     size_t vendorslot = vItems ? vItems->FindItemSlot(item) : vCount;
-    if (vendorslot > vCount)
+    if (vendorslot >= vCount)
         vendorslot = vCount + (tItems ? tItems->FindItemSlot(item) : tCount);
 
     if (vendorslot >= vCount+tCount)

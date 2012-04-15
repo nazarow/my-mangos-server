@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2012 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -318,7 +318,7 @@ void Unit::Update( uint32 update_diff, uint32 p_time )
     }
 
     // update combat timer only for players and pets
-    if (isInCombat() && (GetTypeId() == TYPEID_PLAYER || ((Creature*)this)->IsPet() || ((Creature*)this)->isCharmed()))
+    if (isInCombat() && GetCharmerOrOwnerPlayerOrPlayerItself())
     {
         // Check UNIT_STAT_MELEE_ATTACKING or UNIT_STAT_CHASE (without UNIT_STAT_FOLLOW in this case) so pets can reach far away
         // targets without stopping half way there and running off.
@@ -945,8 +945,7 @@ uint32 Unit::DealDamage(Unit *pVictim, uint32 damage, CleanDamage const* cleanDa
             }
 
             // if damage pVictim call AI reaction
-            if(pVictim->GetTypeId()==TYPEID_UNIT && ((Creature*)pVictim)->AI())
-                ((Creature*)pVictim)->AI()->AttackedBy(this);
+            pVictim->AttackedBy(this);
         }
 
         // polymorphed, hex and other negative transformed cases
@@ -2287,8 +2286,7 @@ void Unit::AttackerStateUpdate (Unit *pVictim, WeaponAttackType attType, bool ex
             GetGUIDLow(), pVictim->GetGUIDLow(), pVictim->GetTypeId(), damageInfo.damage, damageInfo.absorb, damageInfo.blocked_amount, damageInfo.resist);
 
     // if damage pVictim call AI reaction
-    if(pVictim->GetTypeId()==TYPEID_UNIT && ((Creature*)pVictim)->AI())
-        ((Creature*)pVictim)->AI()->AttackedBy(this);
+    pVictim->AttackedBy(this);
 
     // extra attack only at any non extra attack (normal case)
     if(!extra && extraAttacks)
@@ -4452,7 +4450,7 @@ void Unit::DelaySpellAuraHolder(uint32 spellId, int32 delaytime, ObjectGuid cast
 
         holder->UpdateAuraDuration();
 
-        DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell %u partially interrupted on %s, new duration: %u ms", spellId, GetObjectGuid().GetString().c_str(), holder->GetAuraDuration());
+        DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell %u partially interrupted on %s, new duration: %u ms", spellId, GetGuidStr().c_str(), holder->GetAuraDuration());
     }
 }
 
@@ -4993,41 +4991,41 @@ bool Unit::IsHostileTo(Unit const* unit) const
     }
 
     // faction base cases
-    FactionTemplateEntry const*tester_faction = tester->getFactionTemplateEntry();
-    FactionTemplateEntry const*target_faction = target->getFactionTemplateEntry();
-    if(!tester_faction || !target_faction)
+    FactionTemplateEntry const* tester_faction = tester->getFactionTemplateEntry();
+    FactionTemplateEntry const* target_faction = target->getFactionTemplateEntry();
+    if (!tester_faction || !target_faction)
         return false;
 
-    if(target->isAttackingPlayer() && tester->IsContestedGuard())
+    if (target->isAttackingPlayer() && tester->IsContestedGuard())
         return true;
 
     // PvC forced reaction and reputation case
-    if(tester->GetTypeId()==TYPEID_PLAYER)
+    if (tester->GetTypeId() == TYPEID_PLAYER)
     {
-        // forced reaction
-        if(target_faction->faction)
+        if (target_faction->faction)
         {
-            if(ReputationRank const* force =((Player*)tester)->GetReputationMgr().GetForcedRankIfAny(target_faction))
+            // forced reaction
+            if (ReputationRank const* force =((Player*)tester)->GetReputationMgr().GetForcedRankIfAny(target_faction))
                 return *force <= REP_HOSTILE;
 
             // if faction have reputation then hostile state for tester at 100% dependent from at_war state
-            if(FactionEntry const* raw_target_faction = sFactionStore.LookupEntry(target_faction->faction))
-                if(FactionState const* factionState = ((Player*)tester)->GetReputationMgr().GetState(raw_target_faction))
+            if (FactionEntry const* raw_target_faction = sFactionStore.LookupEntry(target_faction->faction))
+                if (FactionState const* factionState = ((Player*)tester)->GetReputationMgr().GetState(raw_target_faction))
                     return (factionState->Flags & FACTION_FLAG_AT_WAR);
         }
     }
     // CvP forced reaction and reputation case
-    else if(target->GetTypeId()==TYPEID_PLAYER)
+    else if (target->GetTypeId() == TYPEID_PLAYER)
     {
-        // forced reaction
-        if(tester_faction->faction)
+        if (tester_faction->faction)
         {
-            if(ReputationRank const* force = ((Player*)target)->GetReputationMgr().GetForcedRankIfAny(tester_faction))
+            // forced reaction
+            if (ReputationRank const* force = ((Player*)target)->GetReputationMgr().GetForcedRankIfAny(tester_faction))
                 return *force <= REP_HOSTILE;
 
             // apply reputation state
             FactionEntry const* raw_tester_faction = sFactionStore.LookupEntry(tester_faction->faction);
-            if(raw_tester_faction && raw_tester_faction->reputationListID >=0 )
+            if (raw_tester_faction && raw_tester_faction->reputationListID >= 0)
                 return ((Player const*)target)->GetReputationMgr().GetRank(raw_tester_faction) <= REP_HOSTILE;
         }
     }
@@ -5107,39 +5105,39 @@ bool Unit::IsFriendlyTo(Unit const* unit) const
     // faction base cases
     FactionTemplateEntry const*tester_faction = tester->getFactionTemplateEntry();
     FactionTemplateEntry const*target_faction = target->getFactionTemplateEntry();
-    if(!tester_faction || !target_faction)
+    if (!tester_faction || !target_faction)
         return false;
 
-    if(target->isAttackingPlayer() && tester->IsContestedGuard())
+    if (target->isAttackingPlayer() && tester->IsContestedGuard())
         return false;
 
     // PvC forced reaction and reputation case
-    if(tester->GetTypeId()==TYPEID_PLAYER)
+    if (tester->GetTypeId() == TYPEID_PLAYER)
     {
-        // forced reaction
-        if(target_faction->faction)
+        if (target_faction->faction)
         {
-            if(ReputationRank const* force =((Player*)tester)->GetReputationMgr().GetForcedRankIfAny(target_faction))
+            // forced reaction
+            if (ReputationRank const* force =((Player*)tester)->GetReputationMgr().GetForcedRankIfAny(target_faction))
                 return *force >= REP_FRIENDLY;
 
             // if faction have reputation then friendly state for tester at 100% dependent from at_war state
-            if(FactionEntry const* raw_target_faction = sFactionStore.LookupEntry(target_faction->faction))
-                if(FactionState const* factionState = ((Player*)tester)->GetReputationMgr().GetState(raw_target_faction))
+            if (FactionEntry const* raw_target_faction = sFactionStore.LookupEntry(target_faction->faction))
+                if (FactionState const* factionState = ((Player*)tester)->GetReputationMgr().GetState(raw_target_faction))
                     return !(factionState->Flags & FACTION_FLAG_AT_WAR);
         }
     }
     // CvP forced reaction and reputation case
-    else if(target->GetTypeId()==TYPEID_PLAYER)
+    else if (target->GetTypeId() == TYPEID_PLAYER)
     {
-        // forced reaction
-        if(tester_faction->faction)
+        if (tester_faction->faction)
         {
-            if(ReputationRank const* force =((Player*)target)->GetReputationMgr().GetForcedRankIfAny(tester_faction))
+            // forced reaction
+            if (ReputationRank const* force =((Player*)target)->GetReputationMgr().GetForcedRankIfAny(tester_faction))
                 return *force >= REP_FRIENDLY;
 
             // apply reputation state
-            if(FactionEntry const* raw_tester_faction = sFactionStore.LookupEntry(tester_faction->faction))
-                if(raw_tester_faction->reputationListID >=0 )
+            if (FactionEntry const* raw_tester_faction = sFactionStore.LookupEntry(tester_faction->faction))
+                if (raw_tester_faction->reputationListID >=0 )
                     return ((Player const*)target)->GetReputationMgr().GetRank(raw_tester_faction) >= REP_FRIENDLY;
         }
     }
@@ -5252,6 +5250,21 @@ bool Unit::Attack(Unit *victim, bool meleeAttack)
         SendMeleeAttackStart(victim);
 
     return true;
+}
+
+void Unit::AttackedBy(Unit* attacker)
+{
+    // trigger AI reaction
+    if (GetTypeId() == TYPEID_UNIT && ((Creature*)this)->AI())
+        ((Creature*)this)->AI()->AttackedBy(attacker);
+
+    // do not pet reaction for self inflicted damage (like environmental)
+    if (attacker == this)
+        return;
+
+    // trigger pet AI reaction
+    if (Pet* pet = GetPet())
+        pet->AttackedBy(attacker);
 }
 
 bool Unit::AttackStop(bool targetSwitch /*=false*/)
@@ -5605,19 +5618,19 @@ void Unit::UnsummonAllTotems()
             totem->UnSummon();
 }
 
-int32 Unit::DealHeal(Unit *pVictim, uint32 addhealth, SpellEntry const *spellProto, bool critical)
+int32 Unit::DealHeal(Unit* pVictim, uint32 addhealth, SpellEntry const* spellProto, bool critical)
 {
     int32 gain = pVictim->ModifyHealth(int32(addhealth));
 
     Unit* unit = this;
 
-    if( GetTypeId()==TYPEID_UNIT && ((Creature*)this)->IsTotem() && ((Totem*)this)->GetTotemType()!=TOTEM_STATUE)
+    if (GetTypeId() == TYPEID_UNIT && ((Creature*)this)->IsTotem() && ((Totem*)this)->GetTotemType() != TOTEM_STATUE)
         unit = GetOwner();
 
-    if (unit->GetTypeId()==TYPEID_PLAYER)
-    {
-        unit->SendHealSpellLog(pVictim, spellProto->Id, addhealth, critical);
+    unit->SendHealSpellLog(pVictim, spellProto->Id, addhealth, critical);
 
+    if (unit->GetTypeId() == TYPEID_PLAYER)
+    {
         if (BattleGround *bg = ((Player*)unit)->GetBattleGround())
             bg->UpdatePlayerScore((Player*)unit, SCORE_HEALING_DONE, gain);
     }
@@ -6239,11 +6252,11 @@ uint32 Unit::SpellHealingBonusTaken(Unit *pCaster, SpellEntry const *spellProto,
 
     // Healing taken percent
     float minval = float(GetMaxNegativeAuraModifier(SPELL_AURA_MOD_HEALING_PCT));
-    if(minval)
+    if (minval)
         TakenTotalMod *= (100.0f + minval) / 100.0f;
 
     float maxval = float(GetMaxPositiveAuraModifier(SPELL_AURA_MOD_HEALING_PCT));
-    if(maxval)
+    if (maxval)
         TakenTotalMod *= (100.0f + maxval) / 100.0f;
 
     // No heal amount for this class spells
@@ -6260,19 +6273,16 @@ uint32 Unit::SpellHealingBonusTaken(Unit *pCaster, SpellEntry const *spellProto,
     // Taken fixed damage bonus auras
     int32 TakenAdvertisedBenefit = SpellBaseHealingBonusTaken(GetSpellSchoolMask(spellProto));
 
-    // Blessing of Light dummy effects healing taken from Holy Light and Flash of Light
+    // Blessing of Light dummy affects healing taken from Holy Light and Flash of Light
     if (spellProto->SpellFamilyName == SPELLFAMILY_PALADIN && (spellProto->SpellFamilyFlags & UI64LIT(0x00000000C0000000)))
     {
-        AuraList const& mDummyAuras = pCaster->GetAurasByType(SPELL_AURA_DUMMY);
-        for(AuraList::const_iterator i = mDummyAuras.begin();i != mDummyAuras.end(); ++i)
+        AuraList const& auraDummy = GetAurasByType(SPELL_AURA_DUMMY);
+        for (AuraList::const_iterator i = auraDummy.begin(); i != auraDummy.end(); ++i)
         {
-            if((*i)->GetSpellProto()->SpellVisual == 9180)
+            if ((*i)->GetSpellProto()->SpellVisual == 9180)
             {
-                // Flash of Light
-                if ((spellProto->SpellFamilyFlags & UI64LIT(0x0000000040000000)) && (*i)->GetEffIndex() == EFFECT_INDEX_1)
-                    TakenTotal += (*i)->GetModifier()->m_amount;
-                // Holy Light
-                else if ((spellProto->SpellFamilyFlags & UI64LIT(0x0000000080000000)) && (*i)->GetEffIndex() == EFFECT_INDEX_0)
+                if (((spellProto->SpellFamilyFlags & UI64LIT(0x0000000040000000)) && (*i)->GetEffIndex() == EFFECT_INDEX_1) ||  // Flash of Light
+                    ((spellProto->SpellFamilyFlags & UI64LIT(0x0000000080000000)) && (*i)->GetEffIndex() == EFFECT_INDEX_0))    // Holy Light
                     TakenTotal += (*i)->GetModifier()->m_amount;
             }
             else if((*i)->GetSpellProto()->Id == 38320)	// kia fix Libram of Souls Redeemed
@@ -6290,17 +6300,14 @@ uint32 Unit::SpellHealingBonusTaken(Unit *pCaster, SpellEntry const *spellProto,
     // apply benefit affected by spell power implicit coeffs and spell level penalties
     TakenTotal = SpellBonusWithCoeffs(spellProto, TakenTotal, TakenAdvertisedBenefit, 0, damagetype, false);
 
-    // Taken mods
-    // Healing Wave cast
+    // Healing Way dummy affects healing taken from Healing Wave
     if (spellProto->SpellFamilyName == SPELLFAMILY_SHAMAN && (spellProto->SpellFamilyFlags & UI64LIT(0x0000000000000040)))
     {
-        // Search for Healing Way on Victim
-        Unit::AuraList const& auraDummy = GetAurasByType(SPELL_AURA_DUMMY);
-        for(Unit::AuraList::const_iterator itr = auraDummy.begin(); itr!=auraDummy.end(); ++itr)
-            if((*itr)->GetId() == 29203)
-                TakenTotalMod *= ((*itr)->GetModifier()->m_amount+100.0f)/100.0f;
+        AuraList const& auraDummy = GetAurasByType(SPELL_AURA_DUMMY);
+        for (AuraList::const_iterator i = auraDummy.begin(); i != auraDummy.end(); ++i)
+            if ((*i)->GetId() == 29203)
+                TakenTotalMod *= ((*i)->GetModifier()->m_amount + 100.0f) / 100.0f;
     }
-
 
     // use float as more appropriate for negative values and percent applying
     float heal = (healamount + TakenTotal * int32(stack)) * TakenTotalMod;
@@ -7616,10 +7623,14 @@ void Unit::TauntApply(Unit* taunter)
     if (target && target == taunter)
         return;
 
-    SetInFront(taunter);
+    // Only attack taunter if this is a valid target
+    if (!hasUnitState(UNIT_STAT_STUNNED | UNIT_STAT_DIED) && !IsSecondChoiceTarget(taunter, true))
+    {
+        SetInFront(taunter);
 
-    if (((Creature*)this)->AI())
-        ((Creature*)this)->AI()->AttackStart(taunter);
+        if (((Creature*)this)->AI())
+            ((Creature*)this)->AI()->AttackStart(taunter);
+    }
 
     m_ThreatManager.tauntApply(taunter);
 }
@@ -7669,6 +7680,18 @@ void Unit::TauntFadeOut(Unit *taunter)
 
 //======================================================================
 
+bool Unit::IsSecondChoiceTarget(Unit* pTarget, bool checkThreatArea)
+{
+    MANGOS_ASSERT(pTarget && GetTypeId() == TYPEID_UNIT);
+
+    return
+        pTarget->IsImmunedToDamage(GetMeleeDamageSchoolMask()) ||
+        pTarget->hasNegativeAuraWithInterruptFlag(AURA_INTERRUPT_FLAG_DAMAGE) ||
+        checkThreatArea && ((Creature*)this)->IsOutOfThreatArea(pTarget);
+}
+
+//======================================================================
+
 bool Unit::SelectHostileTarget()
 {
     //function provides main threat functionality
@@ -7685,6 +7708,7 @@ bool Unit::SelectHostileTarget()
         return false;
 
     Unit* target = NULL;
+    Unit* oldTarget = getVictim();
 
     // First checking if we have some taunt on us
     const AuraList& tauntAuras = GetAurasByType(SPELL_AURA_MOD_TAUNT);
@@ -7692,26 +7716,17 @@ bool Unit::SelectHostileTarget()
     {
         Unit* caster;
 
-        // The last taunt aura caster is alive an we are happy to attack him
-        if ((caster = tauntAuras.back()->GetCaster()) && caster->isAlive())
-            return true;
-        else if (tauntAuras.size() > 1)
+        // Find first available taunter target
+        // Auras are pushed_back, last caster will be on the end
+        for (AuraList::const_reverse_iterator aura = tauntAuras.rbegin(); aura != tauntAuras.rend(); ++aura)
         {
-            // We do not have last taunt aura caster but we have more taunt auras,
-            // so find first available target
-
-            // Auras are pushed_back, last caster will be on the end
-            AuraList::const_iterator aura = --tauntAuras.end();
-            do
+            if ((caster = (*aura)->GetCaster()) && caster->IsInMap(this) &&
+                caster->isTargetableForAttack() && caster->isInAccessablePlaceFor((Creature*)this) &&
+                !IsSecondChoiceTarget(caster, true))
             {
-                --aura;
-                if ((caster = (*aura)->GetCaster()) && caster->IsInMap(this) &&
-                    caster->isTargetableForAttack() && caster->isInAccessablePlaceFor((Creature*)this))
-                {
-                    target = caster;
-                    break;
-                }
-            }while (aura != tauntAuras.begin());
+                target = caster;
+                break;
+            }
         }
     }
 
@@ -7724,7 +7739,34 @@ bool Unit::SelectHostileTarget()
         if (!hasUnitState(UNIT_STAT_STUNNED | UNIT_STAT_DIED))
         {
             SetInFront(target);
-            ((Creature*)this)->AI()->AttackStart(target);
+            if (oldTarget != target)
+                ((Creature*)this)->AI()->AttackStart(target);
+
+            // check if currently selected target is reachable
+            // NOTE: path alrteady generated from AttackStart()
+            if(!GetMotionMaster()->operator->()->IsReachable())
+            {
+                // remove all taunts
+                RemoveSpellsCausingAura(SPELL_AURA_MOD_TAUNT);
+
+                if(m_ThreatManager.getThreatList().size() < 2)
+                {
+                    // only one target in list, we have to evade after timer
+                    // TODO: make timer - inside Creature class
+                    ((Creature*)this)->AI()->EnterEvadeMode();
+                }
+                else
+                {
+                    // remove unreachable target from our threat list
+                    // next iteration we will select next possible target
+                    m_HostileRefManager.deleteReference(target);
+                    m_ThreatManager.modifyThreatPercent(target, -101);
+
+                    _removeAttacker(target);
+                }
+
+                return false;
+            }
         }
         return true;
     }
@@ -9003,8 +9045,7 @@ void Unit::SetFeared(bool apply, ObjectGuid casterGuid, uint32 spellID, uint32 t
 
             // attack caster if can
             if (Unit* caster = IsInWorld() ? GetMap()->GetUnit(casterGuid) : NULL)
-                if (c->AI())
-                    c->AI()->AttackedBy(caster);
+                c->AttackedBy(caster);
         }
     }
 
@@ -9511,10 +9552,10 @@ void Unit::NearTeleportTo( float x, float y, float z, float orientation, bool ca
     }
 }
 
-void Unit::MonsterMoveWithSpeed(float x, float y, float z, float speed)
+void Unit::MonsterMoveWithSpeed(float x, float y, float z, float speed, bool generatePath, bool forceDestination)
 {
     Movement::MoveSplineInit init(*this);
-    init.MoveTo(x,y,z);
+    init.MoveTo(x,y,z, generatePath, forceDestination);
     init.SetVelocity(speed);
     init.Launch();
 }

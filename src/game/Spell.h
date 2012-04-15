@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2012 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -197,8 +197,6 @@ enum SpellTargets
     SPELL_TARGETS_AOE_DAMAGE,
     SPELL_TARGETS_ALL
 };
-
-#define SPELL_SPELL_CHANNEL_UPDATE_INTERVAL (1*IN_MILLISECONDS)
 
 typedef std::multimap<uint64, uint64> SpellTargetTimeMap;
 

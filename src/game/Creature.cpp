@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2012 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -801,7 +801,7 @@ bool Creature::Create(uint32 guidlow, CreatureCreatePos& cPos, CreatureInfo cons
         cPos.GetMap()->GetCreatureLinkingHolder()->AddMasterToHolder(this);
     }
 
-    LoadCreatureAddon();
+    LoadCreatureAddon(false);
 
     return true;
 }
@@ -1101,6 +1101,7 @@ void Creature::SaveToDB(uint32 mapid, uint8 spawnMask)
     // data->guid = guid don't must be update at save
     data.id = GetEntry();
     data.mapid = mapid;
+    data.spawnMask = spawnMask;
     data.modelid_override = displayId;
     data.equipmentId = GetEquipmentId();
     data.posX = GetPositionX();
@@ -1117,7 +1118,6 @@ void Creature::SaveToDB(uint32 mapid, uint8 spawnMask)
     // prevent add data integrity problems
     data.movementType = !m_respawnradius && GetDefaultMovementType()==RANDOM_MOTION_TYPE
         ? IDLE_MOTION_TYPE : GetDefaultMovementType();
-    data.spawnMask = spawnMask;
 
     // updated in DB
     WorldDatabase.BeginTransaction();
@@ -1127,22 +1127,22 @@ void Creature::SaveToDB(uint32 mapid, uint8 spawnMask)
     std::ostringstream ss;
     ss << "INSERT INTO creature VALUES ("
         << GetGUIDLow() << ","
-        << GetEntry() << ","
-        << mapid <<","
-        << uint32(spawnMask) << ","                         // cast to prevent save as symbol
-        << displayId <<","
-        << GetEquipmentId() <<","
-        << GetPositionX() << ","
-        << GetPositionY() << ","
-        << GetPositionZ() << ","
-        << GetOrientation() << ","
-        << m_respawnDelay << ","                            //respawn time
-        << (float) m_respawnradius << ","                   //spawn distance (float)
-        << (uint32) (0) << ","                              //currentwaypoint
-        << GetHealth() << ","                               //curhealth
-        << GetPower(POWER_MANA) << ","                      //curmana
-        << (m_isDeadByDefault ? 1 : 0) << ","               //is_dead
-        << GetDefaultMovementType() << ")";                 //default movement generator type
+        << data.id << ","
+        << data.mapid <<","
+        << uint32(data.spawnMask) << ","                    // cast to prevent save as symbol
+        << data.modelid_override <<","
+        << data.equipmentId <<","
+        << data.posX << ","
+        << data.posY << ","
+        << data.posZ << ","
+        << data.orientation << ","
+        << data.spawntimesecs << ","                        //respawn time
+        << (float) data.spawndist << ","                    //spawn distance (float)
+        << data.currentwaypoint << ","                      //currentwaypoint
+        << data.curhealth << ","                            //curhealth
+        << data.curmana << ","                              //curmana
+        << (data.is_dead  ? 1 : 0) << ","                   //is_dead
+        << uint32(data.movementType) << ")";                //default movement generator type, cast to prevent save as symbol
 
     WorldDatabase.PExecuteLog("%s", ss.str().c_str());
 
@@ -1789,7 +1789,8 @@ void Creature::SendAIReaction(AiReaction reactionType)
 
 void Creature::CallAssistance()
 {
-    if( !m_AlreadyCallAssistance && getVictim() && !IsPet() && !isCharmed())
+    // FIXME: should player pets call for assistance?
+    if (!m_AlreadyCallAssistance && getVictim() && !isCharmed())
     {
         SetNoCallAssistance(true);
 
@@ -2055,6 +2056,8 @@ bool Creature::MeetsSelectAttackingRequirement(Unit* pTarget, SpellEntry const* 
         return false;
 
     if (selectFlags & SELECT_FLAG_IN_MELEE_RANGE && !CanReachWithMeleeAttack(pTarget))
+        return false;
+    if (selectFlags & SELECT_FLAG_NOT_IN_MELEE_RANGE && CanReachWithMeleeAttack(pTarget))
         return false;
 
     if (selectFlags & SELECT_FLAG_IN_LOS && !IsWithinLOSInMap(pTarget))
