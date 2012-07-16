@@ -23,7 +23,7 @@ DROP TABLE IF EXISTS `db_version`;
 CREATE TABLE `db_version` (
   `version` varchar(120) default NULL,
   `creature_ai_version` varchar(120) default NULL,
-  `required_s1504_11926_01_mangos_creature_template` bit(1) default NULL
+  `required_s1592_12012_01_mangos_spell_template` bit(1) default NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Used DB version notes';
 
 --
@@ -558,7 +558,6 @@ INSERT INTO `command` VALUES
 ('honor add',2,'Syntax: .honor add $amount\r\n\r\nAdd a certain amount of honor (gained today) to the selected player.'),
 ('honor addkill',2,'Syntax: .honor addkikll\r\n\r\nAdd the targeted unit as one of your pvp kills today (you only get honor if it\'s a racial leader or a player)'),
 ('honor update',2,'Syntax: .honor update\r\n\r\nForce the yesterday\'s honor fields to be updated with today\'s data, which will get reset for the selected player.'),
-('hover',3,'Syntax: .hover #flag\r\n\r\nEnable or disable hover mode for your character.\r\n\r\nUse a #flag of value 1 to enable, use a #flag value of 0 to disable hover.'),
 ('instance unbind',3,'Syntax: .instance unbind all\r\n  All of the selected player\'s binds will be cleared.\r\n.instance unbind #mapid\r\n Only the specified #mapid instance will be cleared.'),
 ('instance listbinds',3,'Syntax: .instance listbinds\r\n  Lists the binds of the selected player.'),
 ('instance stats',3,'Syntax: .instance stats\r\n  Shows statistics about instances.'),
@@ -749,6 +748,27 @@ INSERT INTO `command` VALUES
 UNLOCK TABLES;
 
 --
+-- Table structure for table `conditions`
+--
+DROP TABLE IF EXISTS `conditions`;
+CREATE TABLE `conditions` (
+  `condition_entry` mediumint(8) unsigned NOT NULL auto_increment COMMENT 'Identifier',
+  `type` tinyint(3) signed NOT NULL DEFAULT '0' COMMENT 'Type of the condition',
+  `value1` mediumint(8) unsigned NOT NULL DEFAULT '0' COMMENT 'data field one for the condition',
+  `value2` mediumint(8) unsigned NOT NULL DEFAULT '0' COMMENT 'data field two for the condition',
+  PRIMARY KEY  (`condition_entry`),
+  CONSTRAINT unique_conditions UNIQUE (type,value1,value2)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Condition System';
+
+--
+-- Dumping data for table `conditions`
+--
+LOCK TABLES `conditions` WRITE;
+/*!40000 ALTER TABLE `conditions` DISABLE KEYS */;
+/*!40000 ALTER TABLE `conditions` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `creature`
 --
 
@@ -904,6 +924,28 @@ LOCK TABLES `creature_involvedrelation` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `creature_linking`
+--
+
+DROP TABLE IF EXISTS creature_linking;
+CREATE TABLE `creature_linking` (
+  `guid` int(10) UNSIGNED NOT NULL COMMENT 'creature.guid of the slave mob that is linked',
+  `master_guid` int(10) UNSIGNED NOT NULL COMMENT 'master to trigger events',
+  `flag` mediumint(8) UNSIGNED NOT NULL COMMENT 'flag - describing what should happen when',
+  PRIMARY KEY  (`guid`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Creature Linking System';
+
+
+--
+-- Dumping data for table `creature_linking`
+--
+
+LOCK TABLES `creature_linking` WRITE;
+/*!40000 ALTER TABLE `creature_linking` DISABLE KEYS */;
+/*!40000 ALTER TABLE `creature_linking` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `creature_linking_template`
 --
 
@@ -913,6 +955,7 @@ CREATE TABLE `creature_linking_template` (
   `map` SMALLINT(5) UNSIGNED NOT NULL DEFAULT '0' COMMENT 'Id of map of the mobs',
   `master_entry` mediumint(8) UNSIGNED NOT NULL DEFAULT '0' COMMENT 'master to trigger events',
   `flag` mediumint(8) UNSIGNED NOT NULL DEFAULT '0' COMMENT 'flag - describing what should happen when',
+  `search_range` mediumint(8) UNSIGNED NOT NULL DEFAULT '0' COMMENT 'search_range - describing in which range (spawn-coords) master and slave are linked together',
   PRIMARY KEY  (`entry`,`map`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Creature Linking System';
 
@@ -941,6 +984,7 @@ CREATE TABLE `creature_loot_template` (
   `lootcondition` tinyint(3) unsigned NOT NULL default '0',
   `condition_value1` mediumint(8) unsigned NOT NULL default '0',
   `condition_value2` mediumint(8) unsigned NOT NULL default '0',
+  `condition_id` MEDIUMINT(8) UNSIGNED NOT NULL DEFAULT '0',
   PRIMARY KEY  (`entry`,`item`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Loot System';
 
@@ -1068,8 +1112,8 @@ CREATE TABLE `creature_movement_scripts` (
   `command` mediumint(8) unsigned NOT NULL default '0',
   `datalong` mediumint(8) unsigned NOT NULL default '0',
   `datalong2` int(10) unsigned NOT NULL default '0',
-  `datalong3` int(10) unsigned NOT NULL default '0',
-  `datalong4` int(10) unsigned NOT NULL default '0',
+  `buddy_entry` int(10) unsigned NOT NULL default '0',
+  `search_radius` int(10) unsigned NOT NULL default '0',
   `data_flags` tinyint(3) unsigned NOT NULL default '0',
   `dataint` int(11) NOT NULL default '0',
   `dataint2` int(11) NOT NULL default '0',
@@ -1339,6 +1383,7 @@ CREATE TABLE `disenchant_loot_template` (
   `lootcondition` tinyint(3) unsigned NOT NULL default '0',
   `condition_value1` mediumint(8) unsigned NOT NULL default '0',
   `condition_value2` mediumint(8) unsigned NOT NULL default '0',
+  `condition_id` MEDIUMINT(8) UNSIGNED NOT NULL DEFAULT '0',
   PRIMARY KEY  (`entry`,`item`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Loot System';
 
@@ -1466,8 +1511,8 @@ CREATE TABLE `event_scripts` (
   `data_flags` tinyint(3) unsigned NOT NULL default '0',
   `dataint` int(11) NOT NULL default '0',
   `dataint2` int(11) NOT NULL default '0',
-  `dataint3` int(11) NOT NULL default '0',
-  `dataint4` int(11) NOT NULL default '0',
+  `buddy_entry` int(11) NOT NULL default '0',
+  `search_radius` int(11) NOT NULL default '0',
   `x` float NOT NULL default '0',
   `y` float NOT NULL default '0',
   `z` float NOT NULL default '0',
@@ -1591,6 +1636,7 @@ CREATE TABLE `fishing_loot_template` (
   `lootcondition` tinyint(3) unsigned NOT NULL default '0',
   `condition_value1` mediumint(8) unsigned NOT NULL default '0',
   `condition_value2` mediumint(8) unsigned NOT NULL default '0',
+  `condition_id` MEDIUMINT(8) UNSIGNED NOT NULL DEFAULT '0',
   PRIMARY KEY  (`entry`,`item`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Loot System';
 
@@ -1904,6 +1950,7 @@ CREATE TABLE `gameobject_loot_template` (
   `lootcondition` tinyint(3) unsigned NOT NULL default '0',
   `condition_value1` mediumint(8) unsigned NOT NULL default '0',
   `condition_value2` mediumint(8) unsigned NOT NULL default '0',
+  `condition_id` MEDIUMINT(8) UNSIGNED NOT NULL DEFAULT '0',
   PRIMARY KEY  (`entry`,`item`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Loot System';
 
@@ -1947,8 +1994,8 @@ CREATE TABLE `gameobject_scripts` (
   `command` mediumint(8) unsigned NOT NULL default '0',
   `datalong` mediumint(8) unsigned NOT NULL default '0',
   `datalong2` int(10) unsigned NOT NULL default '0',
-  `datalong3` int(10) unsigned NOT NULL default '0',
-  `datalong4` int(10) unsigned NOT NULL default '0',
+  `buddy_entry` int(10) unsigned NOT NULL default '0',
+  `search_radius` int(10) unsigned NOT NULL default '0',
   `data_flags` tinyint(3) unsigned NOT NULL default '0',
   `dataint` int(11) NOT NULL default '0',
   `dataint2` int(11) NOT NULL default '0',
@@ -2025,6 +2072,40 @@ LOCK TABLES `gameobject_template` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `gameobject_template_scripts`
+--
+
+DROP TABLE IF EXISTS `gameobject_template_scripts`;
+CREATE TABLE `gameobject_template_scripts` (
+  `id` mediumint(8) unsigned NOT NULL default '0',
+  `delay` int(10) unsigned NOT NULL default '0',
+  `command` mediumint(8) unsigned NOT NULL default '0',
+  `datalong` mediumint(8) unsigned NOT NULL default '0',
+  `datalong2` int(10) unsigned NOT NULL default '0',
+  `buddy_entry` int(10) unsigned NOT NULL default '0',
+  `search_radius` int(10) unsigned NOT NULL default '0',
+  `data_flags` tinyint(3) unsigned NOT NULL default '0',
+  `dataint` int(11) NOT NULL default '0',
+  `dataint2` int(11) NOT NULL default '0',
+  `dataint3` int(11) NOT NULL default '0',
+  `dataint4` int(11) NOT NULL default '0',
+  `x` float NOT NULL default '0',
+  `y` float NOT NULL default '0',
+  `z` float NOT NULL default '0',
+  `o` float NOT NULL default '0',
+  `comments` varchar(255) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+--
+-- Dumping data for table `gameobject_template_scripts`
+--
+
+LOCK TABLES `gameobject_template_scripts` WRITE;
+/*!40000 ALTER TABLE `gameobject_template_scripts` DISABLE KEYS */;
+/*!40000 ALTER TABLE `gameobject_template_scripts` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `gossip_menu`
 --
 
@@ -2039,6 +2120,7 @@ CREATE TABLE gossip_menu (
   cond_2 tinyint(3) unsigned NOT NULL default '0',
   cond_2_val_1 mediumint(8) unsigned NOT NULL default '0',
   cond_2_val_2 mediumint(8) unsigned NOT NULL default '0',
+  condition_id MEDIUMINT(8) UNSIGNED NOT NULL DEFAULT '0',
   PRIMARY KEY (entry, text_id, script_id)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 
@@ -2078,6 +2160,7 @@ CREATE TABLE gossip_menu_option (
   cond_3 tinyint(3) unsigned NOT NULL default '0',
   cond_3_val_1 mediumint(8) unsigned NOT NULL default '0',
   cond_3_val_2 mediumint(8) unsigned NOT NULL default '0',
+  condition_id MEDIUMINT(8) UNSIGNED NOT NULL DEFAULT '0',
   PRIMARY KEY (menu_id, id)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 
@@ -2088,22 +2171,22 @@ CREATE TABLE gossip_menu_option (
 LOCK TABLES `gossip_menu_option` WRITE;
 /*!40000 ALTER TABLE `gossip_menu_option` DISABLE KEYS */;
 INSERT INTO gossip_menu_option VALUES
-(0, 0,0,'GOSSIP_OPTION_QUESTGIVER',       2,0x000002,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0, 1,1,'GOSSIP_OPTION_VENDOR',           3,0x000080,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0, 2,2,'GOSSIP_OPTION_TAXIVENDOR',       4,0x002000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0, 3,3,'GOSSIP_OPTION_TRAINER',          5,0x000010,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0, 4,4,'GOSSIP_OPTION_SPIRITHEALER',     6,0x004000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0, 5,4,'GOSSIP_OPTION_SPIRITGUIDE',      7,0x008000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0, 6,5,'GOSSIP_OPTION_INNKEEPER',        8,0x010000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0, 7,6,'GOSSIP_OPTION_BANKER',           9,0x020000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0, 8,7,'GOSSIP_OPTION_PETITIONER',      10,0x040000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0, 9,8,'GOSSIP_OPTION_TABARDDESIGNER',  11,0x080000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0,10,9,'GOSSIP_OPTION_BATTLEFIELD',     12,0x100000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0,11,6,'GOSSIP_OPTION_AUCTIONEER',      13,0x200000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0,12,0,'GOSSIP_OPTION_STABLEPET',       14,0x400000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0,13,1,'GOSSIP_OPTION_ARMORER',         15,0x001000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0,14,0,'GOSSIP_OPTION_UNLEARNTALENTS',  16,0x000010,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0),
-(0,15,2,'GOSSIP_OPTION_UNLEARNPETSKILLS',17,0x000010,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0);
+(0, 0,0,'GOSSIP_OPTION_QUESTGIVER',       2,0x000002,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0, 1,1,'GOSSIP_OPTION_VENDOR',           3,0x000080,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0, 2,2,'GOSSIP_OPTION_TAXIVENDOR',       4,0x002000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0, 3,3,'GOSSIP_OPTION_TRAINER',          5,0x000010,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0, 4,4,'GOSSIP_OPTION_SPIRITHEALER',     6,0x004000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0, 5,4,'GOSSIP_OPTION_SPIRITGUIDE',      7,0x008000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0, 6,5,'GOSSIP_OPTION_INNKEEPER',        8,0x010000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0, 7,6,'GOSSIP_OPTION_BANKER',           9,0x020000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0, 8,7,'GOSSIP_OPTION_PETITIONER',      10,0x040000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0, 9,8,'GOSSIP_OPTION_TABARDDESIGNER',  11,0x080000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0,10,9,'GOSSIP_OPTION_BATTLEFIELD',     12,0x100000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0,11,6,'GOSSIP_OPTION_AUCTIONEER',      13,0x200000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0,12,0,'GOSSIP_OPTION_STABLEPET',       14,0x400000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0,13,1,'GOSSIP_OPTION_ARMORER',         15,0x001000,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0,14,0,'GOSSIP_OPTION_UNLEARNTALENTS',  16,0x000010,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0),
+(0,15,2,'GOSSIP_OPTION_UNLEARNPETSKILLS',17,0x000010,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0,0);
 /*!40000 ALTER TABLE `gossip_menu_option` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -2123,8 +2206,8 @@ CREATE TABLE `gossip_scripts` (
   `data_flags` tinyint(3) unsigned NOT NULL default '0',
   `dataint` int(11) NOT NULL default '0',
   `dataint2` int(11) NOT NULL default '0',
-  `dataint3` int(11) NOT NULL default '0',
-  `dataint4` int(11) NOT NULL default '0',
+  `buddy_entry` int(11) NOT NULL default '0',
+  `search_radius` int(11) NOT NULL default '0',
   `x` float NOT NULL default '0',
   `y` float NOT NULL default '0',
   `z` float NOT NULL default '0',
@@ -2229,6 +2312,7 @@ CREATE TABLE `item_loot_template` (
   `lootcondition` tinyint(3) unsigned NOT NULL default '0',
   `condition_value1` mediumint(8) unsigned NOT NULL default '0',
   `condition_value2` mediumint(8) unsigned NOT NULL default '0',
+  `condition_id` MEDIUMINT(8) UNSIGNED NOT NULL DEFAULT '0',
   PRIMARY KEY  (`entry`,`item`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Loot System';
 
@@ -2974,6 +3058,7 @@ CREATE TABLE `mail_loot_template` (
   `lootcondition` tinyint(3) unsigned NOT NULL default '0',
   `condition_value1` mediumint(8) unsigned NOT NULL default '0',
   `condition_value2` mediumint(8) unsigned NOT NULL default '0',
+  `condition_id` MEDIUMINT(8) UNSIGNED NOT NULL DEFAULT '0',
   PRIMARY KEY  (`entry`,`item`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Loot System';
 
@@ -3500,8 +3585,6 @@ INSERT INTO `mangos_string` VALUES
 (552,'%s has no more explored zones.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (553,'%s has explored all zones for you.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (554,'%s has hidden all zones from you.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
-(555,'Hover enabled',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
-(556,'Hover disabled',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (557,'%s level up you to (%i)',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (558,'%s level down you to (%i)',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (559,'%s reset your level progress.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
@@ -4407,6 +4490,7 @@ CREATE TABLE `pickpocketing_loot_template` (
   `lootcondition` tinyint(3) unsigned NOT NULL default '0',
   `condition_value1` mediumint(8) unsigned NOT NULL default '0',
   `condition_value2` mediumint(8) unsigned NOT NULL default '0',
+  `condition_id` MEDIUMINT(8) UNSIGNED NOT NULL DEFAULT '0',
   PRIMARY KEY  (`entry`,`item`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Loot System';
 
@@ -11390,6 +11474,7 @@ CREATE TABLE `prospecting_loot_template` (
   `lootcondition` tinyint(3) unsigned NOT NULL default '0',
   `condition_value1` mediumint(8) unsigned NOT NULL default '0',
   `condition_value2` mediumint(8) unsigned NOT NULL default '0',
+  `condition_id` MEDIUMINT(8) UNSIGNED NOT NULL DEFAULT '0',
   PRIMARY KEY  (`entry`,`item`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Loot System';
 
@@ -11413,8 +11498,8 @@ CREATE TABLE `quest_end_scripts` (
   `command` mediumint(8) unsigned NOT NULL default '0',
   `datalong` mediumint(8) unsigned NOT NULL default '0',
   `datalong2` int(10) unsigned NOT NULL default '0',
-  `datalong3` int(10) unsigned NOT NULL default '0',
-  `datalong4` int(10) unsigned NOT NULL default '0',
+  `buddy_entry` int(10) unsigned NOT NULL default '0',
+  `search_radius` int(10) unsigned NOT NULL default '0',
   `data_flags` tinyint(3) unsigned NOT NULL default '0',
   `dataint` int(11) NOT NULL default '0',
   `dataint2` int(11) NOT NULL default '0',
@@ -11452,8 +11537,8 @@ CREATE TABLE `quest_start_scripts` (
   `data_flags` tinyint(3) unsigned NOT NULL default '0',
   `dataint` int(11) NOT NULL default '0',
   `dataint2` int(11) NOT NULL default '0',
-  `dataint3` int(11) NOT NULL default '0',
-  `dataint4` int(11) NOT NULL default '0',
+  `buddy_entry` int(11) NOT NULL default '0',
+  `search_radius` int(11) NOT NULL default '0',
   `x` float NOT NULL default '0',
   `y` float NOT NULL default '0',
   `z` float NOT NULL default '0',
@@ -11630,6 +11715,7 @@ CREATE TABLE `reference_loot_template` (
   `lootcondition` tinyint(3) unsigned NOT NULL default '0',
   `condition_value1` mediumint(8) unsigned NOT NULL default '0',
   `condition_value2` mediumint(8) unsigned NOT NULL default '0',
+  `condition_id` MEDIUMINT(8) UNSIGNED NOT NULL DEFAULT '0',
   PRIMARY KEY  (`entry`,`item`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Loot System';
 
@@ -11832,6 +11918,7 @@ CREATE TABLE `skinning_loot_template` (
   `lootcondition` tinyint(3) unsigned NOT NULL default '0',
   `condition_value1` mediumint(8) unsigned NOT NULL default '0',
   `condition_value2` mediumint(8) unsigned NOT NULL default '0',
+  `condition_id` MEDIUMINT(8) UNSIGNED NOT NULL DEFAULT '0',
   PRIMARY KEY  (`entry`,`item`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='Loot System';
 
@@ -13096,7 +13183,7 @@ LOCK TABLES `spell_area` WRITE;
 UNLOCK TABLES;
 
 --
--- Table structure for spell_bonus_data
+-- Table structure for `spell_bonus_data`
 --
 
 DROP TABLE IF EXISTS `spell_bonus_data`;
@@ -13347,7 +13434,7 @@ INSERT INTO `spell_chain` VALUES
 (11337,11336,8680,6,0),
 (26890,11337,8680,7,0),
 /* Tranquility triggered */
-(44203,    0,44203,1,0),
+(44203,0,44203,1,0),
 (44205,44203,44203,2,0),
 (44206,44205,44203,3,0),
 (44207,44206,44203,4,0),
@@ -13369,7 +13456,7 @@ INSERT INTO `spell_chain` VALUES
 (10186,10185,10,5,0),
 (10187,10186,10,6,0),
 (27085,10187,10,7,0),
-/* ConeofCold */
+/* Cone of Cold */
 (120,0,120,1,0),
 (8492,120,120,2,0),
 (10159,8492,120,3,0),
@@ -13380,13 +13467,13 @@ INSERT INTO `spell_chain` VALUES
 (168,0,168,1,0),
 (7300,168,168,2,0),
 (7301,7300,168,3,0),
-/* FrostNova */
+/* Frost Nova */
 (122,0,122,1,0),
 (865,122,122,2,0),
 (6131,865,122,3,0),
 (10230,6131,122,4,0),
 (27088,10230,122,5,0),
-/* FrostWard */
+/* Frost Ward */
 (6143,0,6143,1,0),
 (8461,6143,6143,2,0),
 (8462,8461,6143,3,0),
@@ -13408,13 +13495,13 @@ INSERT INTO `spell_chain` VALUES
 (27071,25304,116,12,0),
 (27072,27071,116,13,0),
 (38697,27072,116,14,0),
-/* IceArmor */
+/* Ice Armor */
 (7302,0,7302,1,0),
 (7320,7302,7302,2,0),
 (10219,7320,7302,3,0),
 (10220,10219,7302,4,0),
 (27124,10220,7302,5,0),
-/* IceBarrier */
+/* Ice Barrier */
 (11426,0,11426,1,0),
 (13031,11426,11426,2,0),
 (13032,13031,11426,3,0),
@@ -13546,7 +13633,7 @@ INSERT INTO `spell_chain` VALUES
 (20043,0,20043,1,0),
 (20190,20043,20043,2,0),
 (27045,20190,20043,3,0),
-/* MendPet */
+/* Mend Pet */
 (136,0,136,1,0),
 (3111,136,136,2,0),
 (3661,3111,136,3,0),
@@ -13620,7 +13707,7 @@ INSERT INTO `spell_chain` VALUES
 (2974,0,2974,1,0),
 (14267,2974,2974,2,0),
 (14268,14267,2974,3,0),
-/* WyvernSting */
+/* Wyvern Sting */
 (19386,0,19386,1,0),
 (24132,19386,19386,2,0),
 (24133,24132,19386,3,0),
@@ -13793,7 +13880,7 @@ INSERT INTO `spell_chain` VALUES
 /* Prayer of Shadow Protection */
 (27683,0,27683,1,0),
 (39374,27683,27683,2,0),
-/* PsychicScream */
+/* Psychic Scream */
 (8122,0,8122,1,0),
 (8124,8122,8122,2,0),
 (10888,8124,8122,3,0),
@@ -13814,7 +13901,7 @@ INSERT INTO `spell_chain` VALUES
 /* ShadowWord:Death */
 (32379,0,32379,1,0),
 (32996,32379,32379,2,0),
-/* ShadowWord:Pain */
+/* Shadow Word: Pain */
 (589,0,589,1,0),
 (594,589,589,2,0),
 (970,594,589,3,0),
@@ -13886,7 +13973,7 @@ INSERT INTO `spell_chain` VALUES
 (14290,14289,2643,4,0),
 (25294,14290,2643,5,0),
 (27021,25294,2643,6,0),
-/* SerpentSting */
+/* Serpent Sting */
 (1978,0,1978,1,0),
 (13549,1978,1978,2,0),
 (13550,13549,1978,3,0),
@@ -13938,7 +14025,7 @@ INSERT INTO `spell_chain` VALUES
 -- ------------------
 -- (184) Retribution (Paladin)
 -- ------------------
-/* Blessingof Might */
+/* Blessing of Might */
 (19740,0,19740,1,0),
 (19834,19740,19740,2,0),
 (19835,19834,19740,3,0),
@@ -14072,7 +14159,7 @@ INSERT INTO `spell_chain` VALUES
 -- ------------------
 -- (267) Protection (Paladin)
 -- ------------------
-/* Avenger'sShield */
+/* Avenger's Shield */
 (31935,0,31935,1,0),
 (32699,31935,31935,2,0),
 (32700,32699,31935,3,0),
@@ -14127,7 +14214,7 @@ INSERT INTO `spell_chain` VALUES
 /* Banish */
 (710,0,710,1,0),
 (18647,710,710,2,0),
-/* CreateFirestone */
+/* Create Firestone */
 (6366,0,6366,1,0),
 (17951,6366,6366,2,0),
 (17952,17951,6366,3,0),
@@ -14612,7 +14699,7 @@ INSERT INTO `spell_chain` VALUES
 (17402,17401,16914,3,0),
 (27012,17402,16914,4,0),
 /* Hurricane triggered */
-(42231,    0,42231,1,0),
+(42231,0,42231,1,0)
 (42232,42231,42231,2,0),
 (42233,42232,42231,3,0),
 (42230,42233,42231,4,0),
@@ -15585,8 +15672,8 @@ CREATE TABLE `spell_scripts` (
   `data_flags` tinyint(3) unsigned NOT NULL default '0',
   `dataint` int(11) NOT NULL default '0',
   `dataint2` int(11) NOT NULL default '0',
-  `dataint3` int(11) NOT NULL default '0',
-  `dataint4` int(11) NOT NULL default '0',
+  `buddy_entry` int(11) NOT NULL default '0',
+  `search_radius` int(11) NOT NULL default '0',
   `x` float NOT NULL default '0',
   `y` float NOT NULL default '0',
   `z` float NOT NULL default '0',
@@ -15625,6 +15712,39 @@ CREATE TABLE `spell_target_position` (
 LOCK TABLES `spell_target_position` WRITE;
 /*!40000 ALTER TABLE `spell_target_position` DISABLE KEYS */;
 /*!40000 ALTER TABLE `spell_target_position` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `spell_template`
+--
+
+DROP TABLE IF EXISTS `spell_template`;
+CREATE TABLE `spell_template` (
+  `id` int(11) unsigned NOT NULL DEFAULT '0',
+  `proc_flags` int(11) unsigned NOT NULL DEFAULT '0',
+  `proc_chance` int(11) unsigned NOT NULL DEFAULT '0',
+  `duration_index` int(11) unsigned NOT NULL DEFAULT '0',
+  `effect0` int(11) unsigned NOT NULL DEFAULT '0',
+  `effect0_implicit_target_a` int(11) unsigned NOT NULL DEFAULT '0',
+  `effect0_radius_idx` int(11) unsigned NOT NULL DEFAULT '0',
+  `effect0_apply_aura_name` int(11) unsigned NOT NULL DEFAULT '0',
+  `effect0_misc_value` int(11) unsigned NOT NULL DEFAULT '0',
+  `effect0_trigger_spell` int(11) unsigned NOT NULL DEFAULT '0',
+  `comments` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED COMMENT='MaNGOS server side spells';
+
+--
+-- Dumping data for table `spell_template`
+--
+LOCK TABLES `spell_template` WRITE;
+/*!40000 ALTER TABLE `spell_template` DISABLE KEYS */;
+INSERT INTO `spell_template` VALUES
+-- ID   proc_flags chnce dur  ef0 tarA0 rad  aur  misc    trigger
+(21387, 0x00000028,  15,  21,   6,   1,   0,  42, 0,      21388, 'Melt-Weapon trigger aura related used by Ragnaros'),
+(23363, 0x00000000, 101,  21,  76,  18,   0,   0, 179804, 0,     'Summon Drakonid Corpse Trigger'),
+(25192, 0x00000000, 101,  21,  76,  18,   0,   0, 180619, 0,     'Summon Ossirian Crystal');
+/*!40000 ALTER TABLE `spell_template` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --

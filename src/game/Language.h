@@ -174,8 +174,8 @@ enum MangosStrings
     LANG_SOUND_NOT_EXIST                = 170,
     LANG_CANT_TELEPORT_SELF             = 171,
     LANG_CONSOLE_COMMAND                = 172,
-    //                                    173               // used in master
-    //                                    174               // used in master
+    //                                    173 used in master branch
+    //                                    174 used in master branch
     LANG_LIQUID_STATUS                  = 175,
     // Room for more level 1              176-199 not used
 
@@ -572,8 +572,8 @@ enum MangosStrings
     LANG_YOURS_EXPLORE_SET_ALL          = 553,
     LANG_YOURS_EXPLORE_SET_NOTHING      = 554,
 
-    LANG_HOVER_ENABLED                  = 555,
-    LANG_HOVER_DISABLED                 = 556,
+    //                                    555,              // not used
+    //                                    556,              // not used
     LANG_YOURS_LEVEL_UP                 = 557,
     LANG_YOURS_LEVEL_DOWN               = 558,
     LANG_YOURS_LEVEL_PROGRESS_RESET     = 559,
@@ -801,6 +801,7 @@ enum MangosStrings
     LANG_NEED_CHARACTER_NAME            = 807,
     LANG_PLAYER_NOT_EXIST_OR_OFFLINE    = 808,
     LANG_ACCOUNT_FOR_PLAYER_NOT_FOUND   = 809,
+    //                                    810 used in master branch
     LANG_GUILD_MASTER                   = 811,
     LANG_GUILD_OFFICER                  = 812,
     LANG_GUILD_VETERAN                  = 813,
@@ -972,7 +973,8 @@ enum MangosStrings
     LANG_AHBOT_ITEMS_AMOUNT             = 1190,
     LANG_AHBOT_ITEMS_RATIO              = 1191,
     LANG_MOVEGENS_EFFECT                = 1192,
-    // Room for more level 3              1193-1199 not used
+    //                                    1193 used in master branch
+    // Room for more level 3              1194-1199 not used
 
     // Debug commands
     LANG_CINEMATIC_NOT_EXIST            = 1200,

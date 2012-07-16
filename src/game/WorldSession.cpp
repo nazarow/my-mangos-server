@@ -212,7 +212,7 @@ bool WorldSession::Update(PacketFilter& updater)
 		if ((m_kickTime+sWorld.getConfig(CONFIG_UINT32_KICKTIMER)) <= time(NULL))
 			KickPlayer();
 
-	///- Retrieve packets from the receive queue and call the appropriate handlers
+    ///- Retrieve packets from the receive queue and call the appropriate handlers
     /// not process packets if socket already closed
     WorldPacket* packet;
     while (m_Socket && !m_Socket->IsClosed() && _recvQueue.next(packet, updater))
@@ -625,9 +625,9 @@ void WorldSession::SendAuthWaitQue(uint32 position)
     }
     else
     {
-        WorldPacket packet( SMSG_AUTH_RESPONSE, 5 );
-        packet << uint8( AUTH_WAIT_QUEUE );
-        packet << uint32 (position);
+        WorldPacket packet( SMSG_AUTH_RESPONSE, 1+4 );
+        packet << uint8(AUTH_WAIT_QUEUE);
+        packet << uint32(position);
         SendPacket(&packet);
     }
 }

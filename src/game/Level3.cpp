@@ -55,8 +55,8 @@
 #include "InstanceData.h"
 #include "DBCStores.h"
 #include "CreatureEventAIMgr.h"
-#include "Spell.h"
 #include "AuctionHouseBot/AuctionHouseBot.h"
+#include "Spell.h"
 
 static uint32 ahbotQualityIds[MAX_AUCTION_QUALITY] =
 {
@@ -417,6 +417,14 @@ bool ChatHandler::HandleReloadCreatureQuestInvRelationsCommand(char* /*args*/)
     sLog.outString( "Loading Quests Relations... (`creature_involvedrelation`)" );
     sObjectMgr.LoadCreatureInvolvedRelations();
     SendGlobalSysMessage("DB table `creature_involvedrelation` (creature quest takers) reloaded.");
+    return true;
+}
+
+bool ChatHandler::HandleReloadConditionsCommand(char* /*args*/)
+{
+    sLog.outString( "Re-Loading `conditions`... " );
+    sObjectMgr.LoadConditions();
+    SendGlobalSysMessage("DB table `conditions` reloaded.");
     return true;
 }
 
@@ -816,12 +824,13 @@ bool ChatHandler::HandleReloadGameObjectScriptsCommand(char* args)
     }
 
     if (*args!='a')
-        sLog.outString( "Re-Loading Scripts from `gameobject_scripts`...");
+        sLog.outString( "Re-Loading Scripts from `gameobject_[template]_scripts`...");
 
     sScriptMgr.LoadGameObjectScripts();
+    sScriptMgr.LoadGameObjectTemplateScripts();
 
     if (*args!='a')
-        SendGlobalSysMessage("DB table `gameobject_scripts` reloaded.");
+        SendGlobalSysMessage("DB table `gameobject_[template]_scripts` reloaded.");
 
     return true;
 }
@@ -1084,7 +1093,7 @@ bool ChatHandler::HandleAccountSetGmLevelCommand(char* args)
     }
 
     /// can set security level only for target with less security and to less security that we have
-    /// This is also reject self apply in fact
+    /// This will reject self apply by specify account name
     if(HasLowerSecurityAccount(NULL,targetAccountId,true))
         return false;
 
@@ -2529,7 +2538,7 @@ bool ChatHandler::HandleListObjectCommand(char* args)
     }
 
     GameObjectInfo const * gInfo = ObjectMgr::GetGameObjectInfo(go_id);
-    if(!gInfo)
+    if (!gInfo)
     {
         PSendSysMessage(LANG_COMMAND_LISTOBJINVALIDID, go_id);
         SetSentErrorMessage(true);
@@ -2543,14 +2552,14 @@ bool ChatHandler::HandleListObjectCommand(char* args)
     QueryResult *result;
 
     uint32 obj_count = 0;
-    result=WorldDatabase.PQuery("SELECT COUNT(guid) FROM gameobject WHERE id='%u'",go_id);
-    if(result)
+    result = WorldDatabase.PQuery("SELECT COUNT(guid) FROM gameobject WHERE id='%u'", go_id);
+    if (result)
     {
         obj_count = (*result)[0].GetUInt32();
         delete result;
     }
 
-    if(m_session)
+    if (m_session)
     {
         Player* pl = m_session->GetPlayer();
         result = WorldDatabase.PQuery("SELECT guid, position_x, position_y, position_z, map, (POW(position_x - '%f', 2) + POW(position_y - '%f', 2) + POW(position_z - '%f', 2)) AS order_ FROM gameobject WHERE id = '%u' ORDER BY order_ ASC LIMIT %u",
@@ -2580,7 +2589,7 @@ bool ChatHandler::HandleListObjectCommand(char* args)
         delete result;
     }
 
-    PSendSysMessage(LANG_COMMAND_LISTOBJMESSAGE,go_id,obj_count);
+    PSendSysMessage(LANG_COMMAND_LISTOBJMESSAGE, go_id, obj_count);
     return true;
 }
 
@@ -2599,7 +2608,7 @@ bool ChatHandler::HandleListCreatureCommand(char* args)
     }
 
     CreatureInfo const* cInfo = ObjectMgr::GetCreatureTemplate(cr_id);
-    if(!cInfo)
+    if (!cInfo)
     {
         PSendSysMessage(LANG_COMMAND_INVALIDCREATUREID, cr_id);
         SetSentErrorMessage(true);
@@ -2613,14 +2622,14 @@ bool ChatHandler::HandleListCreatureCommand(char* args)
     QueryResult *result;
 
     uint32 cr_count = 0;
-    result=WorldDatabase.PQuery("SELECT COUNT(guid) FROM creature WHERE id='%u'",cr_id);
-    if(result)
+    result = WorldDatabase.PQuery("SELECT COUNT(guid) FROM creature WHERE id='%u'",cr_id);
+    if (result)
     {
         cr_count = (*result)[0].GetUInt32();
         delete result;
     }
 
-    if(m_session)
+    if (m_session)
     {
         Player* pl = m_session->GetPlayer();
         result = WorldDatabase.PQuery("SELECT guid, position_x, position_y, position_z, map, (POW(position_x - '%f', 2) + POW(position_y - '%f', 2) + POW(position_z - '%f', 2)) AS order_ FROM creature WHERE id = '%u' ORDER BY order_ ASC LIMIT %u",
@@ -2650,7 +2659,7 @@ bool ChatHandler::HandleListCreatureCommand(char* args)
         delete result;
     }
 
-    PSendSysMessage(LANG_COMMAND_LISTCREATUREMESSAGE,cr_id,cr_count);
+    PSendSysMessage(LANG_COMMAND_LISTCREATUREMESSAGE, cr_id, cr_count);
     return true;
 }
 
@@ -3825,10 +3834,6 @@ bool ChatHandler::HandleNpcInfoCommand(char* args)
         target->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL)?target->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL)->m_spellInfo->Id:0,
         target->GetCurrentSpell(CURRENT_CHANNELED_SPELL)?target->GetCurrentSpell(CURRENT_CHANNELED_SPELL)->m_spellInfo->Id:0);
 
-	uint32 own = sObjectMgr.GetUnitOwner(target->GetGUIDLow());
-	if (own)
-		PSendSysMessage("Owner: %u (%s)", own, sObjectMgr.GetCreatureData(own)?sObjectMgr.GetCreatureTemplate(sObjectMgr.GetCreatureData(own)->id)->Name:"--");
-
 	std::string threat="";
 	ThreatList const& threatList = target->getThreatManager().getThreatList();
     for (ThreatList::const_iterator i = threatList.begin(); i != threatList.end(); ++i)
@@ -3985,22 +3990,6 @@ bool ChatHandler::HandleExploreCheatCommand(char* args)
             m_session->GetPlayer()->SetFlag(PLAYER_EXPLORED_ZONES_1+i,0);
         }
     }
-
-    return true;
-}
-
-bool ChatHandler::HandleHoverCommand(char* args)
-{
-    uint32 flag;
-    if (!ExtractOptUInt32(&args, flag, 1))
-        return false;
-
-    m_session->GetPlayer()->SetHover(flag);
-
-    if (flag)
-        SendSysMessage(LANG_HOVER_ENABLED);
-    else
-        SendSysMessage(LANG_HOVER_DISABLED);
 
     return true;
 }
@@ -4671,6 +4660,7 @@ bool ChatHandler::HandleResetTalentsCommand(char* args)
         ChatHandler(target).SendSysMessage(LANG_RESET_TALENTS);
         if (!m_session || m_session->GetPlayer() != target)
             PSendSysMessage(LANG_RESET_TALENTS_ONLINE,GetNameLink(target).c_str());
+        return true;
     }
     else if (target_guid)
     {
@@ -4678,9 +4668,12 @@ bool ChatHandler::HandleResetTalentsCommand(char* args)
         CharacterDatabase.PExecute("UPDATE characters SET at_login = at_login | '%u' WHERE guid = '%u'", at_flags, target_guid.GetCounter());
         std::string nameLink = playerLink(target_name);
         PSendSysMessage(LANG_RESET_TALENTS_OFFLINE, nameLink.c_str());
+        return true;
     }
 
-    return true;
+    SendSysMessage(LANG_NO_CHAR_SELECTED);
+    SetSentErrorMessage(true);
+    return false;
 }
 
 bool ChatHandler::HandleResetAllCommand(char* args)
@@ -4948,7 +4941,7 @@ bool ChatHandler::HandleQuestCompleteCommand(char* args)
         if (msg == EQUIP_ERR_OK)
         {
             Item* item = player->StoreNewItem( dest, id, true);
-            player->SendNewItem(item,count-curItemCount,true,false);
+            player->SendNewItem(item, count-curItemCount, true, false);
 			sLog.outItems("Storage::QuestComplete [%u] %u,%u for %s from %s", entry, id, count-curItemCount, player?player->GetName():"---", m_session->GetPlayer()?m_session->GetPlayer()->GetName():"---");
         }
     }
@@ -6950,59 +6943,6 @@ bool ChatHandler::HandleChatSpyStatusCommand(char* args)
     }
     PSendSysMessage(LANG_CHATSPY_TOTAL, spynr);
     return true;
-}
-
-bool ChatHandler::HandleReloadUnitOwnerCommand(char* /*arg*/)
-{
-    sLog.outString( "Re-Loading UnitOwner from `unit_owner`...");
-    sObjectMgr.LoadUnitOwner();
-    SendGlobalSysMessage("DB table `unit_owner` reloaded.");
-    return true;
-}
-
-bool ChatHandler::HandleSetUnitOwnerCommand(char* args)
-{
-    Creature* target = NULL;
-	Creature* owner = NULL;
-	uint32 lowguid = 0;
-
-    if(*args)
-    {
-        lowguid = atoi(args);
-        if(!lowguid)
-            return false;
-
-        if (!sObjectMgr.GetCreatureData(lowguid))
-		{
-			PSendSysMessage("Creature with guid %u not exist!", lowguid);
-			return false;
-		}
-    }
-    else
-	    return false;
-
-	target = getSelectedCreature();
-
-    if(!target)
-    {
-        SendSysMessage(LANG_SELECT_CREATURE);
-        SetSentErrorMessage(true);
-        return false;
-    }
-
-	if (uint32 targ = target->GetGUIDLow())
-	{
-	    WorldDatabase.PQuery("delete from unit_owner where guid=%u;", targ);
-		WorldDatabase.PQuery("insert into unit_owner values (%u, %u);", targ, lowguid);
-		UnitOwnerMap owntmp = sObjectMgr.mUnitOwner;
-		sObjectMgr.mUnitOwner.clear();
-		for (UnitOwnerMap::iterator itr = owntmp.begin(); itr != owntmp.end(); ++itr)
-			if (itr->first != targ)
-				sObjectMgr.mUnitOwner.insert(UnitOwnerMap::value_type(itr->first,itr->second));
-        sObjectMgr.mUnitOwner.insert(UnitOwnerMap::value_type(targ, lowguid));
-		return true;
-	}
-	return false;
 }
 
 bool ChatHandler::HandleMmapTestArea(char* args)

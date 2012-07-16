@@ -162,8 +162,6 @@ typedef std::pair<ExclusiveQuestGroupsMap::const_iterator, ExclusiveQuestGroupsM
 typedef std::pair<ItemRequiredTargetMap::const_iterator, ItemRequiredTargetMap::const_iterator> ItemRequiredTargetMapBounds;
 typedef std::pair<QuestRelationsMap::const_iterator, QuestRelationsMap::const_iterator> QuestRelationsMapBounds;
 
-typedef UNORDERED_MAP<uint32,uint32> UnitOwnerMap;
-
 struct PetLevelInfo
 {
     PetLevelInfo() : health(0), mana(0) { for(int i=0; i < MAX_STATS; ++i ) stats[i] = 0; }
@@ -243,6 +241,7 @@ struct GossipMenuItems
     uint16          cond_1;
     uint16          cond_2;
     uint16          cond_3;
+    uint16          conditionId;
 };
 
 struct GossipMenus
@@ -252,6 +251,7 @@ struct GossipMenus
     uint32          script_id;
     uint16          cond_1;
     uint16          cond_2;
+    uint16          conditionId;
 };
 
 typedef std::multimap<uint32,GossipMenus> GossipMenusMap;
@@ -287,12 +287,14 @@ typedef std::pair<GraveYardMap::const_iterator, GraveYardMap::const_iterator> Gr
 
 enum ConditionType
 {                                                           // value1       value2  for the Condition enumed
+    CONDITION_OR                    = -2,                   // cond-id-1    cond-id-2  returns cond-id-1 OR cond-id-2
+    CONDITION_AND                   = -1,                   // cond-id-1    cond-id-2  returns cond-id-1 AND cond-id-2
     CONDITION_NONE                  = 0,                    // 0            0
     CONDITION_AURA                  = 1,                    // spell_id     effindex
     CONDITION_ITEM                  = 2,                    // item_id      count   check present req. amount items in inventory
     CONDITION_ITEM_EQUIPPED         = 3,                    // item_id      0
     CONDITION_AREAID                = 4,                    // area_id      0, 1 (0: in (sub)area, 1: not in (sub)area)
-    CONDITION_REPUTATION_RANK       = 5,                    // faction_id   min_rank
+    CONDITION_REPUTATION_RANK_MIN   = 5,                    // faction_id   min_rank
     CONDITION_TEAM                  = 6,                    // player_team  0,      (469 - Alliance 67 - Horde)
     CONDITION_SKILL                 = 7,                    // skill_id     skill_value
     CONDITION_QUESTREWARDED         = 8,                    // quest_id     0
@@ -322,24 +324,35 @@ enum ConditionType
     CONDITION_SKILL_BELOW           = 29,                   // skill_id     skill_value
                                                             // True if player has skill skill_id and skill less than (and not equal) skill_value (for skill_value > 1)
                                                             // If skill_value == 1, then true if player has not skill skill_id
+    CONDITION_REPUTATION_RANK_MAX   = 30,                   // faction_id   max_rank
 };
 
-struct PlayerCondition
+class PlayerCondition
 {
-    ConditionType condition;                                // additional condition type
-    uint32  value1;                                         // data for the condition - see ConditionType definition
-    uint32  value2;
+    public:
+        // Default constructor, required for SQL Storage (Will give errors if used elsewise)
+        PlayerCondition() : m_entry(0), m_condition(CONDITION_AND), m_value1(0), m_value2(0) {}
 
-    PlayerCondition(uint8 _condition = 0, uint32 _value1 = 0, uint32 _value2 = 0)
-        : condition(ConditionType(_condition)), value1(_value1), value2(_value2) {}
+        PlayerCondition(uint16 _entry, int16 _condition, uint32 _value1, uint32 _value2)
+            : m_entry(_entry), m_condition(ConditionType(_condition)), m_value1(_value1), m_value2(_value2) {}
 
-    static bool IsValid(ConditionType condition, uint32 value1, uint32 value2);
-    // Checks correctness of values
-    bool Meets(Player const * APlayer) const;               // Checks if the player meets the condition
-    bool operator == (PlayerCondition const& lc) const
-    {
-        return (lc.condition == condition && lc.value1 == value1 && lc.value2 == value2);
-    }
+        // Checks correctness of values
+        bool IsValid() const { return IsValid(m_entry, m_condition, m_value1, m_value2); }
+        static bool IsValid(uint16 entry, ConditionType condition, uint32 value1, uint32 value2);
+
+        bool Meets(Player const* pPlayer) const;            // Checks if the player meets the condition
+
+        // TODO: old system, remove soon!
+        bool operator == (PlayerCondition const& lc) const
+        {
+            return (lc.m_condition == m_condition && lc.m_value1 == m_value1 && lc.m_value2 == m_value2);
+        }
+
+    private:
+        uint16 m_entry;                                     // entry of the condition
+        ConditionType m_condition;                          // additional condition type
+        uint32 m_value1;                                    // data for the condition - see ConditionType definition
+        uint32 m_value2;
 };
 
 // NPC gossip text id
@@ -625,6 +638,7 @@ class ObjectMgr
         void LoadPointOfInterestLocales();
         void LoadInstanceTemplate();
         void LoadWorldTemplate();
+        void LoadConditions();
         void LoadMailLevelRewards();
 
         void LoadGossipText();
@@ -650,6 +664,8 @@ class ObjectMgr
         void LoadReputationSpilloverTemplate();
 
         void LoadPointsOfInterest();
+
+        void LoadSpellTemplate();
 
         void LoadWeatherZoneChances();
         void LoadGameTele();
@@ -709,9 +725,9 @@ class ObjectMgr
         uint32 GenerateStaticCreatureLowGuid() { if (m_StaticCreatureGuids.GetNextAfterMaxUsed() >= m_FirstTemporaryCreatureGuid) return 0; return m_StaticCreatureGuids.Generate(); }
         uint32 GenerateStaticGameObjectLowGuid() { if (m_StaticGameObjectGuids.GetNextAfterMaxUsed() >= m_FirstTemporaryGameObjectGuid) return 0; return m_StaticGameObjectGuids.Generate(); }
 
-        uint32 GeneratePlayerLowGuid()   { return m_CharGuids.Generate(); }
-        uint32 GenerateItemLowGuid()     { return m_ItemGuids.Generate(); }
-        uint32 GenerateCorpseLowGuid()   { return m_CorpseGuids.Generate(); }
+        uint32 GeneratePlayerLowGuid()   { return m_CharGuids.Generate();     }
+        uint32 GenerateItemLowGuid()     { return m_ItemGuids.Generate();     }
+        uint32 GenerateCorpseLowGuid()   { return m_CorpseGuids.Generate();   }
         uint32 GenerateGroupLowGuid()    { return m_GroupGuids.Generate();    }
 
         uint32 GenerateArenaTeamId() { return m_ArenaTeamIds.Generate(); }
@@ -909,6 +925,7 @@ class ObjectMgr
         int GetIndexForLocale(LocaleConstant loc);
         LocaleConstant GetLocaleForIndex(int i);
 
+        // TODO: Outdated version, rename NEW and remove soon
         uint16 GetConditionId(ConditionType condition, uint32 value1, uint32 value2);
         bool IsPlayerMeetToCondition(Player const* player, uint16 condition_id) const
         {
@@ -916,6 +933,18 @@ class ObjectMgr
                 return false;
 
             return mConditions[condition_id].Meets(player);
+        }
+
+        // Check if a player meets condition conditionId
+        bool IsPlayerMeetToNEWCondition(Player const* pPlayer, uint16 conditionId) const
+        {
+            if (!pPlayer)
+                return false;                               // player not present, return false
+
+            if (const PlayerCondition* condition = sConditionStorage.LookupEntry<PlayerCondition>(conditionId))
+                return condition->Meets(pPlayer);
+
+            return false;
         }
 
         GameTele const* GetGameTele(uint32 id) const
@@ -994,16 +1023,6 @@ class ObjectMgr
         GossipMenuItemsMapBounds GetGossipMenuItemsMapBounds(uint32 uiMenuId) const
         {
             return m_mGossipMenuItemsMap.equal_range(uiMenuId);
-        }
-
-		UnitOwnerMap mUnitOwner;
-		void LoadUnitOwner();
-        uint32 GetUnitOwner(uint32 loguid) const
-        {
-            UnitOwnerMap::const_iterator itr = mUnitOwner.find(loguid);
-            if(itr != mUnitOwner.end())
-                return itr->second;
-            return 0;
         }
 
         ExclusiveQuestGroupsMapBounds GetExclusiveQuestGroupsMapBounds(int32 groupId) const

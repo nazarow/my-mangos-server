@@ -1045,8 +1045,7 @@ bool WorldObject::IsWithinLOS(float ox, float oy, float oz) const
 {
     float x,y,z;
     GetPosition(x,y,z);
-    VMAP::IVMapManager *vMapManager = VMAP::VMapFactory::createOrGetVMapManager();
-    return vMapManager->isInLineOfSight(GetMapId(), x, y, z+2.0f, ox, oy, oz+2.0f);
+    return GetMap()->IsInLineOfSight(x, y, z+2.0f, ox, oy, oz+2.0f);
 }
 
 bool WorldObject::GetDistanceOrder(WorldObject const* obj1, WorldObject const* obj2, bool is3D /* = true */) const
@@ -1143,8 +1142,13 @@ float WorldObject::GetAngle(const WorldObject* obj) const
     if (!obj)
         return 0.0f;
 
-    MANGOS_ASSERT(obj != this || PrintEntryError("GetAngle (for self)"));
-
+    // Rework the assert, when more cases where such a call can happen have been fixed
+    //MANGOS_ASSERT(obj != this || PrintEntryError("GetAngle (for self)"));
+    if (obj == this)
+    {
+        sLog.outError("INVALID CALL for GetAngle for %s", obj->GetGuidStr().c_str());
+        return 0.0f;
+    }
     return GetAngle(obj->GetPositionX(), obj->GetPositionY());
 }
 
@@ -1464,11 +1468,11 @@ void WorldObject::SendObjectDeSpawnAnim(ObjectGuid guid)
     SendMessageToSet(&data, true);
 }
 
-void WorldObject::SendGameObjectCustomAnim(ObjectGuid guid, uint32 value)
+void WorldObject::SendGameObjectCustomAnim(ObjectGuid guid, uint32 animId /*= 0*/)
 {
-    WorldPacket data(SMSG_GAMEOBJECT_CUSTOM_ANIM, 9+4);
+    WorldPacket data(SMSG_GAMEOBJECT_CUSTOM_ANIM, 8+4);
     data << ObjectGuid(guid);
-    data << uint32(value);                                      // not known what this is
+    data << uint32(animId);
     SendMessageToSet(&data, true);
 }
 

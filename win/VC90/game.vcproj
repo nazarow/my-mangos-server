@@ -127,12 +127,14 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/MP /Zm200"
-				InlineFunctionExpansion="1"
+				AdditionalOptions="/MP /bigobj /Zm200"
+				Optimization="0"
 				AdditionalIncludeDirectories="..\..\dep\include;..\..\src\framework;..\..\src\shared;..\..\src\game\vmap;..\..\dep\ACE_wrappers;..\..\dep\include\g3dlite"
-				PreprocessorDefinitions="WIN32;NDEBUG;_LIB;_SECURE_SCL=0"
-				StringPooling="true"
-				RuntimeLibrary="2"
+				PreprocessorDefinitions="WIN32;_DEBUG;MANGOS_DEBUG;_LIB;"
+				StringPooling="false"
+				MinimalRebuild="false"
+				BasicRuntimeChecks="3"
+				RuntimeLibrary="3"
 				EnableFunctionLevelLinking="true"
 				EnableEnhancedInstructionSet="1"
 				RuntimeTypeInfo="true"
@@ -163,6 +165,7 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
+				AdditionalDependencies=".\shared__$(PlatformName)_$(ConfigurationName)\shared.lib .\g3dlite__$(PlatformName)_$(ConfigurationName)\g3dlite.lib"
 				OutputFile=".\game__$(PlatformName)_$(ConfigurationName)\game.lib"
 				SuppressStartupBanner="true"
 			/>
@@ -208,14 +211,12 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/MP"
-				Optimization="0"
+				AdditionalOptions="/MP /Zm200"
+				InlineFunctionExpansion="1"
 				AdditionalIncludeDirectories="..\..\dep\include;..\..\src\framework;..\..\src\shared;..\..\src\game\vmap;..\..\dep\ACE_wrappers;..\..\dep\include\g3dlite"
-				PreprocessorDefinitions="WIN32;_DEBUG;MANGOS_DEBUG;_LIB;"
-				StringPooling="false"
-				MinimalRebuild="false"
-				BasicRuntimeChecks="3"
-				RuntimeLibrary="3"
+				PreprocessorDefinitions="WIN32;NDEBUG;_LIB;_SECURE_SCL=0"
+				StringPooling="true"
+				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				RuntimeTypeInfo="true"
 				UsePrecompiledHeader="0"
@@ -290,13 +291,11 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				AdditionalOptions="/MP /bigobj /Zm200"
-				Optimization="0"
+				InlineFunctionExpansion="1"
 				AdditionalIncludeDirectories="..\..\dep\include;..\..\src\framework;..\..\src\shared;..\..\src\game\vmap;..\..\dep\ACE_wrappers;..\..\dep\include\g3dlite"
-				PreprocessorDefinitions="WIN32;_DEBUG;MANGOS_DEBUG;_LIB;"
-				StringPooling="false"
-				MinimalRebuild="false"
-				BasicRuntimeChecks="3"
-				RuntimeLibrary="3"
+				PreprocessorDefinitions="WIN32;NDEBUG;_LIB;_SECURE_SCL=0"
+				StringPooling="true"
+				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				RuntimeTypeInfo="true"
 				UsePrecompiledHeader="2"
@@ -373,12 +372,14 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/MP /bigobj /Zm200"
-				InlineFunctionExpansion="1"
+				AdditionalOptions="/MP"
+				Optimization="0"
 				AdditionalIncludeDirectories="..\..\dep\include;..\..\src\framework;..\..\src\shared;..\..\src\game\vmap;..\..\dep\ACE_wrappers;..\..\dep\include\g3dlite"
-				PreprocessorDefinitions="WIN32;NDEBUG;_LIB;_SECURE_SCL=0"
-				StringPooling="true"
-				RuntimeLibrary="2"
+				PreprocessorDefinitions="WIN32;_DEBUG;MANGOS_DEBUG;_LIB;"
+				StringPooling="false"
+				MinimalRebuild="false"
+				BasicRuntimeChecks="3"
+				RuntimeLibrary="3"
 				EnableFunctionLevelLinking="true"
 				EnableEnhancedInstructionSet="0"
 				RuntimeTypeInfo="true"
@@ -803,6 +804,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\game\MailHandler.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\game\Mail.h"
 				>
 			</File>
@@ -968,6 +973,10 @@
 			</File>
 			<File
 				RelativePath="..\..\src\game\SpellAuras.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\game\UnitAuraProcHandler.cpp"
 				>
 			</File>
 			<File

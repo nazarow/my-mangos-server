@@ -1190,4 +1190,3 @@ void TerrainManager::GetZoneAndAreaIdByAreaFlag(uint32& zoneid, uint32& areaid, 
     areaid = entry ? entry->ID : 0;
     zoneid = entry ? (( entry->zone != 0 ) ? entry->zone : entry->ID) : 0;
 }
-

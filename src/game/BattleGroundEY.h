@@ -70,11 +70,11 @@ enum BG_EY_ProgressBarConsts
 enum BG_EY_Sounds
 {
     //strange ids, but sure about them
-    BG_EY_SOUND_FLAG_PICKED_UP_ALLIANCE   = 8212,
-    BG_EY_SOUND_FLAG_CAPTURED_HORDE       = 8213,
-    BG_EY_SOUND_FLAG_PICKED_UP_HORDE      = 8174,
-    BG_EY_SOUND_FLAG_CAPTURED_ALLIANCE    = 8173,
-    BG_EY_SOUND_FLAG_RESET                = 8192
+    BG_EY_SOUND_FLAG_PICKED_UP_ALLIANCE = 8212,
+    BG_EY_SOUND_FLAG_CAPTURED_HORDE     = 8213,
+    BG_EY_SOUND_FLAG_PICKED_UP_HORDE    = 8174,
+    BG_EY_SOUND_FLAG_CAPTURED_ALLIANCE  = 8173,
+    BG_EY_SOUND_FLAG_RESET              = 8192
 };
 
 enum BG_EY_Spells
@@ -313,8 +313,7 @@ class BattleGroundEY : public BattleGround
         Team m_PointOwnedByTeam[BG_EY_NODES_MAX];
         uint8 m_PointState[BG_EY_NODES_MAX];
         int32 m_PointBarStatus[BG_EY_NODES_MAX];
-        typedef std::vector<ObjectGuid> PlayersNearPointType;
-        PlayersNearPointType m_PlayersNearPoint[BG_EY_NODES_MAX_WITH_SPEIAL];
+        GuidVector m_PlayersNearPoint[BG_EY_NODES_MAX_WITH_SPEIAL];
         uint8 m_CurrentPointPlayersCount[2*BG_EY_NODES_MAX];
 
         int32 m_PointAddingTimer;

@@ -490,9 +490,9 @@ class ByteBuffer
             if(sLog.IsIncludeTime())
                 sLog.outMyInLine("         ");
 
-            for(uint32 i = 0; i < size(); i++)
+            for (size_t i = 0; i < size(); ++i)
             {
-                if ((i == (j*8)) && ((i != (k*16))))
+                if ((i == (j * 8)) && ((i != (k * 16))))
                 {
                     if (read<uint8>(i) < 0x10)
                     {
@@ -504,7 +504,7 @@ class ByteBuffer
                     }
                     ++j;
                 }
-                else if (i == (k*16))
+                else if (i == (k * 16))
                 {
                     if (read<uint8>(i) < 0x10)
                     {

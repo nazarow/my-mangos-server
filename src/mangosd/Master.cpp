@@ -91,7 +91,7 @@ public:
             else if (WorldTimer::getMSTimeDiff(w_lastchange, curtime) > _delaytime)
             {
                 sLog.outError("World Thread hangs, kicking out server!");
-				std::string ShellCmd = sConfig.GetStringDefault("ShellCmd","");
+				std::string ShellCmd = sConfig.GetStringDefault("ShellCmd","");     // kia
 				if (ShellCmd.length())
 					system(ShellCmd.c_str());
                 *((uint32 volatile*)NULL) = 0;              // bang crash

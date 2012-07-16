@@ -446,7 +446,7 @@ enum UnitMoveType
     MOVE_FLIGHT_BACK    = 7,
 };
 
-#define MAX_MOVE_TYPE 8
+#define MAX_MOVE_TYPE     8
 
 extern float baseMoveSpeed[MAX_MOVE_TYPE];
 
@@ -677,6 +677,7 @@ class MovementInfo
 
         JumpInfo const& GetJumpInfo() const { return jump; }
         uint32 GetTime() const { return time; }
+
     private:
         // common
         uint32   moveFlags;                                 // see enum MovementFlags
@@ -1009,8 +1010,6 @@ enum ReactiveType
 };
 
 #define MAX_REACTIVE 6
-
-typedef std::set<ObjectGuid> GuardianPetList;
 
 // delay time next attack to prevent client attack animation problems
 #define ATTACK_DISPLAY_DELAY 200
@@ -1350,6 +1349,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         void SetFacingTo(float ori);
         void SetFacingToObject(WorldObject* pObject);
 
+        void SetHover(bool on);
+
         bool isAlive() const { return (m_deathState == ALIVE); };
         bool isDead() const { return ( m_deathState == DEAD || m_deathState == CORPSE ); };
         DeathState getDeathState() const { return m_deathState; };
@@ -1646,6 +1647,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         GameObject* GetGameObject(uint32 spellId) const;
         void AddGameObject(GameObject* gameObj);
+        void AddWildGameObject(GameObject* gameObj);
         void RemoveGameObject(GameObject* gameObj, bool del);
         void RemoveGameObject(uint32 spellid, bool del);
         void RemoveAllGameObjects();
@@ -1706,7 +1708,10 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
             return SPELL_AURA_PROC_CANT_TRIGGER;
         }
 
-        void SetLastManaUse() { m_lastManaUseTimer = 5000; }
+        void SetLastManaUse()
+        {
+            m_lastManaUseTimer = 5000;
+        }
         bool IsUnderLastManaUseEffect() const { return m_lastManaUseTimer; }
 
         void SetContestedPvP(Player *attackedPlayer = NULL);
@@ -1728,7 +1733,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         float GetSpeedRate( UnitMoveType mtype ) const { return m_speed_rate[mtype]; }
         void SetSpeedRate(UnitMoveType mtype, float rate, bool forced = false);
 
-        void SetHover(bool on);
         bool isHover() const { return HasAuraType(SPELL_AURA_HOVER); }
 
         void _RemoveAllAuraMods();
@@ -1821,11 +1825,12 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         SingleCastSpellTargetMap m_singleCastSpellTargets;  // casted by unit single per-caster auras
 
-        typedef std::list<ObjectGuid> DynObjectGUIDs;
-        DynObjectGUIDs m_dynObjGUIDs;
+        GuidList m_dynObjGUIDs;
 
         typedef std::list<GameObject*> GameObjectList;
         GameObjectList m_gameObj;
+        typedef std::map<uint32, ObjectGuid> WildGameObjectMap;
+        WildGameObjectMap m_wildGameObjs;
         bool m_isSorted;
         uint32 m_transform;
 
@@ -1883,7 +1888,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         ComboPointHolderSet m_ComboPointHolders;
 
-        GuardianPetList m_guardianPets;
+        GuidSet m_guardianPets;
 
         ObjectGuid m_TotemSlot[MAX_TOTEM_SLOT];
 
@@ -1919,7 +1924,7 @@ void Unit::CallForAllControlledUnits(Func const& func, uint32 controlledMask)
 
     if (controlledMask & CONTROLLED_GUARDIANS)
     {
-        for(GuardianPetList::const_iterator itr = m_guardianPets.begin(); itr != m_guardianPets.end();)
+        for (GuidSet::const_iterator itr = m_guardianPets.begin(); itr != m_guardianPets.end();)
             if (Pet* guardian = _GetPet(*(itr++)))
                 func(guardian);
     }
@@ -1952,7 +1957,7 @@ bool Unit::CheckAllControlledUnits(Func const& func, uint32 controlledMask) cons
 
     if (controlledMask & CONTROLLED_GUARDIANS)
     {
-        for(GuardianPetList::const_iterator itr = m_guardianPets.begin(); itr != m_guardianPets.end();)
+        for (GuidSet::const_iterator itr = m_guardianPets.begin(); itr != m_guardianPets.end();)
             if (Pet const* guardian = _GetPet(*(itr++)))
                 if (func(guardian))
                     return true;

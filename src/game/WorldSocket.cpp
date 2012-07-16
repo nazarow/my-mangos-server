@@ -628,10 +628,9 @@ int WorldSocket::HandleAuthSession (WorldPacket& recvPacket)
 {
     // NOTE: ATM the socket is singlethread, have this in mind ...
     uint8 digest[20];
-    uint32 clientSeed;
+    uint32 clientSeed, id, security;
     uint32 unk2;
     uint32 BuiltNumberClient;
-    uint32 id, security;
     uint8 expansion = 0;
 	uint32 nwflags = 0;
     LocaleConstant locale;
@@ -644,7 +643,6 @@ int WorldSocket::HandleAuthSession (WorldPacket& recvPacket)
     recvPacket >> BuiltNumberClient;
     recvPacket >> unk2;
     recvPacket >> account;
-
     recvPacket >> clientSeed;
     recvPacket.read (digest, 20);
 
@@ -710,7 +708,7 @@ int WorldSocket::HandleAuthSession (WorldPacket& recvPacket)
     g.SetDword (7);
 
     v.SetHexStr(fields[5].GetString());
-    s.SetHexStr (fields[6].GetString ());
+    s.SetHexStr (fields[6].GetString());
 
     const char* sStr = s.AsHexStr ();                       //Must be freed by OPENSSL_free()
     const char* vStr = v.AsHexStr ();                       //Must be freed by OPENSSL_free()
@@ -825,7 +823,7 @@ int WorldSocket::HandleAuthSession (WorldPacket& recvPacket)
     // NOTE ATM the socket is single-threaded, have this in mind ...
     ACE_NEW_RETURN (m_Session, WorldSession (id, this, AccountTypes(security), expansion, mutetime, locale, nwflags), -1);
 
-    m_Crypt.Init (&K);
+    m_Crypt.Init(&K);
 
     m_Session->LoadTutorialsData();
 

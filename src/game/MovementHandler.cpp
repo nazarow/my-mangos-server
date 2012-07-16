@@ -673,12 +673,6 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
     data << mover->GetPackGUID();             // write guid
     movementInfo.Write(data);                               // write data
     mover->SendMessageToSetExcept(&data, _player);
-
-	/*if (_player->m_mover != _player)	//kia patch MK
-	{
-		if (_player->GetDistance2d(_player->m_mover) > 50.0f)
-			_player->CastStop();
-	}*/
 }
 
 void WorldSession::HandleForceSpeedChangeAckOpcodes(WorldPacket &recv_data)

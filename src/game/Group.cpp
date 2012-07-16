@@ -112,7 +112,8 @@ bool Group::Create(ObjectGuid guid, const char * name)
         m_Id = sObjectMgr.GenerateGroupLowGuid();
 
         Player *leader = sObjectMgr.GetPlayer(guid);
-        if(leader) m_difficulty = leader->GetDifficulty();
+        if(leader)
+            m_difficulty = leader->GetDifficulty();
 
         Player::ConvertInstancesToGroup(leader, this, guid);
 
@@ -578,7 +579,7 @@ void Group::GroupLoot(WorldObject* pSource, Loot* loot)
 
         //roll for over-threshold item if it's one-player loot
         if (itemProto->Quality >= uint32(m_lootThreshold) && !lootItem.freeforall)
-            StartLootRool(pSource, GROUP_LOOT, loot, itemSlot);
+            StartLootRoll(pSource, GROUP_LOOT, loot, itemSlot);
         else
             lootItem.is_underthreshold = 1;
     }
@@ -598,7 +599,7 @@ void Group::NeedBeforeGreed(WorldObject* pSource, Loot* loot)
 
         //only roll for one-player items, not for ones everyone can get
         if (itemProto->Quality >= uint32(m_lootThreshold) && !lootItem.freeforall)
-            StartLootRool(pSource, NEED_BEFORE_GREED, loot, itemSlot);
+            StartLootRoll(pSource, NEED_BEFORE_GREED, loot, itemSlot);
         else
             lootItem.is_underthreshold = 1;
     }
@@ -706,27 +707,27 @@ bool Group::CountRollVote(ObjectGuid const& playerGUID, Rolls::iterator& rollI, 
     return false;
 }
 
-void Group::StartLootRool(WorldObject* lootTarget, LootMethod method, Loot* loot, uint8 itemSlot)
+void Group::StartLootRoll(WorldObject* lootTarget, LootMethod method, Loot* loot, uint8 itemSlot)
 {
     if (itemSlot >= loot->items.size())
         return;
 
-    LootItem const& lootItem =  loot->items[itemSlot];
+    LootItem const& lootItem = loot->items[itemSlot];
 
     ItemPrototype const* item = ObjectMgr::GetItemPrototype(lootItem.itemid);
 
     Roll* r = new Roll(lootTarget->GetObjectGuid(), lootItem);
 
     //a vector is filled with only near party members
-    for(GroupReference *itr = GetFirstMember(); itr != NULL; itr = itr->next())
+    for (GroupReference* itr = GetFirstMember(); itr != NULL; itr = itr->next())
     {
-        Player *playerToRoll = itr->getSource();
-        if(!playerToRoll || !playerToRoll->GetSession())
+        Player* playerToRoll = itr->getSource();
+        if (!playerToRoll || !playerToRoll->GetSession())
             continue;
 
         if ((method != NEED_BEFORE_GREED || playerToRoll->CanUseItem(item)==EQUIP_ERR_OK) && lootItem.AllowedForPlayer(playerToRoll) )
         {
-            if (playerToRoll->IsWithinDist(lootTarget, sWorld.getConfig(CONFIG_FLOAT_GROUP_XP_DISTANCE), false))
+            if (playerToRoll->IsWithinDistInMap(lootTarget, sWorld.getConfig(CONFIG_FLOAT_GROUP_XP_DISTANCE), false))
             {
                 r->playerVote[playerToRoll->GetObjectGuid()] = ROLL_NOT_EMITED_YET;
                 ++r->totalPlayersRolling;
@@ -1093,7 +1094,7 @@ bool Group::_addMember(ObjectGuid guid, const char* name, bool isAssistant, uint
     if (!guid)
         return false;
 
-    Player *player = sObjectMgr.GetPlayer(guid, false);
+    Player* player = sObjectMgr.GetPlayer(guid, false);
 	if (!player) return false;
 	sLog.outMy("Group::AddMember %s [leader: %u] %s", player->GetName(), GetLeaderGuid().GetEntry(),isBGGroup()?"BG":"");
 
@@ -1570,7 +1571,7 @@ bool Group::InCombatToInstance(uint32 instanceId)
 
 void Group::ResetInstances(InstanceResetMethod method, Player* SendMsgTo)
 {
-    if(isBGGroup())
+    if (isBGGroup())
         return;
 
     // method can be INSTANCE_RESET_ALL, INSTANCE_RESET_CHANGE_DIFFICULTY, INSTANCE_RESET_GROUP_DISBAND
@@ -1645,7 +1646,6 @@ InstanceGroupBind* Group::GetBoundInstance(uint32 mapid, Player* player)
     // some instances only have one difficulty
     if (!mapEntry->SupportsHeroicMode())
         difficulty = DUNGEON_DIFFICULTY_NORMAL;
-
 
     BoundInstancesMap::iterator itr = m_boundInstances[difficulty].find(mapid);
     if (itr != m_boundInstances[difficulty].end())

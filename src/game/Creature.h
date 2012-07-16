@@ -499,7 +499,7 @@ class MANGOS_DLL_SPEC Creature : public Unit
         bool CanTrainAndResetTalentsOf(Player* pPlayer) const;
 
         bool IsOutOfThreatArea(Unit* pVictim) const;
-        void FillGuidsListFromThreatList(std::vector<ObjectGuid>& guids, uint32 maxamount = 0);
+        void FillGuidsListFromThreatList(GuidVector& guids, uint32 maxamount = 0);
 
         bool IsImmuneToSpell(SpellEntry const* spellInfo);
                                                             // redefine Unit::IsImmuneToSpell
@@ -701,6 +701,7 @@ class MANGOS_DLL_SPEC Creature : public Unit
 
         void SetVirtualItem(VirtualItemSlot slot, uint32 item_id);
         void SetVirtualItemRaw(VirtualItemSlot slot, uint32 display_id, uint32 info0, uint32 info1);
+
     protected:
         uint32 m_spellId;
         bool MeetsSelectAttackingRequirement(Unit* pTarget, SpellEntry const* pSpellInfo, uint32 selectFlags) const;
@@ -731,8 +732,6 @@ class MANGOS_DLL_SPEC Creature : public Unit
         uint32 m_corpseDelay;                               // (secs) delay between death and corpse disappearance
         float m_respawnradius;
 
-        bool m_isPet;                                       // set only in Pet::Pet
-        bool m_isTotem;                                     // set only in Totem::Totem
         CreatureSubtype m_subtype;                          // set in Creatures subclasses for fast it detect without dynamic_cast use
         void RegenerateMana();
         void RegenerateHealth();
@@ -771,9 +770,9 @@ class AssistDelayEvent : public BasicEvent
     private:
         AssistDelayEvent();
 
-        ObjectGuid              m_victimGuid;
-        std::vector<ObjectGuid> m_assistantGuids;
-        Unit&                   m_owner;
+        ObjectGuid m_victimGuid;
+        GuidVector m_assistantGuids;
+        Unit&      m_owner;
 };
 
 class ForcedDespawnDelayEvent : public BasicEvent

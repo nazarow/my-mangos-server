@@ -39,7 +39,7 @@ void WorldSession::HandleQuestgiverStatusQueryOpcode(WorldPacket & recv_data)
     uint8 dialogStatus = DIALOG_STATUS_NONE;
 
     Object* questgiver = _player->GetObjectByTypeMask(guid, TYPEMASK_CREATURE_OR_GAMEOBJECT);
-    if(!questgiver)
+    if (!questgiver)
     {
         DETAIL_LOG("Error in CMSG_QUESTGIVER_STATUS_QUERY, called for not found questgiver %s", guid.GetString().c_str());
         return;
@@ -51,7 +51,7 @@ void WorldSession::HandleQuestgiverStatusQueryOpcode(WorldPacket & recv_data)
     {
         case TYPEID_UNIT:
         {
-            Creature* cr_questgiver=(Creature*)questgiver;
+            Creature* cr_questgiver = (Creature*)questgiver;
 
             if (!cr_questgiver->IsHostileTo(_player))       // not show quest status to enemies
             {
@@ -66,8 +66,10 @@ void WorldSession::HandleQuestgiverStatusQueryOpcode(WorldPacket & recv_data)
         {
             GameObject* go_questgiver = (GameObject*)questgiver;
             dialogStatus = sScriptMgr.GetDialogStatus(_player, go_questgiver);
+
             if (dialogStatus > 6)
                 dialogStatus = getDialogStatus(_player, go_questgiver, DIALOG_STATUS_NONE);
+
             break;
         }
         default:
@@ -315,22 +317,32 @@ void WorldSession::HandleQuestLogRemoveQuest(WorldPacket& recv_data)
     uint8 slot;
     recv_data >> slot;
 
-    DEBUG_LOG( "WORLD: Received CMSG_QUESTLOG_REMOVE_QUEST slot = %u",slot );
+    DEBUG_LOG("WORLD: Received CMSG_QUESTLOG_REMOVE_QUEST slot = %u", slot);
 
-    if( slot < MAX_QUEST_LOG_SIZE )
+    if (slot < MAX_QUEST_LOG_SIZE)
     {
-        if(uint32 quest = _player->GetQuestSlotQuestId(slot))
+        if (uint32 quest = _player->GetQuestSlotQuestId(slot))
         {
-            if(!_player->TakeQuestSourceItem( quest, true ))
+            if (!_player->TakeQuestSourceItem(quest, true))
                 return;                                     // can't un-equip some items, reject quest cancel
 
-            if (const Quest *pQuest = sObjectMgr.GetQuestTemplate(quest))
+            if (const Quest* pQuest = sObjectMgr.GetQuestTemplate(quest))
             {
                 if (pQuest->HasSpecialFlag(QUEST_SPECIAL_FLAG_TIMED))
                     _player->RemoveTimedQuest(quest);
+
+                for (int i = 0; i < QUEST_SOURCE_ITEM_IDS_COUNT; ++i)
+                {
+                    if (pQuest->ReqSourceId[i])
+                    {
+                        ItemPrototype const* iProto = ObjectMgr::GetItemPrototype(pQuest->ReqSourceId[i]);
+                        if (iProto && iProto->Bonding == BIND_QUEST_ITEM)
+                            _player->DestroyItemCount(pQuest->ReqSourceId[i], pQuest->ReqSourceCount[i], true, false, true);
+                    }
+                }
             }
 
-            _player->SetQuestStatus( quest, QUEST_STATUS_NONE);
+            _player->SetQuestStatus(quest, QUEST_STATUS_NONE);
         }
 
         _player->SetQuestSlot(slot, 0);
@@ -344,7 +356,7 @@ void WorldSession::HandleQuestConfirmAccept(WorldPacket& recv_data)
 
     DEBUG_LOG("WORLD: Received CMSG_QUEST_CONFIRM_ACCEPT quest = %u", quest);
 
-    if (const Quest* pQuest =sObjectMgr.GetQuestTemplate(quest))
+    if (const Quest* pQuest = sObjectMgr.GetQuestTemplate(quest))
     {
         if (!pQuest->HasQuestFlag(QUEST_FLAGS_PARTY_ACCEPT))
             return;
@@ -594,7 +606,7 @@ void WorldSession::HandleQuestgiverStatusMultipleQuery(WorldPacket& /*recvPacket
     WorldPacket data(SMSG_QUESTGIVER_STATUS_MULTIPLE, 4);
     data << uint32(count);                                  // placeholder
 
-    for(ObjectGuidSet::const_iterator itr = _player->m_clientGUIDs.begin(); itr != _player->m_clientGUIDs.end(); ++itr)
+    for(GuidSet::const_iterator itr = _player->m_clientGUIDs.begin(); itr != _player->m_clientGUIDs.end(); ++itr)
     {
         uint8 dialogStatus = DIALOG_STATUS_NONE;
 
@@ -608,8 +620,10 @@ void WorldSession::HandleQuestgiverStatusMultipleQuery(WorldPacket& /*recvPacket
 
             if (!questgiver || questgiver->IsHostileTo(_player))
                 continue;
-            if(!questgiver->HasFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_QUESTGIVER))
+
+            if (!questgiver->HasFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_QUESTGIVER))
                 continue;
+
             dialogStatus = sScriptMgr.GetDialogStatus(_player, questgiver);
 
             if (dialogStatus > 6)
@@ -622,9 +636,11 @@ void WorldSession::HandleQuestgiverStatusMultipleQuery(WorldPacket& /*recvPacket
         else if (itr->IsGameObject())
         {
             GameObject *questgiver = GetPlayer()->GetMap()->GetGameObject(*itr);
-            if(!questgiver)
+
+            if (!questgiver)
                 continue;
-            if(questgiver->GetGoType() != GAMEOBJECT_TYPE_QUESTGIVER)
+
+            if (questgiver->GetGoType() != GAMEOBJECT_TYPE_QUESTGIVER)
                 continue;
 
             dialogStatus = sScriptMgr.GetDialogStatus(_player, questgiver);
