@@ -122,6 +122,7 @@ enum eConfigUInt32Values
     CONFIG_UINT32_GM_LEVEL_IN_GM_LIST,
     CONFIG_UINT32_GM_LEVEL_IN_WHO_LIST,
     CONFIG_UINT32_START_GM_LEVEL,
+    CONFIG_UINT32_GM_INVISIBLE_AURA,
     CONFIG_UINT32_GROUP_VISIBILITY,
     CONFIG_UINT32_MAIL_DELIVERY_DELAY,
     CONFIG_UINT32_MASS_MAILER_SEND_PER_TICK,
@@ -495,11 +496,11 @@ class World
         void LoadConfigSettings(bool reload = false);
 
         void SendWorldText(int32 string_id, ...);
-        void SendGlobalText(const char* text, WorldSession *self);
-        void SendGlobalMessage(WorldPacket *packet, WorldSession *self = 0, uint32 team = 0);
-        void SendZoneMessage(uint32 zone, WorldPacket *packet, WorldSession *self = 0, uint32 team = 0);
-        void SendZoneText(uint32 zone, const char *text, WorldSession *self = 0, uint32 team = 0);
-        void SendServerMessage(ServerMessageType type, const char *text = "", Player* player = NULL);
+        void SendGlobalText(const char* text, WorldSession* self);
+        void SendGlobalMessage(WorldPacket* packet, WorldSession* self = NULL, Team team = TEAM_NONE);
+        void SendZoneMessage(uint32 zone, WorldPacket* packet, WorldSession* self = NULL, Team team = TEAM_NONE);
+        void SendZoneText(uint32 zone, const char* text, WorldSession* self = NULL, Team team = TEAM_NONE);
+        void SendServerMessage(ServerMessageType type, const char* text = "", Player* player = NULL);
 
         /// Are we in the middle of a shutdown?
         bool IsShutdowning() const { return m_ShutdownTimer > 0; }

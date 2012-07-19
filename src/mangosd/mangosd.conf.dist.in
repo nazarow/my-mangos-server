@@ -1158,6 +1158,11 @@ Channel.SilentlyGMJoin = 0
 #        Default: 0 (disable)
 #                 1 (enable)
 #
+#    GM.InvisibleAura
+#        A spell that will be cast when a gm uses ".gm visible off" (Must be aura spell)
+#        Default: 37800 (50% Transparency)
+#                 0 (Disabled)
+#
 ###################################################################################################################
 
 GM.LoginState            = 2
@@ -1170,6 +1175,7 @@ GM.InWhoList.Level       = 3
 GM.LogTrade              = 1
 GM.StartLevel            = 1
 GM.LowerSecurity         = 0
+GM.InvisibleAura         = 37800
 
 ###################################################################################################################
 # VISIBILITY AND RADIUSES
@@ -1662,6 +1668,7 @@ MinRecordUpdateTimeDiff = 10
 #                 0 - off
 #        Default: 1 - on
 #
+#
 #    SOAP.Enable
 #        Enable soap service
 #        Default: 0 - off
@@ -1684,6 +1691,7 @@ Ra.Port = 3443
 Ra.MinLevel = 3
 Ra.Secure = 1
 Ra.Stricted = 1
+
 SOAP.Enabled = 0
 SOAP.IP = 127.0.0.1
 SOAP.Port = 7878
